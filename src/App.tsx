@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { useGameLoop, UPGRADE_COSTS, SALARIES } from './hooks/useGameLoop';
-import { ChefHat, Coffee, Utensils, DollarSign, Users, Clock, Plus, ArrowUpCircle, BookOpen } from 'lucide-react';
+import { INGREDIENTS } from './data/recipes';
+import { ChefHat, Coffee, Utensils, DollarSign, Users, Clock, Plus, ArrowUpCircle, BookOpen, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Scene3D } from './components/Scene3D';
 
 export default function App() {
   const { state, actions } = useGameLoop();
-  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes'>('restaurant');
+  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory'>('restaurant');
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>('menu');
 
   // Calculate levels based on current upgrade values
   const mealPriceLevel = Math.round((state.upgrades.mealPrice - 10) / 5);
   const cookingSpeedLevel = Math.round((state.upgrades.cookingSpeed - 1) / 0.5);
   const spawnRateLevel = Math.round((state.upgrades.spawnRate - 1) / 0.5);
+
+  const currentWeek = Math.floor((state.day - 1) / 7) + 1;
+  const dayOfWeek = ((state.day - 1) % 7) + 1;
 
   if (gamePhase === 'menu') {
     return (
@@ -73,7 +77,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 text-stone-600 font-medium">
             <Clock size={20} />
-            <span>Day {state.day}</span>
+            <span>Wk {currentWeek}, Day {dayOfWeek}</span>
             <div className="w-24 h-2 bg-stone-200 rounded-full overflow-hidden ml-2 border border-stone-300">
               <div 
                 className="h-full bg-blue-500 transition-all duration-100 ease-linear"
@@ -107,6 +111,12 @@ export default function App() {
           >
             Recipes
           </button>
+          <button 
+            onClick={() => setActiveTab('inventory')}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-stone-100 text-stone-900' : 'text-stone-500'}`}
+          >
+            Inventory
+          </button>
         </div>
 
         {/* Desktop Tabs (Sidebar) */}
@@ -128,6 +138,12 @@ export default function App() {
             className={`py-3 px-4 text-sm font-bold rounded-xl transition-colors border-2 ${activeTab === 'recipes' ? 'bg-orange-100 border-orange-500 text-orange-900' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}
           >
             Recipes
+          </button>
+          <button 
+            onClick={() => setActiveTab('inventory')}
+            className={`py-3 px-4 text-sm font-bold rounded-xl transition-colors border-2 ${activeTab === 'inventory' ? 'bg-green-100 border-green-500 text-green-900' : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'}`}
+          >
+            Inventory
           </button>
         </div>
 
@@ -237,7 +253,7 @@ export default function App() {
 
               </div>
             </section>
-          ) : (
+          ) : activeTab === 'recipes' ? (
             <section className="bg-white rounded-2xl shadow-sm border-4 border-stone-800 p-4 flex-1 flex flex-col">
               <h2 className="text-lg font-black mb-4 flex items-center gap-2">
                 <BookOpen className="text-orange-500" /> RECIPES
@@ -259,6 +275,15 @@ export default function App() {
                       </div>
                     </div>
                     
+                    {/* Ingredients List */}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(recipe.ingredients || {}).map(([ingId, qty]) => (
+                        <span key={ingId} className="text-[9px] font-bold bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded border border-stone-300">
+                          {qty}x {INGREDIENTS[ingId]?.name || ingId}
+                        </span>
+                      ))}
+                    </div>
+                    
                     {!recipe.unlocked && (
                       <button 
                         onClick={() => actions.unlockRecipe(recipe.id)}
@@ -277,7 +302,53 @@ export default function App() {
                 ))}
               </div>
             </section>
-          )}
+          ) : activeTab === 'inventory' ? (
+            <section className="bg-white rounded-2xl shadow-sm border-4 border-stone-800 p-4 flex-1 flex flex-col">
+              <h2 className="text-lg font-black mb-4 flex items-center gap-2">
+                <Package className="text-green-600" /> INVENTORY
+              </h2>
+              
+              <div className="space-y-2 overflow-y-auto pr-2 flex-1">
+                {Object.values(INGREDIENTS).map(ingredient => {
+                  const stock = state.inventory[ingredient.id] || 0;
+                  return (
+                    <div key={ingredient.id} className="bg-stone-50 border-2 border-stone-800 rounded-xl p-2 flex justify-between items-center">
+                      <div className="flex flex-col">
+                        <span className="font-black text-sm text-stone-800">{ingredient.name}</span>
+                        <span className={`text-[10px] font-bold ${stock < 10 ? 'text-red-500' : 'text-stone-500'}`}>
+                          Stock: {stock}
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => actions.buyIngredient(ingredient.id, 10)}
+                          disabled={state.money < ingredient.cost * 10}
+                          className={`px-2 py-1 rounded text-[10px] font-black border-2 border-stone-800 ${
+                            state.money >= ingredient.cost * 10 
+                              ? 'bg-green-400 hover:bg-green-500 text-stone-900 shadow-[0_2px_0_#14532d] active:translate-y-0.5 active:shadow-none' 
+                              : 'bg-stone-300 text-stone-500 opacity-50'
+                          }`}
+                        >
+                          +10 (${ingredient.cost * 10})
+                        </button>
+                        <button 
+                          onClick={() => actions.buyIngredient(ingredient.id, 100)}
+                          disabled={state.money < ingredient.cost * 100}
+                          className={`px-2 py-1 rounded text-[10px] font-black border-2 border-stone-800 ${
+                            state.money >= ingredient.cost * 100 
+                              ? 'bg-green-400 hover:bg-green-500 text-stone-900 shadow-[0_2px_0_#14532d] active:translate-y-0.5 active:shadow-none' 
+                              : 'bg-stone-300 text-stone-500 opacity-50'
+                          }`}
+                        >
+                          +100 (${ingredient.cost * 100})
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
         </div>
       </main>

@@ -1,22 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
 
 export type CustomerState = 'entering' | 'waiting_order' | 'waiting_food' | 'eating' | 'leaving';
-
-export interface Recipe {
-  id: string;
-  name: string;
-  price: number;
-  cookingTime: number;
-  unlockCost: number;
-  unlocked: boolean;
-}
-
-export const RECIPES: Recipe[] = [
-  { id: 'sushi', name: 'Basic Sushi', price: 15, cookingTime: 1, unlockCost: 0, unlocked: true },
-  { id: 'ramen', name: 'Ramen Bowl', price: 35, cookingTime: 1.5, unlockCost: 500, unlocked: false },
-  { id: 'tempura', name: 'Shrimp Tempura', price: 60, cookingTime: 2, unlockCost: 1500, unlocked: false },
-  { id: 'wagyu', name: 'Wagyu Beef', price: 120, cookingTime: 3, unlockCost: 4000, unlocked: false },
-];
 
 export interface Customer {
   id: string;
@@ -57,6 +42,7 @@ export interface GameState {
   customers: Customer[];
   orders: Order[];
   recipes: Recipe[];
+  inventory: Record<string, number>;
   staff: {
     waiters: number;
     chefs: number;
@@ -74,7 +60,7 @@ export interface GameState {
 }
 
 const INITIAL_STATE: GameState = {
-  money: 1000,
+  money: 10000,
   day: 1,
   time: 0,
   tables: [
@@ -86,6 +72,14 @@ const INITIAL_STATE: GameState = {
   customers: [],
   orders: [],
   recipes: RECIPES,
+  inventory: {
+    rice: 50,
+    fish: 50,
+    noodle: 50,
+    egg: 50,
+    chicken: 50,
+    soy_sauce: 50,
+  },
   staff: {
     waiters: 0,
     chefs: 0,
@@ -140,9 +134,11 @@ export function useGameLoop() {
       if (newState.time >= 100) {
         newState.time = 0;
         newState.day += 1;
-        // Pay salaries at the end of the day
-        const totalSalaries = (staff.waiters * SALARIES.waiter) + (staff.chefs * SALARIES.chef);
-        newState.money -= totalSalaries;
+        // Pay salaries weekly (every 7 days)
+        if (newState.day % 7 === 0) {
+          const totalSalaries = (staff.waiters * SALARIES.waiter * 7) + (staff.chefs * SALARIES.chef * 7);
+          newState.money -= totalSalaries;
+        }
       }
 
       // 2. Spawn Customers
@@ -227,21 +223,40 @@ export function useGameLoop() {
         
         for (let i = 0; i < ordersToTake; i++) {
           const c = waitingForOrder[i];
-          // Update customer state
-          customers = customers.map(cust => cust.id === c.id ? { ...cust, state: 'waiting_food', patience: cust.maxPatience } : cust);
           
           const unlockedRecipes = recipes.filter(r => r.unlocked);
-          const randomRecipe = unlockedRecipes[Math.floor(Math.random() * unlockedRecipes.length)];
-          
-          // Create order
-          orders.push({
-            id: `o_${Date.now()}_${Math.random()}`,
-            customerId: c.id,
-            tableId: c.tableId,
-            recipeId: randomRecipe.id,
-            state: 'pending',
-            progress: 0,
+          const availableRecipes = unlockedRecipes.filter(r => {
+            for (const [ing, qty] of Object.entries(r.ingredients)) {
+              if ((newState.inventory[ing] || 0) < qty) return false;
+            }
+            return true;
           });
+          
+          if (availableRecipes.length > 0) {
+            const randomRecipe = availableRecipes[Math.floor(Math.random() * availableRecipes.length)];
+            
+            // Deduct ingredients
+            for (const [ing, qty] of Object.entries(randomRecipe.ingredients)) {
+              newState.inventory[ing] -= qty;
+            }
+            
+            // Update customer state
+            customers = customers.map(cust => cust.id === c.id ? { ...cust, state: 'waiting_food', patience: cust.maxPatience } : cust);
+            
+            // Create order
+            orders.push({
+              id: `o_${Date.now()}_${Math.random()}`,
+              customerId: c.id,
+              tableId: c.tableId,
+              recipeId: randomRecipe.id,
+              state: 'pending',
+              progress: 0,
+            });
+          } else {
+            // No food available! Customer gets angry and leaves.
+            customers = customers.map(cust => cust.id === c.id ? { ...cust, state: 'leaving', actionTimer: 2 } : cust);
+            lostThisTick += 1;
+          }
         }
       }
 
@@ -433,6 +448,26 @@ export function useGameLoop() {
     });
   };
 
+  const buyIngredient = (ingredientId: string, amount: number) => {
+    setState(prev => {
+      const ingredient = INGREDIENTS[ingredientId];
+      if (!ingredient) return prev;
+      
+      const cost = ingredient.cost * amount;
+      if (prev.money >= cost) {
+        return {
+          ...prev,
+          money: prev.money - cost,
+          inventory: {
+            ...prev.inventory,
+            [ingredientId]: (prev.inventory[ingredientId] || 0) + amount
+          }
+        };
+      }
+      return prev;
+    });
+  };
+
   return {
     state,
     actions: {
@@ -441,7 +476,8 @@ export function useGameLoop() {
       cookOrder,
       buyUpgrade,
       buyLevelUpgrade,
-      unlockRecipe
+      unlockRecipe,
+      buyIngredient
     }
   };
 }
