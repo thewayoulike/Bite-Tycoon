@@ -1,6 +1,6 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Box, Cylinder, Sphere, Plane, Html, Cone, Sky } from '@react-three/drei';
+import { OrbitControls, Text, Box, Cylinder, Sphere, Plane, Html, Cone, Sky, Grid } from '@react-three/drei';
 import { GameState } from '../hooks/useGameLoop';
 import * as THREE from 'three';
 
@@ -13,7 +13,17 @@ const getFoodEmoji = (id: string) => {
   return foods[charCodeSum % foods.length];
 };
 
-const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0 }: { position: [number, number, number], color: string, isWalking: boolean, isSitting?: boolean, role?: 'chef' | 'waiter' | 'customer', seed?: number }) => {
+import { SlimFemale } from './SlimFemale';
+
+const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0, hasTray = false, isTakingOrder = false, isWaitingOrder = false }: { position: [number, number, number], color: string, isWalking: boolean, isSitting?: boolean, role?: 'chef' | 'waiter' | 'customer', seed?: number, hasTray?: boolean, isTakingOrder?: boolean, isWaitingOrder?: boolean }) => {
+  return (
+     <group position={position}>
+       <SlimFemale isWalking={isWalking} isSitting={isSitting} color={color} />
+     </group>
+  );
+};
+
+const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, hasTray = false, isTakingOrder = false, isWaitingOrder = false }: { position: [number, number, number], color: string, isWalking: boolean, isSitting?: boolean, role?: 'chef' | 'waiter' | 'customer', seed?: number, hasTray?: boolean, isTakingOrder?: boolean, isWaitingOrder?: boolean }) => {
   const groupRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Group>(null);
   const rightLegRef = useRef<THREE.Group>(null);
@@ -21,13 +31,9 @@ const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0 }: { p
   const rightArmRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
 
-  const skinColors = ["#fcd34d", "#fca5a5", "#d6a262", "#8b5a2b", "#ffcda2"];
-  const hairColors = ["#1c1917", "#451a03", "#fef08a", "#ea580c", "#78350f"];
-  const pantsColors = ["#1e293b", "#334155", "#0f172a", "#475569"];
-
-  const skinColor = role === 'customer' ? skinColors[seed % skinColors.length] : "#ffcda2";
-  const hairColor = role === 'customer' ? hairColors[(seed * 2) % hairColors.length] : "#1c1917";
-  const pantsColor = role === 'chef' ? '#ffffff' : role === 'waiter' ? '#1a1a1a' : pantsColors[seed % pantsColors.length];
+  const skinColor = "#ffcda2";
+  const hairColor = "#1c1917";
+  const pantsColor = role === 'chef' ? '#ffffff' : role === 'waiter' ? '#1a1a1a' : "#1e293b";
   const shirtColor = role === 'waiter' ? '#ffffff' : role === 'chef' ? '#ffffff' : color;
   const shoeColor = "#1c1917";
 
@@ -38,22 +44,31 @@ const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0 }: { p
         rightLegRef.current.rotation.x = THREE.MathUtils.lerp(rightLegRef.current.rotation.x, -Math.PI / 2, 0.1);
       }
       if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
-        rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
+        if (role === 'customer' && isWaitingOrder && isSitting) {
+          leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, -Math.PI / 2.5, 0.1);
+          rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 2.5, 0.1);
+          leftArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, -0.2, 0.1);
+          rightArmRef.current.rotation.z = THREE.MathUtils.lerp(rightArmRef.current.rotation.z, 0.2, 0.1);
+        } else {
+          leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
+          rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
+          leftArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, 0, 0.1);
+          rightArmRef.current.rotation.z = THREE.MathUtils.lerp(rightArmRef.current.rotation.z, 0, 0.1);
+        }
       }
       if (bodyRef.current) {
          bodyRef.current.position.y = THREE.MathUtils.lerp(bodyRef.current.position.y, 0.7, 0.1);
          bodyRef.current.rotation.y = THREE.MathUtils.lerp(bodyRef.current.rotation.y, 0, 0.1);
       }
     } else if (isWalking) {
-      const t = state.clock.getElapsedTime() * 10;
+      const t = state.clock.elapsedTime * 10;
       if (leftLegRef.current && rightLegRef.current) {
         leftLegRef.current.rotation.x = Math.sin(t) * 0.6;
         rightLegRef.current.rotation.x = Math.sin(t + Math.PI) * 0.6;
       }
       if (leftArmRef.current && rightArmRef.current) {
         leftArmRef.current.rotation.x = Math.sin(t + Math.PI) * 0.6;
-        if (role === 'waiter') {
+        if (role === 'waiter' && hasTray) {
           rightArmRef.current.rotation.x = -Math.PI / 2; // Hold tray
         } else {
           rightArmRef.current.rotation.x = Math.sin(t) * 0.6;
@@ -69,11 +84,16 @@ const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0 }: { p
         rightLegRef.current.rotation.x = THREE.MathUtils.lerp(rightLegRef.current.rotation.x, 0, 0.1);
       }
       if (leftArmRef.current && rightArmRef.current) {
-        leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
-        if (role === 'waiter') {
-          rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 2, 0.1);
+        if (role === 'waiter' && isTakingOrder) {
+          leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, -Math.PI / 4, 0.1);
+          rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 3, 0.1);
         } else {
-          rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
+          leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
+          if (role === 'waiter' && hasTray) {
+            rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, -Math.PI / 2, 0.1);
+          } else {
+            rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
+          }
         }
       }
       if (bodyRef.current) {
@@ -237,6 +257,27 @@ const Person3D = ({ position, color, isWalking, isSitting, role, seed = 0 }: { p
           </Cylinder>
           {/* Hand */}
           <Sphere args={[0.05, 16, 16]} position={[-0.04, -0.5, 0]}><meshStandardMaterial color={skinColor} /></Sphere>
+          
+          {/* Notepad */}
+          {role === 'waiter' && isTakingOrder && (
+            <group position={[-0.04, -0.55, 0.1]} rotation={[Math.PI/4, 0, 0]}>
+              <Box args={[0.15, 0.2, 0.02]}><meshStandardMaterial color="#ffffff" /></Box>
+              {/* Pen */}
+              <Cylinder args={[0.005, 0.005, 0.1, 8]} position={[0.05, 0, 0.02]} rotation={[0, 0, Math.PI/6]}><meshStandardMaterial color="#1e293b" /></Cylinder>
+            </group>
+          )}
+
+          {/* Customer Menu */}
+          {role === 'customer' && isWaitingOrder && isSitting && (
+            <group position={[-0.1, -0.4, 0.2]} rotation={[Math.PI/6, -Math.PI/8, 0]}>
+              <Box args={[0.3, 0.4, 0.01]}><meshStandardMaterial color="#fef08a" /></Box>
+              {/* Menu lines */}
+              <Box args={[0.2, 0.02, 0.02]} position={[0, 0.1, 0.01]}><meshStandardMaterial color="#b45309" /></Box>
+              <Box args={[0.15, 0.01, 0.02]} position={[-0.025, 0.05, 0.01]}><meshStandardMaterial color="#b45309" /></Box>
+              <Box args={[0.2, 0.01, 0.02]} position={[0, 0, 0.01]}><meshStandardMaterial color="#b45309" /></Box>
+              <Box args={[0.18, 0.01, 0.02]} position={[-0.01, -0.05, 0.01]}><meshStandardMaterial color="#b45309" /></Box>
+            </group>
+          )}
         </group>
 
         <group ref={rightArmRef} position={[0.28, 0.35, 0]}>
@@ -294,13 +335,15 @@ const CustomerMember3D = ({
   isSitting, 
   isWalking, 
   color, 
-  seed 
+  seed,
+  isWaitingOrder
 }: { 
   index: number, 
   isSitting: boolean, 
   isWalking: boolean, 
   color: string, 
-  seed: number 
+  seed: number,
+  isWaitingOrder: boolean
 }) => {
   const ref = useRef<THREE.Group>(null);
 
@@ -330,15 +373,20 @@ const CustomerMember3D = ({
     }
   });
 
+  // Generate a consistent shirt color based on seed so it doesn't change when sitting
+  const shirtColors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f43f5e"];
+  const consistentColor = shirtColors[seed % shirtColors.length];
+
   return (
     <group ref={ref} position={walkPos as [number, number, number]}>
       <Person3D 
         position={[0, 0, 0]} 
-        color={color} 
+        color={consistentColor} 
         isWalking={isWalking} 
         isSitting={isSitting} 
         role="customer" 
         seed={seed} 
+        isWaitingOrder={isWaitingOrder}
       />
     </group>
   );
@@ -349,7 +397,15 @@ const Customer3D = ({ customer, table, actions, staff }: { customer: any, table:
   const [isWalking, setIsWalking] = useState(false);
   const [isSitting, setIsSitting] = useState(false);
   
-  const seed = parseInt(customer.id.replace(/\D/g, '')) || 0;
+  // Use a stable random seed based on the customer ID string hash
+  const seed = useMemo(() => {
+    let hash = 0;
+    for (let i = 0; i < customer.id.length; i++) {
+      hash = ((hash << 5) - hash) + customer.id.charCodeAt(i);
+      hash |= 0; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  }, [customer.id]);
   
   // Determine group size (1 to 4) based on seed
   const groupSize = useMemo(() => {
@@ -357,37 +413,88 @@ const Customer3D = ({ customer, table, actions, staff }: { customer: any, table:
   }, [seed]);
   
   // Target position (center of table)
-  let targetX = table ? mapPos(table.x) : 0;
-  let targetZ = table ? mapPos(table.y) : 0;
+  let finalTargetX = table ? mapPos(table.x) : 0;
+  let finalTargetZ = table ? mapPos(table.y) : 0;
   
   if (customer.state === 'leaving') {
-    targetX = -15; // Walk off screen
-    targetZ = 5;
+    finalTargetX = 0; // Walk to door
+    finalTargetZ = 22; // Walk off screen
   } else if (customer.state === 'entering') {
     // Start position if just entering
     if (!ref.current) {
-      targetX = -15;
-      targetZ = 5;
+      finalTargetX = 0;
+      finalTargetZ = 22;
     }
   }
 
-  // Smooth movement
+  // Smooth movement with waypoints
   useFrame((state, delta) => {
     if (ref.current) {
+      let currentTargetX = finalTargetX;
+      let currentTargetZ = finalTargetZ;
+
+      // Simple L-shaped pathfinding to avoid walking through tables
+      if (customer.state === 'leaving') {
+        if (ref.current.position.z < 14) {
+          // Inside restaurant
+          if (Math.abs(ref.current.position.x) > 0.5) {
+             // Move to center aisle (X=0)
+             currentTargetX = 0;
+             currentTargetZ = ref.current.position.z;
+          } else {
+             // Move to door
+             currentTargetX = 0;
+             currentTargetZ = 15;
+          }
+        } else {
+           // Outside
+           currentTargetX = 0;
+           currentTargetZ = 22;
+        }
+      } else if (customer.state !== 'entering') {
+        // Going to table
+        if (ref.current.position.z > 14) {
+           // Outside, move to door
+           currentTargetX = 0;
+           currentTargetZ = 14;
+        } else {
+           // Inside
+           if (Math.abs(ref.current.position.z - finalTargetZ) > 0.5 && Math.abs(ref.current.position.x) < 0.5) {
+             // On aisle, move to table's Z
+             currentTargetX = 0;
+             currentTargetZ = finalTargetZ;
+           } else if (Math.abs(ref.current.position.x) > 0.5 && Math.abs(ref.current.position.z - finalTargetZ) > 0.5) {
+             // Off aisle, move to aisle first
+             currentTargetX = 0;
+             currentTargetZ = ref.current.position.z;
+           } else {
+             // At table's Z, move to table's X
+             currentTargetX = finalTargetX;
+             currentTargetZ = finalTargetZ;
+           }
+        }
+      }
+
       const dist = Math.sqrt(
-        Math.pow(targetX - ref.current.position.x, 2) + 
-        Math.pow(targetZ - ref.current.position.z, 2)
+        Math.pow(currentTargetX - ref.current.position.x, 2) + 
+        Math.pow(currentTargetZ - ref.current.position.z, 2)
       );
       
       if (dist > 0.1) {
         setIsWalking(true);
         setIsSitting(false);
-        ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, targetX, delta * 2);
-        ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, targetZ, delta * 2);
+        
+        // Move at constant speed instead of lerp for better path following
+        const speed = 4;
+        const dx = currentTargetX - ref.current.position.x;
+        const dz = currentTargetZ - ref.current.position.z;
+        
+        ref.current.position.x += (dx / dist) * speed * delta;
+        ref.current.position.z += (dz / dist) * speed * delta;
         
         // Look at target
-        const angle = Math.atan2(targetX - ref.current.position.x, targetZ - ref.current.position.z);
-        ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 5);
+        const angle = Math.atan2(currentTargetX - ref.current.position.x, currentTargetZ - ref.current.position.z);
+        ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 10);
       } else {
         setIsWalking(false);
         if (table && customer.state !== 'leaving' && customer.state !== 'entering') {
@@ -402,20 +509,11 @@ const Customer3D = ({ customer, table, actions, staff }: { customer: any, table:
   });
 
   // Color based on patience
-  const color = customer.state === 'eating' ? '#4ade80' : 
-                customer.patience > 50 ? '#60a5fa' : 
-                customer.patience > 25 ? '#fb923c' : '#ef4444';
-
-  // Chair positions relative to table center
-  const chairPositions = [
-    { pos: [-1.5, 0, 0], rot: Math.PI / 2 },
-    { pos: [1.5, 0, 0], rot: -Math.PI / 2 },
-    { pos: [0, 0, -1.5], rot: 0 },
-    { pos: [0, 0, 1.5], rot: Math.PI },
-  ];
+  const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6"];
+  const color = colors[seed % colors.length];
 
   return (
-    <group ref={ref} position={[-15, 0, 5]}>
+    <group ref={ref} position={[0, 0, 22]}>
       {/* Render group members */}
       {Array.from({ length: groupSize }).map((_, i) => (
         <CustomerMember3D 
@@ -425,6 +523,7 @@ const Customer3D = ({ customer, table, actions, staff }: { customer: any, table:
           isWalking={isWalking}
           color={color}
           seed={seed + i}
+          isWaitingOrder={customer.state === 'waiting_order'}
         />
       ))}
       
@@ -468,47 +567,34 @@ const Customer3D = ({ customer, table, actions, staff }: { customer: any, table:
 
 const Waiter3D = ({ index, state }: { index: number, state: GameState }) => {
   const ref = useRef<THREE.Group>(null);
-  const [target, setTarget] = useState([-5 + index * 2, -8]);
-  const [isWalking, setIsWalking] = useState(false);
+  const waiterEntity = state.waiterEntities[index];
 
   useFrame((threeState, delta) => {
-    // Randomly move around the counter area or to tables if there are orders
-    if (Math.random() < 0.01) {
-      // Find a table that needs serving or taking order
-      const needsService = state.customers.find(c => c.state === 'waiting_order' || c.state === 'waiting_food');
-      if (needsService) {
-        const table = state.tables.find(t => t.id === needsService.tableId);
-        if (table) {
-          setTarget([mapPos(table.x) + (Math.random() * 2 - 1), mapPos(table.y) - 2]);
-        }
-      } else {
-        // Idle near counter
-        setTarget([-5 + index * 2 + (Math.random() * 4 - 2), -6 + (Math.random() * 2 - 1)]);
-      }
-    }
-
-    if (ref.current) {
+    if (ref.current && waiterEntity) {
+      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, waiterEntity.x, delta * 10);
+      ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, waiterEntity.y, delta * 10);
+      
       const dist = Math.sqrt(
-        Math.pow(target[0] - ref.current.position.x, 2) + 
-        Math.pow(target[1] - ref.current.position.z, 2)
+        Math.pow(waiterEntity.x - ref.current.position.x, 2) + 
+        Math.pow(waiterEntity.y - ref.current.position.z, 2)
       );
       
       if (dist > 0.1) {
-        setIsWalking(true);
-        ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, target[0], delta * 2);
-        ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, target[1], delta * 2);
-        
-        const angle = Math.atan2(target[0] - ref.current.position.x, target[1] - ref.current.position.z);
-        ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 5);
-      } else {
-        setIsWalking(false);
+        const angle = Math.atan2(waiterEntity.x - ref.current.position.x, waiterEntity.y - ref.current.position.z);
+        ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 10);
       }
     }
   });
 
+  if (!waiterEntity) return null;
+
+  const isWalking = waiterEntity.state !== 'idle' && waiterEntity.state !== 'taking_order';
+  const hasTray = waiterEntity.state === 'walking_to_serve' || waiterEntity.state === 'walking_to_counter_with_order';
+  const isTakingOrder = waiterEntity.state === 'taking_order';
+
   return (
-    <group ref={ref} position={[-5 + index * 2, 0, -8]}>
-      <Person3D position={[0, 0, 0]} color="#1e293b" isWalking={isWalking} role="waiter" seed={index} />
+    <group ref={ref} position={[waiterEntity.x, 0, waiterEntity.y]}>
+      <Person3D position={[0, 0, 0]} color="#1e293b" isWalking={isWalking} role="waiter" seed={index} hasTray={hasTray} isTakingOrder={isTakingOrder} />
     </group>
   );
 };
@@ -603,47 +689,118 @@ const CatTree = ({ position }: { position: [number, number, number] }) => {
   );
 };
 
-const RestaurantWall = ({ position, rotation, width, height }: { position: [number, number, number], rotation: [number, number, number], width: number, height: number }) => {
+const RestaurantWall = ({ position, rotation, width, height, layout = 0, customWallColor, customFrameColor }: { position: [number, number, number], rotation: [number, number, number], width: number, height: number, layout?: number, customWallColor?: string | null, customFrameColor?: string | null }) => {
+  // Define 6 structural layouts
+  const designs = [
+    { name: "Standard", w: 6, h: 5, y: 5.5, count: width > 20 ? 3 : 1, mullions: true },
+    { name: "Modern Wide", w: 8, h: 6, y: 5, count: width > 20 ? 2 : 1, mullions: false },
+    { name: "Classic Tall", w: 4, h: 7, y: 4.5, count: width > 20 ? 4 : 2, mullions: true },
+    { name: "High Windows", w: 5, h: 2, y: 8, count: width > 20 ? 4 : 2, mullions: false },
+    { name: "Storefront", w: 8, h: 8, y: 4, count: width > 20 ? 3 : 1, mullions: false },
+    { name: "Solid Wall", w: 0, h: 0, y: 0, count: 0, mullions: false },
+  ];
+
+  const currentDesign = designs[layout % designs.length];
+  
+  const hasWindows = currentDesign.count > 0 && width > 10;
+  const numWindows = hasWindows ? currentDesign.count : 0;
+  const windowWidth = currentDesign.w;
+  const windowHeight = currentDesign.h;
+  const windowY = currentDesign.y;
+  const bottomHeight = hasWindows ? windowY - windowHeight / 2 : 0;
+  const topHeight = hasWindows ? height - (windowY + windowHeight / 2) : 0;
+
+  const wallColor = customWallColor || "#f1f5f9";
+  const frameColor = customFrameColor || "#451a03";
+  const glassColor = "#bae6fd";
+  const trimColor = customFrameColor ? customFrameColor : "#0f172a"; 
+  const trimTopColor = customFrameColor ? customFrameColor : "#1e293b";
+
   return (
     <group position={position} rotation={rotation}>
-      {/* Lower Wall (Wainscoting) */}
-      <Box args={[width, height * 0.4, 0.4]} position={[0, height * 0.2, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#78350f" roughness={0.8} />
-      </Box>
-      {/* Upper Wall (Wallpaper/Paint) */}
-      <Box args={[width, height * 0.6, 0.2]} position={[0, height * 0.7, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#fef3c7" roughness={1} />
-      </Box>
-      {/* Trim / Chair Rail */}
-      <Box args={[width, 0.15, 0.45]} position={[0, height * 0.4, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#451a03" />
-      </Box>
-      {/* Baseboard */}
-      <Box args={[width, 0.2, 0.45]} position={[0, 0.1, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#451a03" />
-      </Box>
-      {/* Crown Molding */}
-      <Box args={[width, 0.3, 0.45]} position={[0, height - 0.15, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color="#451a03" />
-      </Box>
-      
-      {/* Decorative Wall Panels / Art */}
-      {Array.from({ length: Math.floor(width / 4) }).map((_, i) => (
-        <group key={i} position={[-width/2 + 2 + i * 4, height * 0.7, 0.15]}>
-          {/* Frame */}
-          <Box args={[1.6, 2.1, 0.05]}>
-            <meshStandardMaterial color="#451a03" />
+      {!hasWindows ? (
+        <Box args={[width, height, 0.5]} position={[0, height / 2, 0]} receiveShadow castShadow>
+          <meshStandardMaterial color={wallColor} />
+        </Box>
+      ) : (
+        <group>
+          {/* Bottom Wall */}
+          <Box args={[width, bottomHeight, 0.5]} position={[0, bottomHeight / 2, 0]} receiveShadow castShadow>
+            <meshStandardMaterial color={wallColor} />
           </Box>
-          {/* Canvas */}
-          <Box args={[1.4, 1.9, 0.06]}>
-            <meshStandardMaterial color="#fffbeb" />
+          {/* Top Wall */}
+          <Box args={[width, topHeight, 0.5]} position={[0, height - topHeight / 2, 0]} receiveShadow castShadow>
+            <meshStandardMaterial color={wallColor} />
           </Box>
-          {/* Art (Abstract shape) */}
-          <Box args={[0.8, 0.8, 0.07]} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 4]}>
-            <meshStandardMaterial color="#ef4444" />
-          </Box>
+          
+          {/* Windows */}
+          {Array.from({ length: numWindows }).map((_, i) => {
+            const spacing = width / numWindows;
+            const x = -width / 2 + spacing / 2 + i * spacing;
+            return (
+              <group key={`win-${i}`} position={[x, windowY, 0]}>
+                {/* Glass */}
+                <Box args={[windowWidth, windowHeight, 0.1]}>
+                  <meshStandardMaterial color={glassColor} transparent opacity={0.3} roughness={0.1} metalness={0.5} />
+                </Box>
+                {/* Frame Top */}
+                <Box args={[windowWidth + 0.4, 0.2, 0.6]} position={[0, windowHeight/2 + 0.1, 0]}>
+                  <meshStandardMaterial color={frameColor} />
+                </Box>
+                {/* Frame Bottom */}
+                <Box args={[windowWidth + 0.4, 0.2, 0.6]} position={[0, -windowHeight/2 - 0.1, 0]}>
+                  <meshStandardMaterial color={frameColor} />
+                </Box>
+                {/* Frame Left */}
+                <Box args={[0.2, windowHeight, 0.6]} position={[-windowWidth/2 - 0.1, 0, 0]}>
+                  <meshStandardMaterial color={frameColor} />
+                </Box>
+                {/* Frame Right */}
+                <Box args={[0.2, windowHeight, 0.6]} position={[windowWidth/2 + 0.1, 0, 0]}>
+                  <meshStandardMaterial color={frameColor} />
+                </Box>
+                {/* Mullions */}
+                {currentDesign.mullions && (
+                  <>
+                    <Box args={[0.15, windowHeight, 0.15]} position={[0, 0, 0]}><meshStandardMaterial color={frameColor} /></Box>
+                    <Box args={[windowWidth, 0.15, 0.15]} position={[0, 0, 0]}><meshStandardMaterial color={frameColor} /></Box>
+                  </>
+                )}
+              </group>
+            );
+          })}
+          
+          {/* Pillars */}
+          {Array.from({ length: numWindows + 1 }).map((_, i) => {
+            const spacing = width / numWindows;
+            const pillarWidth = spacing - windowWidth;
+            let x = 0;
+            let pWidth = pillarWidth;
+            if (i === 0) {
+              pWidth = pillarWidth / 2;
+              x = -width / 2 + pWidth / 2;
+            } else if (i === numWindows) {
+              pWidth = pillarWidth / 2;
+              x = width / 2 - pWidth / 2;
+            } else {
+              x = -width / 2 + i * spacing;
+            }
+            return (
+              <Box key={`pil-${i}`} args={[pWidth, windowHeight, 0.5]} position={[x, windowY, 0]} receiveShadow castShadow>
+                <meshStandardMaterial color={wallColor} />
+              </Box>
+            );
+          })}
         </group>
-      ))}
+      )}
+
+      {/* Wainscoting / Trim */}
+      <Box args={[width + 0.1, 1.5, 0.6]} position={[0, 0.75, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={trimColor} />
+      </Box>
+      <Box args={[width + 0.1, 0.2, 0.7]} position={[0, 1.5, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={trimTopColor} />
+      </Box>
     </group>
   );
 };
@@ -684,7 +841,16 @@ const Table3D = ({ table, index, state }: { table: any, index: number, state: Ga
       
       {/* Table Top */}
       <Cylinder args={[1.2, 1.2, 0.1, 32]} position={[0, 1.05, 0]}>
-        <meshStandardMaterial color="#f8fafc" />
+        <meshPhysicalMaterial 
+          color="#ffffff" 
+          transmission={0.9} 
+          opacity={1} 
+          metalness={0.1} 
+          roughness={0.05} 
+          ior={1.5} 
+          thickness={0.1} 
+          transparent 
+        />
       </Cylinder>
 
       {/* Chairs */}
@@ -763,17 +929,17 @@ const Table3D = ({ table, index, state }: { table: any, index: number, state: Ga
           </Box>
         </group>
       )}
-
-      <Text position={[0, 1.15, 0]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.5} color="#1c1917">
-        {`T${index + 1}`}
-      </Text>
     </group>
   );
 };
 
-const AnimatedDoor = ({ customers }: { customers: any[] }) => {
+const AnimatedDoor = ({ customers, position = [-14.8, 0, 5], rotation = [0, 0, 0], layout = 0, customFrameColor }: { customers: any[], position?: [number, number, number], rotation?: [number, number, number], layout?: number, customFrameColor?: string | null }) => {
   const leftDoorRef = useRef<THREE.Group>(null);
   const rightDoorRef = useRef<THREE.Group>(null);
+
+  const frameColor = customFrameColor || "#451a03";
+  const doorFrameColor = customFrameColor || "#78350f";
+  const glassColor = "#bae6fd";
 
   useFrame((state, delta) => {
     const isNear = customers.some(c => c.state === 'entering' || c.state === 'leaving');
@@ -788,29 +954,29 @@ const AnimatedDoor = ({ customers }: { customers: any[] }) => {
   });
 
   return (
-    <group position={[-14.8, 0, 5]}>
+    <group position={position} rotation={rotation}>
       {/* Door Frame */}
       <Box args={[0.6, 0.2, 3.4]} position={[0, 6.3, 0]}>
-        <meshStandardMaterial color="#451a03" />
+        <meshStandardMaterial color={frameColor} />
       </Box>
       <Box args={[0.6, 6.4, 0.1]} position={[0, 3.2, -1.65]}>
-        <meshStandardMaterial color="#451a03" />
+        <meshStandardMaterial color={frameColor} />
       </Box>
       <Box args={[0.6, 6.4, 0.1]} position={[0, 3.2, 1.65]}>
-        <meshStandardMaterial color="#451a03" />
+        <meshStandardMaterial color={frameColor} />
       </Box>
       
       {/* Left Door */}
       <group ref={leftDoorRef} position={[0, 3.1, -0.75]}>
         {/* Glass */}
         <Box args={[0.1, 6, 1.4]}>
-          <meshStandardMaterial color="#bae6fd" transparent opacity={0.4} roughness={0.1} metalness={0.8} />
+          <meshStandardMaterial color={glassColor} transparent opacity={0.3} roughness={0.1} metalness={0.5} />
         </Box>
         {/* Wooden Frame */}
-        <Box args={[0.2, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 0.15, 1.4]} position={[0, 2.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 0.3, 1.4]} position={[0, -2.85, 0]}><meshStandardMaterial color="#78350f" /></Box>
+        <Box args={[0.2, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 0.15, 1.4]} position={[0, 2.9, 0]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 0.3, 1.4]} position={[0, -2.85, 0]}><meshStandardMaterial color={doorFrameColor} /></Box>
         {/* Handle */}
         <Cylinder args={[0.03, 0.03, 0.8]} position={[0.15, 0, 0.4]} rotation={[Math.PI / 2, 0, 0]}>
           <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
@@ -821,13 +987,13 @@ const AnimatedDoor = ({ customers }: { customers: any[] }) => {
       <group ref={rightDoorRef} position={[0, 3.1, 0.75]}>
         {/* Glass */}
         <Box args={[0.1, 6, 1.4]}>
-          <meshStandardMaterial color="#bae6fd" transparent opacity={0.4} roughness={0.1} metalness={0.8} />
+          <meshStandardMaterial color={glassColor} transparent opacity={0.3} roughness={0.1} metalness={0.5} />
         </Box>
         {/* Wooden Frame */}
-        <Box args={[0.2, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 0.15, 1.4]} position={[0, 2.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
-        <Box args={[0.2, 0.3, 1.4]} position={[0, -2.85, 0]}><meshStandardMaterial color="#78350f" /></Box>
+        <Box args={[0.2, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 0.15, 1.4]} position={[0, 2.9, 0]}><meshStandardMaterial color={doorFrameColor} /></Box>
+        <Box args={[0.2, 0.3, 1.4]} position={[0, -2.85, 0]}><meshStandardMaterial color={doorFrameColor} /></Box>
         {/* Handle */}
         <Cylinder args={[0.03, 0.03, 0.8]} position={[0.15, 0, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
           <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
@@ -873,17 +1039,27 @@ const Tree = ({ position, scale = 1, type = 'pine' }: { position: [number, numbe
   </group>
 );
 
-const Car = ({ initialZ, speed, color, direction, xOffset }: { initialZ: number, speed: number, color: string, direction: 1 | -1, xOffset: number }) => {
+const Car = ({ initialZ, speed, color, direction, xOffset, isHorizontal = false }: { initialZ: number, speed: number, color: string, direction: 1 | -1, xOffset: number, isHorizontal?: boolean }) => {
   const ref = useRef<THREE.Group>(null);
   useFrame((state, delta) => {
     if (ref.current) {
-      ref.current.position.z += speed * direction * delta;
-      if (direction === 1 && ref.current.position.z > 150) ref.current.position.z = -150;
-      if (direction === -1 && ref.current.position.z < -150) ref.current.position.z = 150;
+      if (isHorizontal) {
+        ref.current.position.x += speed * direction * delta;
+        if (direction === 1 && ref.current.position.x > 150) ref.current.position.x = -150;
+        if (direction === -1 && ref.current.position.x < -150) ref.current.position.x = 150;
+      } else {
+        ref.current.position.z += speed * direction * delta;
+        if (direction === 1 && ref.current.position.z > 150) ref.current.position.z = -150;
+        if (direction === -1 && ref.current.position.z < -150) ref.current.position.z = 150;
+      }
     }
   });
   return (
-    <group ref={ref} position={[xOffset, 0, initialZ]} rotation={[0, direction === 1 ? 0 : Math.PI, 0]}>
+    <group 
+      ref={ref} 
+      position={isHorizontal ? [initialZ, 0, xOffset] : [xOffset, 0, initialZ]} 
+      rotation={[0, isHorizontal ? (direction === 1 ? Math.PI / 2 : -Math.PI / 2) : (direction === 1 ? 0 : Math.PI), 0]}
+    >
       {/* Chassis */}
       <Box args={[2.2, 0.4, 4.8]} position={[0, 0.6, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
       {/* Main Body */}
@@ -903,12 +1079,15 @@ const Car = ({ initialZ, speed, color, direction, xOffset }: { initialZ: number,
       <Box args={[0.5, 0.3, 0.1]} position={[0.8, 1.1, 2.3]}><meshStandardMaterial color="#fef08a" emissive="#fef08a" emissiveIntensity={2} /></Box>
       {/* Taillights */}
       <Box args={[0.6, 0.3, 0.1]} position={[-0.7, 1.1, -2.3]}><meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1} /></Box>
-      <Box args={[0.6, 0.3, 0.1]} position={[0.7, 1.1, -2.3]}><meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1} /></Box>
+      <Box args={[0.6, 0.3, 0.1]} position={[0.8, 1.1, -2.3]}><meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1} /></Box>
     </group>
   );
 };
 
-const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,0], hasAwning = false }: { position: [number, number, number], size: [number, number, number], color: string, roofColor: string, name: string, rotation?: [number, number, number], hasAwning?: boolean }) => {
+const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,0], hasAwning = false, isNight = false, pathLength = 0 }: { position: [number, number, number], size: [number, number, number], color: string, roofColor: string, name: string, rotation?: [number, number, number], hasAwning?: boolean, isNight?: boolean, pathLength?: number }) => {
+  const windowEmissive = isNight ? 0.8 : 0.1;
+  const windowColor = isNight ? "#fef08a" : "#bae6fd";
+
   return (
     <group position={position} rotation={rotation}>
       {/* Main Building Base */}
@@ -916,44 +1095,109 @@ const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,
         <meshStandardMaterial color={color} roughness={0.7} />
       </Box>
       
-      {/* Sloped Roof */}
-      <Cone args={[Math.max(size[0], size[2]) * 0.8, size[1] * 0.4, 4]} position={[0, size[1] + (size[1]*0.2), 0]} rotation={[0, Math.PI/4, 0]} castShadow>
-        <meshStandardMaterial color={roofColor} roughness={0.9} />
-      </Cone>
+      {/* Luxury Base Trim */}
+      <Box args={[size[0] + 0.5, 1.5, size[2] + 0.5]} position={[0, 0.75, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#334155" roughness={0.8} />
+      </Box>
 
-      {/* Windows */}
-      <group position={[0, size[1]/2, size[2]/2 + 0.05]}>
-        <Box args={[size[0]*0.2, size[1]*0.2, 0.1]} position={[-size[0]*0.25, size[1]*0.2, 0]}>
-          <meshStandardMaterial color="#bae6fd" emissive="#bae6fd" emissiveIntensity={0.2} />
-        </Box>
-        <Box args={[size[0]*0.2, size[1]*0.2, 0.1]} position={[size[0]*0.25, size[1]*0.2, 0]}>
-          <meshStandardMaterial color="#bae6fd" emissive="#bae6fd" emissiveIntensity={0.2} />
-        </Box>
-        <Box args={[size[0]*0.2, size[1]*0.2, 0.1]} position={[-size[0]*0.25, -size[1]*0.1, 0]}>
-          <meshStandardMaterial color="#bae6fd" emissive="#bae6fd" emissiveIntensity={0.2} />
-        </Box>
-        <Box args={[size[0]*0.2, size[1]*0.2, 0.1]} position={[size[0]*0.25, -size[1]*0.1, 0]}>
-          <meshStandardMaterial color="#bae6fd" emissive="#bae6fd" emissiveIntensity={0.2} />
-        </Box>
+      {/* Luxury Top Cornice */}
+      <Box args={[size[0] + 0.8, 1, size[2] + 0.8]} position={[0, size[1] - 0.5, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#cbd5e1" roughness={0.5} />
+      </Box>
+      
+      {/* Sloped Roof */}
+      <group position={[0, size[1] + (size[1]*0.2), 0]} scale={[size[0] / Math.SQRT2, 1, size[2] / Math.SQRT2]}>
+        <Cone args={[1, size[1] * 0.4, 4]} rotation={[0, Math.PI/4, 0]} castShadow>
+          <meshStandardMaterial color={roofColor} roughness={0.9} />
+        </Cone>
       </group>
 
-      {/* Door */}
-      <Box args={[size[0]*0.25, size[1]*0.3, 0.1]} position={[0, size[1]*0.15, size[2]/2 + 0.05]}>
-        <meshStandardMaterial color="#451a03" />
-      </Box>
+      {/* Windows with frames */}
+      <group position={[0, size[1]/2, size[2]/2 + 0.05]}>
+        {/* Top Left */}
+        <group position={[-size[0]*0.25, size[1]*0.2, 0]}>
+          <Box args={[size[0]*0.22, size[1]*0.22, 0.05]}><meshStandardMaterial color="#94a3b8" /></Box>
+          <Box args={[size[0]*0.2, size[1]*0.2, 0.1]}>
+            <meshStandardMaterial color={windowColor} emissive={windowColor} emissiveIntensity={windowEmissive} />
+          </Box>
+        </group>
+        {/* Top Right */}
+        <group position={[size[0]*0.25, size[1]*0.2, 0]}>
+          <Box args={[size[0]*0.22, size[1]*0.22, 0.05]}><meshStandardMaterial color="#94a3b8" /></Box>
+          <Box args={[size[0]*0.2, size[1]*0.2, 0.1]}>
+            <meshStandardMaterial color={windowColor} emissive={windowColor} emissiveIntensity={windowEmissive} />
+          </Box>
+        </group>
+        {/* Bottom Left */}
+        <group position={[-size[0]*0.25, -size[1]*0.1, 0]}>
+          <Box args={[size[0]*0.22, size[1]*0.22, 0.05]}><meshStandardMaterial color="#94a3b8" /></Box>
+          <Box args={[size[0]*0.2, size[1]*0.2, 0.1]}>
+            <meshStandardMaterial color={windowColor} emissive={windowColor} emissiveIntensity={windowEmissive} />
+          </Box>
+        </group>
+        {/* Bottom Right */}
+        <group position={[size[0]*0.25, -size[1]*0.1, 0]}>
+          <Box args={[size[0]*0.22, size[1]*0.22, 0.05]}><meshStandardMaterial color="#94a3b8" /></Box>
+          <Box args={[size[0]*0.2, size[1]*0.2, 0.1]}>
+            <meshStandardMaterial color={windowColor} emissive={windowColor} emissiveIntensity={windowEmissive} />
+          </Box>
+        </group>
+      </group>
+
+      {/* Door with Frame */}
+      <group position={[0, 2, size[2]/2 + 0.05]}>
+        {/* Outer Frame */}
+        <Box args={[4.4, 4.2, 0.05]}><meshStandardMaterial color="#451a03" /></Box>
+        {/* Left Door */}
+        <group position={[-1.05, 0, 0.02]}>
+          <Box args={[2, 4, 0.06]}>
+            <meshStandardMaterial color="#bae6fd" transparent opacity={0.3} roughness={0.1} metalness={0.5} />
+          </Box>
+          <Box args={[0.2, 4, 0.1]} position={[0.9, 0, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[0.2, 4, 0.1]} position={[-0.9, 0, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[1.6, 0.2, 0.1]} position={[0, 1.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[1.6, 0.2, 0.1]} position={[0, -1.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Cylinder args={[0.03, 0.03, 0.8]} position={[0.7, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
+          </Cylinder>
+        </group>
+        {/* Right Door */}
+        <group position={[1.05, 0, 0.02]}>
+          <Box args={[2, 4, 0.06]}>
+            <meshStandardMaterial color="#bae6fd" transparent opacity={0.3} roughness={0.1} metalness={0.5} />
+          </Box>
+          <Box args={[0.2, 4, 0.1]} position={[0.9, 0, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[0.2, 4, 0.1]} position={[-0.9, 0, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[1.6, 0.2, 0.1]} position={[0, 1.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Box args={[1.6, 0.2, 0.1]} position={[0, -1.9, 0]}><meshStandardMaterial color="#78350f" /></Box>
+          <Cylinder args={[0.03, 0.03, 0.8]} position={[-0.7, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]}>
+            <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
+          </Cylinder>
+        </group>
+      </group>
+
+      {/* Bench in front of the building */}
+      <Bench position={[3.5, -0.2, size[2]/2 + 1.5]} rotation={[0, -Math.PI/4, 0]} />
+
+      {/* Path to Road */}
+      {pathLength > 0 && (
+        <Plane args={[4.4, pathLength]} rotation={[-Math.PI/2, 0, 0]} position={[0, 0.03, size[2]/2 + pathLength/2]} receiveShadow>
+          <meshStandardMaterial color={isNight ? "#78716c" : "#a8a29e"} />
+        </Plane>
+      )}
 
       {/* Awning */}
       {hasAwning && (
-        <group position={[0, size[1]*0.35, size[2]/2 + 0.5]} rotation={[-Math.PI/6, 0, 0]}>
-          <Box args={[size[0]*0.8, 0.2, 1.5]} castShadow>
-            <meshStandardMaterial color="#ef4444" />
+        <group position={[0, 4.5, size[2]/2 + 0.8]} rotation={[-Math.PI/6, 0, 0]}>
+          <Box args={[5.4, 0.2, 2]} castShadow>
+            <meshStandardMaterial color="#0f172a" />
           </Box>
           {/* Stripes */}
-          <Box args={[size[0]*0.8*0.8, 0.21, 1.5]} position={[0, 0, 0]}>
-            <meshStandardMaterial color="#ffffff" />
+          <Box args={[5.4*0.8, 0.21, 2]} position={[0, 0, 0]}>
+            <meshStandardMaterial color="#fbbf24" />
           </Box>
-          <Box args={[size[0]*0.8*0.4, 0.22, 1.5]} position={[0, 0, 0]}>
-            <meshStandardMaterial color="#ef4444" />
+          <Box args={[5.4*0.4, 0.22, 2]} position={[0, 0, 0]}>
+            <meshStandardMaterial color="#0f172a" />
           </Box>
         </group>
       )}
@@ -961,9 +1205,12 @@ const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,
       {/* Sign */}
       <group position={[0, size[1] + 1, size[2]/2 + 0.2]}>
         <Box args={[size[0] * 0.6, 2, 0.5]}>
-          <meshStandardMaterial color="#fef3c7" />
+          <meshStandardMaterial color="#0f172a" />
         </Box>
-        <Text position={[0, 0, 0.26]} fontSize={1.2} color="#991b1b">
+        <Box args={[size[0] * 0.55, 1.8, 0.55]}>
+          <meshStandardMaterial color="#f8fafc" />
+        </Box>
+        <Text position={[0, 0, 0.3]} fontSize={1.2} color="#0f172a">
           {name}
         </Text>
       </group>
@@ -971,17 +1218,54 @@ const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,
   );
 };
 
+const Bench = ({ position, rotation = [0, 0, 0] }: { position: [number, number, number], rotation?: [number, number, number] }) => (
+  <group position={position} rotation={rotation}>
+    {/* Seat */}
+    <Box args={[2, 0.1, 0.8]} position={[0, 0.4, 0]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
+    {/* Backrest */}
+    <Box args={[2, 0.8, 0.1]} position={[0, 0.8, -0.35]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
+    {/* Legs */}
+    <Box args={[0.1, 0.4, 0.8]} position={[-0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
+    <Box args={[0.1, 0.4, 0.8]} position={[0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
+  </group>
+);
+
+const Fountain = ({ position }: { position: [number, number, number] }) => (
+  <group position={position}>
+    <Cylinder args={[2, 2.2, 0.5, 16]} position={[0, 0.25, 0]} castShadow><meshStandardMaterial color="#94a3b8" /></Cylinder>
+    <Cylinder args={[1.8, 1.8, 0.1, 16]} position={[0, 0.5, 0]}><meshStandardMaterial color="#3b82f6" /></Cylinder>
+    <Cylinder args={[0.5, 0.8, 1.5, 8]} position={[0, 0.75, 0]} castShadow><meshStandardMaterial color="#cbd5e1" /></Cylinder>
+    <Cylinder args={[1, 1, 0.2, 16]} position={[0, 1.5, 0]} castShadow><meshStandardMaterial color="#94a3b8" /></Cylinder>
+    {/* Water spout */}
+    <Cylinder args={[0.1, 0.3, 1, 8]} position={[0, 2, 0]}><meshStandardMaterial color="#60a5fa" transparent opacity={0.6} /></Cylinder>
+  </group>
+);
+
+const Bush = ({ position, scale = 1 }: { position: [number, number, number], scale?: number }) => (
+  <group position={position} scale={scale}>
+    <Sphere args={[0.8, 16, 16]} position={[0, 0.4, 0]} castShadow>
+      <meshStandardMaterial color="#15803d" roughness={0.9} />
+    </Sphere>
+    <Sphere args={[0.6, 16, 16]} position={[0.4, 0.3, 0.4]} castShadow>
+      <meshStandardMaterial color="#166534" roughness={0.9} />
+    </Sphere>
+    <Sphere args={[0.6, 16, 16]} position={[-0.4, 0.3, -0.4]} castShadow>
+      <meshStandardMaterial color="#166534" roughness={0.9} />
+    </Sphere>
+  </group>
+);
+
 const Park = ({ position }: { position: [number, number, number] }) => (
   <group position={position}>
     {/* Park Grass Base */}
-    <Plane args={[25, 25]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]} receiveShadow>
+    <Plane args={[25, 25]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
       <meshStandardMaterial color="#86efac" />
     </Plane>
     {/* Park Paths */}
-    <Plane args={[4, 25]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]} receiveShadow>
+    <Plane args={[4, 25]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
       <meshStandardMaterial color="#fca5a5" />
     </Plane>
-    <Plane args={[25, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]} receiveShadow>
+    <Plane args={[25, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
       <meshStandardMaterial color="#fca5a5" />
     </Plane>
     
@@ -1008,97 +1292,161 @@ const Park = ({ position }: { position: [number, number, number] }) => (
   </group>
 );
 
-const OutdoorScenery = () => {
+const OutdoorScenery = ({ isNight }: { isNight: boolean }) => {
   return (
     <group>
       {/* Base Ground (Grass) */}
-      <Plane args={[400, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow>
-        <meshStandardMaterial color="#4ade80" />
+      <Plane args={[400, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        <meshStandardMaterial color={isNight ? "#14532d" : "#4ade80"} />
       </Plane>
-      
-      {/* Sidewalk around restaurant (Brick/Terracotta) */}
-      <Plane args={[40, 40]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
-        <meshStandardMaterial color="#fca5a5" />
-      </Plane>
-      
-      {/* Main Road */}
-      <Plane args={[20, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[-35, -0.15, 0]} receiveShadow>
-        <meshStandardMaterial color="#3f3f46" />
-      </Plane>
-      {/* Road Lines */}
-      {Array.from({length: 40}).map((_, i) => (
-        <Plane key={i} args={[0.5, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[-35, -0.14, -195 + i * 10]}>
-          <meshStandardMaterial color="#facc15" />
-        </Plane>
-      ))}
 
-      {/* Crosswalk */}
-      {Array.from({length: 8}).map((_, i) => (
-        <Plane key={`cw-${i}`} args={[2, 0.8]} rotation={[-Math.PI / 2, 0, 0]} position={[-35 + (i * 2.5) - 8.75, -0.14, 5]}>
+      {/* Roads */}
+      <Plane args={[10, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[-25, 0.02, 0]} receiveShadow><meshStandardMaterial color="#27272a" /></Plane>
+      <Plane args={[10, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[25, 0.02, 0]} receiveShadow><meshStandardMaterial color="#27272a" /></Plane>
+      <Plane args={[400, 10]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -25]} receiveShadow><meshStandardMaterial color="#27272a" /></Plane>
+      <Plane args={[400, 10]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 25]} receiveShadow><meshStandardMaterial color="#27272a" /></Plane>
+
+      {/* Road Lines Vertical */}
+      {Array.from({length: 40}).map((_, i) => {
+        const zPos = -195 + i * 10;
+        if (Math.abs(zPos - (-25)) < 6 || Math.abs(zPos - 25) < 6) return null;
+        return (
+          <Plane key={`v1-${i}`} args={[0.5, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[-25, 0.03, zPos]}>
+            <meshStandardMaterial color="#facc15" />
+          </Plane>
+        );
+      })}
+      {Array.from({length: 40}).map((_, i) => {
+        const zPos = -195 + i * 10;
+        if (Math.abs(zPos - (-25)) < 6 || Math.abs(zPos - 25) < 6) return null;
+        return (
+          <Plane key={`v2-${i}`} args={[0.5, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[25, 0.03, zPos]}>
+            <meshStandardMaterial color="#facc15" />
+          </Plane>
+        );
+      })}
+      {/* Road Lines Horizontal */}
+      {Array.from({length: 40}).map((_, i) => {
+        const xPos = -195 + i * 10;
+        if (Math.abs(xPos - (-25)) < 6 || Math.abs(xPos - 25) < 6) return null;
+        return (
+          <Plane key={`h1-${i}`} args={[4, 0.5]} rotation={[-Math.PI / 2, 0, 0]} position={[xPos, 0.03, -25]}>
+            <meshStandardMaterial color="#facc15" />
+          </Plane>
+        );
+      })}
+      {Array.from({length: 40}).map((_, i) => {
+        const xPos = -195 + i * 10;
+        if (Math.abs(xPos - (-25)) < 6 || Math.abs(xPos - 25) < 6) return null;
+        return (
+          <Plane key={`h2-${i}`} args={[4, 0.5]} rotation={[-Math.PI / 2, 0, 0]} position={[xPos, 0.03, 25]}>
+            <meshStandardMaterial color="#facc15" />
+          </Plane>
+        );
+      })}
+
+      {/* Crosswalks at main intersection (Front of restaurant) */}
+      {Array.from({length: 4}).map((_, i) => (
+        <Plane key={`cw-${i}`} args={[2, 0.8]} rotation={[-Math.PI / 2, 0, 0]} position={[-3.75 + (i * 2.5), 0.03, 25]}>
           <meshStandardMaterial color="#ffffff" />
         </Plane>
       ))}
 
-      {/* Path from restaurant to road */}
-      <Plane args={[15, 6]} rotation={[-Math.PI / 2, 0, 0]} position={[-23, -0.1, 5]} receiveShadow>
-        <meshStandardMaterial color="#fca5a5" />
+      {/* Path to Restaurant */}
+      <Plane args={[6, 5.2]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 17.4]} receiveShadow>
+        <meshStandardMaterial color={isNight ? "#78716c" : "#a8a29e"} />
       </Plane>
 
-      {/* Traffic (Cars) */}
-      <Car initialZ={-50} speed={25} color="#ef4444" direction={1} xOffset={-30} />
-      <Car initialZ={20} speed={28} color="#3b82f6" direction={1} xOffset={-30} />
-      <Car initialZ={100} speed={22} color="#10b981" direction={1} xOffset={-30} />
-      
-      <Car initialZ={50} speed={26} color="#f59e0b" direction={-1} xOffset={-40} />
-      <Car initialZ={-10} speed={30} color="#8b5cf6" direction={-1} xOffset={-40} />
-      <Car initialZ={-120} speed={24} color="#64748b" direction={-1} xOffset={-40} />
+      {/* Traffic (Cars) - Vertical Left Road (x = -25) */}
+      <Car initialZ={-50} speed={25} color="#ef4444" direction={1} xOffset={-28} />
+      <Car initialZ={20} speed={28} color="#3b82f6" direction={1} xOffset={-28} />
+      <Car initialZ={50} speed={26} color="#f59e0b" direction={-1} xOffset={-22} />
+      <Car initialZ={-10} speed={30} color="#8b5cf6" direction={-1} xOffset={-22} />
 
-      {/* City Buildings across the street */}
-      <CityBuilding position={[-60, 0, -30]} size={[15, 12, 15]} color="#fef08a" roofColor="#ef4444" name="PIZZA" rotation={[0, Math.PI/2, 0]} hasAwning />
-      <CityBuilding position={[-60, 0, 0]} size={[18, 20, 18]} color="#bfdbfe" roofColor="#1e3a8a" name="HOTEL" rotation={[0, Math.PI/2, 0]} />
-      <CityBuilding position={[-60, 0, 30]} size={[15, 10, 15]} color="#fecdd3" roofColor="#831843" name="CAFE" rotation={[0, Math.PI/2, 0]} hasAwning />
-      <CityBuilding position={[-60, 0, -60]} size={[16, 15, 16]} color="#d9f99d" roofColor="#14532d" name="SHOP" rotation={[0, Math.PI/2, 0]} />
-      <CityBuilding position={[-60, 0, 60]} size={[20, 18, 20]} color="#fed7aa" roofColor="#7c2d12" name="PUB" rotation={[0, Math.PI/2, 0]} hasAwning />
+      {/* Traffic (Cars) - Vertical Right Road (x = 25) */}
+      <Car initialZ={-80} speed={22} color="#10b981" direction={1} xOffset={22} />
+      <Car initialZ={10} speed={27} color="#ec4899" direction={1} xOffset={22} />
+      <Car initialZ={90} speed={24} color="#64748b" direction={-1} xOffset={28} />
+      <Car initialZ={-40} speed={29} color="#14b8a6" direction={-1} xOffset={28} />
+
+      {/* Traffic (Cars) - Horizontal Bottom Road (z = 25) */}
+      <Car initialZ={-60} speed={24} color="#eab308" direction={1} xOffset={28} isHorizontal />
+      <Car initialZ={30} speed={26} color="#06b6d4" direction={-1} xOffset={22} isHorizontal />
+
+      {/* Traffic (Cars) - Horizontal Top Road (z = -25) */}
+      <Car initialZ={-40} speed={25} color="#f43f5e" direction={1} xOffset={-22} isHorizontal />
+      <Car initialZ={50} speed={28} color="#8b5cf6" direction={-1} xOffset={-28} isHorizontal />
+
+      {/* Left Block Buildings */}
+      <CityBuilding position={[-50, 0, 0]} size={[30, 12, 20]} color="#fef08a" roofColor="#ef4444" name="SHOPPING CENTER" rotation={[0, 0, 0]} hasAwning isNight={isNight} pathLength={10} />
       
-      {/* Buildings next to restaurant */}
-      <CityBuilding position={[0, 0, -40]} size={[20, 16, 15]} color="#e9d5ff" roofColor="#581c87" name="ARCADE" rotation={[0, 0, 0]} />
-      <CityBuilding position={[0, 0, 40]} size={[18, 14, 15]} color="#ffedd5" roofColor="#9a3412" name="BAKERY" rotation={[0, Math.PI, 0]} hasAwning />
-      
+      {/* Top Block Buildings */}
+      <CityBuilding position={[0, 0, -50]} size={[30, 15, 20]} color="#e9d5ff" roofColor="#581c87" name="MEGA MALL" rotation={[0, 0, 0]} isNight={isNight} pathLength={10} />
+
+      {/* Bottom Block Buildings */}
+      <CityBuilding position={[0, 0, 50]} size={[25, 10, 20]} color="#fee2e2" roofColor="#991b1b" name="SPORTS COMPLEX" rotation={[0, Math.PI, 0]} isNight={isNight} pathLength={10} />
+
+      {/* Right Block Buildings */}
+      <CityBuilding position={[50, 0, 0]} size={[30, 14, 20]} color="#e0e7ff" roofColor="#3730a3" name="CITY LIBRARY" rotation={[0, 0, 0]} isNight={isNight} pathLength={10} />
+
+      {/* Far background buildings (Positive X, further back) */}
+      <CityBuilding position={[80, 0, -45]} size={[15, 25, 15]} color="#cbd5e1" roofColor="#1e293b" name="TOWER" rotation={[0, 0, 0]} isNight={isNight} pathLength={7.5} />
+      <CityBuilding position={[80, 0, 45]} size={[15, 22, 15]} color="#94a3b8" roofColor="#0f172a" name="CORP" rotation={[0, Math.PI, 0]} isNight={isNight} pathLength={7.5} />
+
+      {/* Far background buildings (Negative X) */}
+      <CityBuilding position={[-80, 0, -45]} size={[15, 28, 15]} color="#e2e8f0" roofColor="#0f172a" name="TECH" rotation={[0, 0, 0]} isNight={isNight} pathLength={7.5} />
+      <CityBuilding position={[-80, 0, 45]} size={[15, 24, 15]} color="#f1f5f9" roofColor="#1e293b" name="STUDIO" rotation={[0, Math.PI, 0]} isNight={isNight} pathLength={7.5} />
+
       {/* Park Area */}
-      <Park position={[35, 0, -35]} />
+      <Park position={[50, 0, -50]} />
 
       {/* Trees scattered around */}
-      <Tree position={[-20, 0, -15]} scale={1.2} type="round" />
-      <Tree position={[-20, 0, 25]} scale={1} type="round" />
-      <Tree position={[-48, 0, -15]} scale={1.5} type="pine" />
-      <Tree position={[-48, 0, 15]} scale={1.3} type="pine" />
-      <Tree position={[25, 0, 15]} scale={1.4} type="round" />
-      <Tree position={[20, 0, -20]} scale={1.1} type="pine" />
-      <Tree position={[20, 0, 25]} scale={1.2} type="pine" />
-      <Tree position={[-20, 0, -35]} scale={1.3} type="round" />
+      <Tree position={[-15, 0, -18]} scale={1.2} type="round" />
+      <Tree position={[15, 0, -18]} scale={1.1} type="pine" />
+      <Tree position={[-18, 0, 15]} scale={1.3} type="round" />
+      <Tree position={[18, 0, 15]} scale={1.0} type="pine" />
     </group>
   );
 };
 
 const RestaurantFloor = () => {
   return (
-    <group position={[0, 0, 0]}>
+    <group position={[0, 0.05, 0]}>
       <Plane args={[30, 30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <meshStandardMaterial color="#451a03" /> {/* Dark wood base */}
+        <meshStandardMaterial color="#f8fafc" /> {/* Light base */}
       </Plane>
-      {/* Wooden planks */}
-      {Array.from({ length: 15 }).map((_, i) => (
-        <Box key={i} args={[30, 0.02, 1.9]} position={[0, 0.01, -14 + i * 2]} receiveShadow>
-          <meshStandardMaterial color="#78350f" roughness={0.8} />
-        </Box>
-      ))}
+      <Grid 
+        infiniteGrid={false} 
+        args={[30, 30]} 
+        position={[0, 0.01, 0]} 
+        sectionSize={2} 
+        sectionColor="#94a3b8" 
+        cellSize={1} 
+        cellColor="#cbd5e1" 
+        fadeDistance={40} 
+      />
+      {/* Fancy Trim around the floor */}
+      <Box args={[30.5, 0.2, 0.5]} position={[0, 0.1, -15.25]} receiveShadow>
+        <meshStandardMaterial color="#0f172a" />
+      </Box>
+      <Box args={[30.5, 0.2, 0.5]} position={[0, 0.1, 15.25]} receiveShadow>
+        <meshStandardMaterial color="#0f172a" />
+      </Box>
+      <Box args={[0.5, 0.2, 31]} position={[-15.25, 0.1, 0]} receiveShadow>
+        <meshStandardMaterial color="#0f172a" />
+      </Box>
+      <Box args={[0.5, 0.2, 31]} position={[15.25, 0.1, 0]} receiveShadow>
+        <meshStandardMaterial color="#0f172a" />
+      </Box>
     </group>
   );
 };
 
 export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) => {
+  const isNight = state.time > 70 || state.time < 10;
+
   return (
-    <div className="w-full h-full rounded-2xl overflow-hidden border-4 border-stone-800 shadow-inner bg-sky-200 relative">
+    <div className={`w-full h-full rounded-2xl overflow-hidden border-4 border-stone-800 shadow-inner relative transition-colors duration-1000 ${isNight ? 'bg-slate-900' : 'bg-sky-200'}`}>
       
       {/* HTML Overlay for Orders */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[80%] h-2 bg-gray-400 border-2 border-stone-800 rounded-full z-10 pointer-events-none">
@@ -1135,8 +1483,13 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
       </div>
 
       <Canvas camera={{ position: [0, 15, 15], fov: 50 }}>
-        <ambientLight intensity={0.8} color="#fffbeb" />
-        <directionalLight position={[10, 20, 10]} intensity={1.2} color="#fef3c7" castShadow />
+        <ambientLight intensity={isNight ? 0.5 : 0.8} color={isNight ? "#64748b" : "#fffbeb"} />
+        <directionalLight 
+          position={isNight ? [10, 10, 10] : [10, 20, 10]} 
+          intensity={isNight ? 0.8 : 1.2} 
+          color={isNight ? "#94a3b8" : "#fef3c7"} 
+          castShadow 
+        />
         
         <OrbitControls 
           enablePan={true} 
@@ -1146,18 +1499,24 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
           maxDistance={100}
         />
 
-        <Sky sunPosition={[10, 20, 10]} />
-        <OutdoorScenery />
+        {!isNight && <Sky sunPosition={[10, 20, 10]} />}
+        <OutdoorScenery isNight={isNight} />
 
         {/* Floor */}
         <RestaurantFloor />
 
+        {/* Interior Lighting for Night */}
+        {isNight && (
+          <pointLight position={[0, 6, 0]} intensity={150} distance={30} color="#fef08a" />
+        )}
+
         {/* Walls */}
-        <RestaurantWall position={[0, 0, -15]} rotation={[0, 0, 0]} width={30} height={10} />
-        {/* Left Wall split for door */}
-        <RestaurantWall position={[-15, 0, -5.8]} rotation={[0, Math.PI / 2, 0]} width={18.4} height={10} />
-        <RestaurantWall position={[-15, 0, 10.8]} rotation={[0, Math.PI / 2, 0]} width={8.4} height={10} />
-        <RestaurantWall position={[15, 0, 0]} rotation={[0, -Math.PI / 2, 0]} width={30} height={10} />
+        <RestaurantWall position={[0, 0, -15]} rotation={[0, 0, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} />
+        <RestaurantWall position={[-15, 0, 0]} rotation={[0, Math.PI / 2, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} />
+        <RestaurantWall position={[15, 0, 0]} rotation={[0, -Math.PI / 2, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} />
+        {/* Front Wall split for door */}
+        <RestaurantWall position={[-8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} />
+        <RestaurantWall position={[8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} />
 
         {/* Lanterns */}
         <Lantern position={[-8, 8, -10]} />
@@ -1166,7 +1525,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
         <Lantern position={[10, 8, 0]} />
 
         {/* Animated Door */}
-        <AnimatedDoor customers={state.customers} />
+        <AnimatedDoor customers={state.customers} position={[0, 0, 14.8]} rotation={[0, Math.PI / 2, 0]} layout={state.restaurantLayout} customFrameColor={state.frameColor} />
 
         {/* Sushi Counter */}
         <group position={[0, 0, -10]}>

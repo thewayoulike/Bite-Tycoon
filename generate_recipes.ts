@@ -69,7 +69,7 @@ while(recipes.length < 100) {
      }
      
      for (const [k, v] of Object.entries(ings)) {
-       cost += INGREDIENTS[k].cost * v;
+       cost += INGREDIENTS[k as keyof typeof INGREDIENTS].cost * (v as number);
      }
      
      recipes.push({
