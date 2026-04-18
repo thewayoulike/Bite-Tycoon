@@ -10,6 +10,7 @@ export interface Customer {
   maxPatience: number;
   tableId: string;
   actionTimer: number;
+  currentBill: number; 
 }
 
 export interface Table {
@@ -26,6 +27,13 @@ export const TABLE_POSITIONS = [
 ];
 
 export const mapPos = (percent: number) => (percent / 100) * 20 - 10;
+
+// ONLINE APPS CONFIGURATION
+export const ONLINE_APPS = {
+  bitedash: { id: 'bitedash', name: 'BiteDash', cost: 100, fee: 0.20, spawnMultiplier: 1.0 },
+  foodpanda: { id: 'foodpanda', name: 'FoodPanda', cost: 100, fee: 0.15, spawnMultiplier: 0.8 },
+  ubereats: { id: 'ubereats', name: 'UberEats', cost: 100, fee: 0.25, spawnMultiplier: 1.5 },
+};
 
 export interface Order {
   id: string;
@@ -50,12 +58,13 @@ export interface WaiterEntity {
 export interface GameState {
   money: number;
   day: number;
-  time: number; // 0 to 100 representing the day progress
+  time: number;
   tables: Table[];
   customers: Customer[];
   orders: Order[];
   recipes: Recipe[];
   inventory: Record<string, number>;
+  unlockedApps: string[];
   staff: {
     waiters: number;
     chefs: number;
@@ -71,16 +80,22 @@ export interface GameState {
     customersServed: number;
     customersLost: number;
     totalEarned: number;
+    totalTips: number;
+    onlineEarned: number;
+    onlineFees: number;
+    appCosts: number;
     totalExpenses: number;
     inventoryCosts: number;
     recipeCosts: number;
     managerCosts: number;
     salaryCosts: number;
     upgradeCosts: number;
+    itemsSold: Record<string, number>;
   };
   restaurantLayout: number;
   wallColor: string | null;
   frameColor: string | null;
+  isRestaurantOpen: boolean;
 }
 
 const INITIAL_STATE: GameState = {
@@ -97,13 +112,9 @@ const INITIAL_STATE: GameState = {
   orders: [],
   recipes: RECIPES,
   inventory: {
-    rice: 50,
-    fish: 50,
-    noodle: 50,
-    egg: 50,
-    chicken: 50,
-    soy_sauce: 50,
+    rice: 50, fish: 50, noodle: 50, egg: 50, chicken: 50, soy_sauce: 50,
   },
+  unlockedApps: [],
   staff: {
     waiters: 0,
     chefs: 0,
@@ -116,25 +127,21 @@ const INITIAL_STATE: GameState = {
     spawnRate: 1,
   },
   stats: {
-    customersServed: 0,
-    customersLost: 0,
-    totalEarned: 0,
-    totalExpenses: 0,
-    inventoryCosts: 0,
-    recipeCosts: 0,
-    managerCosts: 0,
-    salaryCosts: 0,
-    upgradeCosts: 0,
+    customersServed: 0, customersLost: 0, totalEarned: 0, totalTips: 0,
+    onlineEarned: 0, onlineFees: 0, appCosts: 0,
+    totalExpenses: 0, inventoryCosts: 0, recipeCosts: 0, managerCosts: 0,
+    salaryCosts: 0, upgradeCosts: 0, itemsSold: {}
   },
   restaurantLayout: 0,
   wallColor: null,
   frameColor: null,
+  isRestaurantOpen: false,
 };
 
 export const UPGRADE_COSTS = {
   table: (count: number) => Math.floor(50 * Math.pow(1.5, count - 2)),
-  waiter: (count: number) => 0, // Free to hire, but costs salary
-  chef: (count: number) => 0, // Free to hire, but costs salary
+  waiter: (count: number) => 0, 
+  chef: (count: number) => 0, 
   mealPrice: (level: number) => Math.floor(25 * Math.pow(1.4, level)),
   cookingSpeed: (level: number) => Math.floor(40 * Math.pow(1.6, level)),
   spawnRate: (level: number) => Math.floor(30 * Math.pow(1.5, level)),
@@ -151,128 +158,214 @@ export function useGameLoop() {
   const lastTickRef = useRef<number>(Date.now());
   const stateRef = useRef<GameState>(state);
 
-  // Keep ref in sync with state for the game loop
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
   const gameTick = useCallback(() => {
     const now = Date.now();
-    const delta = (now - lastTickRef.current) / 1000; // seconds
+    const delta = Math.min((now - lastTickRef.current) / 1000, 0.5); 
     lastTickRef.current = now;
 
     setState((prevState) => {
-      let newState = { ...prevState };
-      let { tables, customers, orders, staff, upgrades, stats, recipes } = newState;
+      // FIX: Deep copy itemsSold dictionary so Strict Mode doesn't double-count!
+      let newState = { 
+        ...prevState,
+        stats: { 
+          ...prevState.stats,
+          itemsSold: { ...(prevState.stats.itemsSold || {}) }
+        },
+        inventory: { ...prevState.inventory }
+      };
+      
+      let { tables, customers, orders, staff, upgrades, stats, recipes, unlockedApps } = newState;
 
-      // 1. Time progression
-      newState.time += delta * 2; // Day goes by
-      if (newState.time >= 100) {
-        newState.time = 0;
-        newState.day += 1;
-        // Pay salaries weekly (every 7 days)
-        if (newState.day % 7 === 0) {
-          const totalSalaries = (staff.waiters * SALARIES.waiter * 7) + (staff.chefs * SALARIES.chef * 7) + (staff.hasManager ? SALARIES.manager * 7 : 0);
-          newState.money -= totalSalaries;
-          newState.stats.salaryCosts += totalSalaries;
-          newState.stats.totalExpenses += totalSalaries;
+      if (newState.isRestaurantOpen) {
+        newState.time += delta * 2;
+        if (newState.time >= 100) {
+          newState.time = 0;
+          newState.day += 1;
+          if (newState.day % 7 === 0) {
+            const totalSalaries = (staff.waiters * SALARIES.waiter * 7) + (staff.chefs * SALARIES.chef * 7) + (staff.hasManager ? SALARIES.manager * 7 : 0);
+            newState.money -= totalSalaries;
+            newState.stats.salaryCosts += totalSalaries;
+            newState.stats.totalExpenses += totalSalaries;
+          }
         }
       }
 
-      // 2. Spawn Customers
+      // --- SPAWN DINE-IN CUSTOMERS ---
       const emptyTables = tables.filter((t) => t.customerId === null);
-      if (emptyTables.length > 0) {
-        // Base spawn chance + upgrades
+      if (newState.isRestaurantOpen && emptyTables.length > 0) {
         const spawnChance = (0.05 + upgrades.spawnRate * 0.02) * delta;
         if (Math.random() < spawnChance) {
           const table = emptyTables[Math.floor(Math.random() * emptyTables.length)];
-          
-          // Calculate realistic walk time based on distance
-          const mapPos = (percent: number) => (percent / 100) * 20 - 10;
           const targetX = mapPos(table.x);
           const targetZ = mapPos(table.y);
-          // Walk from 0, 25 to 0, 14 (door), then to 0, targetZ, then to targetX, targetZ
           const walkDist = 11 + Math.abs(targetZ - 14) + Math.abs(targetX);
-          const walkTime = walkDist / 4; // Speed is 4 in Scene3D
+          const walkTime = walkDist / 4;
 
           const newCustomer: Customer = {
             id: `c_${Date.now()}_${Math.random()}`,
-            state: 'entering',
-            patience: 100,
-            maxPatience: 100,
-            tableId: table.id,
-            actionTimer: walkTime,
+            state: 'entering', patience: 100, maxPatience: 100,
+            tableId: table.id, actionTimer: walkTime, currentBill: 0,
           };
           customers = [...customers, newCustomer];
           tables = tables.map((t) => (t.id === table.id ? { ...t, customerId: newCustomer.id } : t));
         }
       }
 
-      // 3. Update Customers (Patience & Eating)
+      // --- SPAWN ONLINE ORDERS ---
+      if (newState.isRestaurantOpen && unlockedApps.length > 0) {
+        const appToRoll = unlockedApps[Math.floor(Math.random() * unlockedApps.length)];
+        const appData = ONLINE_APPS[appToRoll as keyof typeof ONLINE_APPS];
+        
+        const onlineSpawnChance = (0.03 * appData.spawnMultiplier) * delta;
+        if (Math.random() < onlineSpawnChance) {
+          const pseudoTableId = `online_${appToRoll}_${Date.now()}`;
+          const vcId = `vc_${Date.now()}`;
+          
+          const unlockedRecipes = recipes.filter(r => r.unlocked);
+          if (unlockedRecipes.length > 0) {
+             let itemsToOrder = 1;
+             if (Math.random() > 0.4) itemsToOrder++; 
+             if (Math.random() > 0.8) itemsToOrder++; 
+
+             let bill = 0;
+             let orderedCount = 0;
+
+             for (let j = 0; j < itemsToOrder; j++) {
+                const availableRecipes = unlockedRecipes.filter(r => {
+                  for (const [ing, qty] of Object.entries(r.ingredients)) {
+                    if ((newState.inventory[ing] || 0) < qty) return false;
+                  }
+                  return true;
+                });
+                
+                if (availableRecipes.length > 0) {
+                  const randomRecipe = availableRecipes[Math.floor(Math.random() * availableRecipes.length)];
+                  for (const [ing, qty] of Object.entries(randomRecipe.ingredients)) {
+                    newState.inventory[ing] -= qty;
+                  }
+                  orders.push({
+                    id: `o_${Date.now()}_${Math.random()}`,
+                    customerId: vcId, tableId: pseudoTableId,
+                    recipeId: randomRecipe.id, state: 'pending', progress: 0,
+                  });
+                  bill += (randomRecipe.price + upgrades.mealPrice);
+                  orderedCount++;
+                }
+             }
+             
+             if (orderedCount > 0) {
+               customers.push({
+                  id: vcId, state: 'waiting_food', patience: 9999, maxPatience: 9999,
+                  tableId: pseudoTableId, actionTimer: 0, currentBill: bill
+               });
+             }
+          }
+        }
+      }
+
       let earnedThisTick = 0;
+      let feesThisTick = 0;
       let lostThisTick = 0;
       let servedThisTick = 0;
+      let tipsThisTick = 0;
 
+      // --- CUSTOMER LOGIC & EATING ---
       customers = customers.map((c) => {
         let newC = { ...c };
         
         if (newC.state === 'entering') {
           newC.actionTimer -= delta;
-          if (newC.actionTimer <= 0) {
-            newC.state = 'waiting_order';
-          }
+          if (newC.actionTimer <= 0) newC.state = 'waiting_order';
         } else if (newC.state === 'leaving') {
           newC.actionTimer -= delta;
-        } else if (newC.state === 'waiting_order' || newC.state === 'waiting_food') {
+        } else if ((newC.state === 'waiting_order' || newC.state === 'waiting_food') && !newC.tableId.startsWith('online_')) {
           newC.patience -= 5 * delta;
           if (newC.patience <= 0) {
             newC.state = 'leaving';
             const table = tables.find(t => t.id === newC.tableId);
-            const targetX = table ? mapPos(table.x) : 0;
-            const targetZ = table ? mapPos(table.y) : 0;
-            const walkDist = 11 + Math.abs(targetZ - 14) + Math.abs(targetX);
+            const walkDist = 11 + Math.abs((table ? mapPos(table.y) : 0) - 14) + Math.abs((table ? mapPos(table.x) : 0));
             newC.actionTimer = walkDist / 4;
             lostThisTick += 1;
           }
-        } else if (newC.state === 'eating') {
+        } else if (newC.state === 'eating' && !newC.tableId.startsWith('online_')) {
           newC.patience -= 15 * delta;
           if (newC.patience <= 0) {
             newC.state = 'leaving';
             const table = tables.find(t => t.id === newC.tableId);
-            const targetX = table ? mapPos(table.x) : 0;
-            const targetZ = table ? mapPos(table.y) : 0;
-            const walkDist = 11 + Math.abs(targetZ - 14) + Math.abs(targetX);
+            const walkDist = 11 + Math.abs((table ? mapPos(table.y) : 0) - 14) + Math.abs((table ? mapPos(table.x) : 0));
             newC.actionTimer = walkDist / 4;
             
-            // Find the order to get the recipe price
-            const order = orders.find(o => o.customerId === newC.id);
-            const recipe = recipes.find(r => r.id === order?.recipeId) || recipes[0];
-            const mealEarnings = recipe.price + upgrades.mealPrice;
+            const mealEarnings = newC.currentBill || 0;
+            const tip = Math.random() > 0.5 ? Math.floor(mealEarnings * (0.1 + Math.random() * 0.2)) : 0;
             
-            // Random tip (10-30% of meal price, 30% chance)
-            const tip = Math.random() > 0.7 ? Math.floor(mealEarnings * (0.1 + Math.random() * 0.2)) : 0;
-            
+            tipsThisTick += tip;
             earnedThisTick += mealEarnings + tip;
             servedThisTick += 1;
+          }
+        } else if (newC.state === 'eating' && newC.tableId.startsWith('online_')) {
+          // ONLINE DRIVER DISPATCH DELAY LOGIC (Waits 2.5 seconds then clears)
+          newC.actionTimer -= delta;
+          if (newC.actionTimer <= 0) {
+             newC.state = 'leaving';
+             newC.actionTimer = 0; 
+             
+             // Process safe online payment
+             const appName = newC.tableId.split('_')[1];
+             const appConfig = ONLINE_APPS[appName as keyof typeof ONLINE_APPS] || ONLINE_APPS.bitedash;
+             const feePercent = appConfig.fee;
+             
+             const gross = newC.currentBill || 0;
+             const fee = gross * feePercent;
+
+             earnedThisTick += gross;
+             feesThisTick += fee;
+             
+             newState.stats.onlineEarned = (newState.stats.onlineEarned || 0) + gross;
+             newState.stats.onlineFees = (newState.stats.onlineFees || 0) + fee;
+             
+             const tOrders = orders.filter(o => o.tableId === newC.tableId);
+             tOrders.forEach(o => {
+                newState.stats.itemsSold[o.recipeId] = (newState.stats.itemsSold[o.recipeId] || 0) + 1;
+             });
           }
         }
 
         return newC;
       });
 
-      // Handle leaving customers
+      // Clear out customers who have left (including completed online drivers)
       const actuallyLeaving = customers.filter((c) => c.state === 'leaving' && c.actionTimer <= 0);
       customers = customers.filter((c) => !(c.state === 'leaving' && c.actionTimer <= 0));
 
       actuallyLeaving.forEach((c) => {
-        // Free the table
         tables = tables.map((t) => (t.id === c.tableId ? { ...t, customerId: null } : t));
-        
-        // Remove their order if any
         orders = orders.filter((o) => o.customerId !== c.id);
       });
 
-      // 4. Staff Automation
+      // --- AUTO-DISPATCH ONLINE ORDERS ---
+      const readyOnlineTables = [...new Set(orders.filter(o => o.state === 'ready' && o.tableId.startsWith('online_')).map(o => o.tableId))];
+      for (const tId of readyOnlineTables) {
+         const tOrders = orders.filter(o => o.tableId === tId);
+         const allReady = tOrders.every(o => o.state === 'ready');
+         
+         if (allReady) {
+            const customerIndex = customers.findIndex(c => c.tableId === tId);
+            if (customerIndex !== -1 && customers[customerIndex].state === 'waiting_food') {
+               // Put them in "eating" state to trigger the Driver 2.5 second delay!
+               customers[customerIndex] = {
+                  ...customers[customerIndex],
+                  state: 'eating',
+                  actionTimer: 2.5
+               };
+            }
+         }
+      }
+
+      // --- WAITER AUTOMATION ---
       let waiterEntities = prevState.waiterEntities.map(w => ({ ...w }));
       const WAITER_SPEED = 5;
 
@@ -280,8 +373,8 @@ export function useGameLoop() {
         let w = waiterEntities[i];
         
         if (w.state === 'idle') {
-          // Look for food to serve first. Find a table where ALL its orders are ready.
-          const tablesWithReadyOrders = [...new Set(orders.filter(o => o.state === 'ready').map(o => o.tableId))];
+          // Waiters DO NOT serve online tables!
+          const tablesWithReadyOrders = [...new Set(orders.filter(o => o.state === 'ready' && !o.tableId.startsWith('online_')).map(o => o.tableId))];
           let tableToServe = null;
           for (const tId of tablesWithReadyOrders) {
             const tOrders = orders.filter(o => o.tableId === tId);
@@ -297,7 +390,6 @@ export function useGameLoop() {
             w.state = 'walking_to_counter_with_order';
             w.targetTableId = tableToServe;
           } else {
-            // Look for customers waiting to order
             const waitingCustomer = customers.find(c => c.state === 'waiting_order' && !waiterEntities.some(other => other.targetTableId === c.tableId));
             if (waitingCustomer) {
               w.state = 'walking_to_order';
@@ -312,13 +404,12 @@ export function useGameLoop() {
             w.state = 'idle';
             w.targetTableId = null;
           } else {
-            // Check if there are still customers waiting at this table
             const waitingAtTable = customers.some(c => c.tableId === table.id && c.state === 'waiting_order');
             if (!waitingAtTable) {
               w.state = 'idle';
               w.targetTableId = null;
             } else {
-              const targetX = mapPos(table.x) - 1.2; // Offset so waiter stands next to table
+              const targetX = mapPos(table.x) - 1.2;
               const targetY = mapPos(table.y);
               const dx = targetX - w.x;
               const dy = targetY - w.y;
@@ -326,11 +417,10 @@ export function useGameLoop() {
               const moveDist = WAITER_SPEED * delta;
               
               if (dist <= moveDist || dist < 0.5) {
-                // Arrived at table, start taking order
                 w.x = targetX;
                 w.y = targetY;
                 w.state = 'taking_order';
-                w.actionTimer = 2; // Wait 2 seconds to take order
+                w.actionTimer = 2;
               } else {
                 w.x += (dx / dist) * moveDist;
                 w.y += (dy / dist) * moveDist;
@@ -342,37 +432,57 @@ export function useGameLoop() {
         if (w.state === 'taking_order') {
           w.actionTimer = (w.actionTimer || 0) - delta;
           if (w.actionTimer <= 0) {
-            // Take all orders for this table
             const tableCustomers = customers.filter(c => c.tableId === w.targetTableId && c.state === 'waiting_order');
             
             tableCustomers.forEach(targetCustomer => {
               const unlockedRecipes = recipes.filter(r => r.unlocked);
-              const availableRecipes = unlockedRecipes.filter(r => {
-                for (const [ing, qty] of Object.entries(r.ingredients)) {
-                  if ((newState.inventory[ing] || 0) < qty) return false;
-                }
-                return true;
-              });
               
-              if (availableRecipes.length > 0) {
-                const randomRecipe = availableRecipes[Math.floor(Math.random() * availableRecipes.length)];
-                for (const [ing, qty] of Object.entries(randomRecipe.ingredients)) {
-                  newState.inventory[ing] -= qty;
-                }
-                customers = customers.map(cust => cust.id === targetCustomer.id ? { ...cust, state: 'waiting_food', patience: cust.maxPatience } : cust);
-                orders.push({
-                  id: `o_${Date.now()}_${Math.random()}`,
-                  customerId: targetCustomer.id,
-                  tableId: targetCustomer.tableId,
-                  recipeId: randomRecipe.id,
-                  state: 'pending',
-                  progress: 0,
+              let itemsToOrder = 1;
+              if (Math.random() > 0.4) itemsToOrder++; 
+              if (Math.random() > 0.8) itemsToOrder++; 
+
+              let billForThisCustomer = 0;
+              let orderedCount = 0;
+
+              for (let j = 0; j < itemsToOrder; j++) {
+                const availableRecipes = unlockedRecipes.filter(r => {
+                  for (const [ing, qty] of Object.entries(r.ingredients)) {
+                    if ((newState.inventory[ing] || 0) < qty) return false;
+                  }
+                  return true;
                 });
+                
+                if (availableRecipes.length > 0) {
+                  const randomRecipe = availableRecipes[Math.floor(Math.random() * availableRecipes.length)];
+                  
+                  for (const [ing, qty] of Object.entries(randomRecipe.ingredients)) {
+                    newState.inventory[ing] -= qty;
+                  }
+                  
+                  orders.push({
+                    id: `o_${Date.now()}_${Math.random()}`,
+                    customerId: targetCustomer.id,
+                    tableId: targetCustomer.tableId,
+                    recipeId: randomRecipe.id,
+                    state: 'pending',
+                    progress: 0,
+                  });
+                  
+                  billForThisCustomer += (randomRecipe.price + upgrades.mealPrice);
+                  orderedCount++;
+                }
+              }
+
+              if (orderedCount > 0) {
+                customers = customers.map(cust => cust.id === targetCustomer.id ? { 
+                  ...cust, 
+                  state: 'waiting_food', 
+                  patience: cust.maxPatience,
+                  currentBill: billForThisCustomer 
+                } : cust);
               } else {
                 const table = tables.find(t => t.id === targetCustomer.tableId);
-                const targetX = table ? mapPos(table.x) : 0;
-                const targetZ = table ? mapPos(table.y) : 0;
-                const walkDist = 11 + Math.abs(targetZ - 14) + Math.abs(targetX);
+                const walkDist = 11 + Math.abs((table ? mapPos(table.y) : 0) - 14) + Math.abs((table ? mapPos(table.x) : 0));
                 customers = customers.map(cust => cust.id === targetCustomer.id ? { ...cust, state: 'leaving', actionTimer: (walkDist / 4) + 5 } : cust);
                 lostThisTick += 1;
               }
@@ -433,7 +543,7 @@ export function useGameLoop() {
           } else {
             const table = tables.find(t => t.id === w.targetTableId);
             if (table) {
-              const targetX = mapPos(table.x) - 1.2; // Offset so waiter stands next to table
+              const targetX = mapPos(table.x) - 1.2;
               const targetY = mapPos(table.y);
               const dx = targetX - w.x;
               const dy = targetY - w.y;
@@ -443,10 +553,13 @@ export function useGameLoop() {
               if (dist <= moveDist || dist < 0.5) {
                 w.x = targetX;
                 w.y = targetY;
-                // Serve food to all customers at this table
+                
+                // When Waiter serves food to dine-in
                 tableOrders.forEach(targetOrder => {
                   customers = customers.map(cust => cust.id === targetOrder.customerId ? { ...cust, state: 'eating', patience: 100 } : cust);
+                  newState.stats.itemsSold[targetOrder.recipeId] = (newState.stats.itemsSold[targetOrder.recipeId] || 0) + 1;
                 });
+                
                 orders = orders.filter(ord => ord.tableId !== w.targetTableId);
                 w.state = 'walking_to_counter_empty';
                 w.targetTableId = null;
@@ -462,11 +575,10 @@ export function useGameLoop() {
         }
       }
 
-      // Chefs cooking
+      // --- CHEFS COOKING ---
       if (staff.chefs > 0) {
-        let availableChefPower = staff.chefs * upgrades.cookingSpeed * delta * 20; // Progress per second
+        let availableChefPower = staff.chefs * upgrades.cookingSpeed * delta * 20; 
         
-        // Start pending orders if we have chefs
         orders = orders.map(o => {
           if (o.state === 'pending' && availableChefPower > 0) {
             return { ...o, state: 'cooking' };
@@ -474,7 +586,6 @@ export function useGameLoop() {
           return o;
         });
 
-        // Progress cooking orders
         orders = orders.map(o => {
           if (o.state === 'cooking') {
             const recipe = recipes.find(r => r.id === o.recipeId) || recipes[0];
@@ -491,9 +602,8 @@ export function useGameLoop() {
         });
       }
 
-      // 5. Manager Automation
+      // --- MANAGER INVENTORY ---
       if (staff.hasManager) {
-        // Auto-buy inventory if below 20 for any unlocked recipe ingredients
         const neededIngredients = new Set<string>();
         newState.recipes.forEach(r => {
           if (r.unlocked) {
@@ -505,7 +615,7 @@ export function useGameLoop() {
           const qty = newState.inventory[ingId] || 0;
           if (qty < 20) {
             const ingredient = INGREDIENTS[ingId];
-            const amountToBuy = 20; // buy in bundles of 20
+            const amountToBuy = 20; 
             if (ingredient && newState.money >= ingredient.cost * amountToBuy) {
               const cost = ingredient.cost * amountToBuy;
               newState.money -= cost;
@@ -521,32 +631,41 @@ export function useGameLoop() {
       newState.customers = customers;
       newState.orders = orders;
       newState.waiterEntities = waiterEntities;
+      
+      // Update money correctly (+ Revenue, - Fees)
       newState.money += earnedThisTick;
+      newState.money -= feesThisTick;
+      
       newState.stats.customersServed += servedThisTick;
       newState.stats.customersLost += lostThisTick;
       newState.stats.totalEarned += earnedThisTick;
+      newState.stats.totalTips = (prevState.stats.totalTips || 0) + tipsThisTick;
+      newState.stats.totalExpenses += feesThisTick;
 
       return newState;
     });
   }, []);
 
   useEffect(() => {
-    const intervalId = setInterval(gameTick, 100); // 10 ticks per second
+    const intervalId = setInterval(gameTick, 100);
     return () => clearInterval(intervalId);
   }, [gameTick]);
 
-  // Manual Actions
+  // Actions
   const takeOrder = (customerId: string) => {
     setState(prev => {
       const customer = prev.customers.find(c => c.id === customerId);
       if (!customer || customer.state !== 'waiting_order') return prev;
 
       const unlockedRecipes = prev.recipes.filter(r => r.unlocked);
+      if (unlockedRecipes.length === 0) return prev;
+      
       const randomRecipe = unlockedRecipes[Math.floor(Math.random() * unlockedRecipes.length)];
+      const bill = randomRecipe.price + prev.upgrades.mealPrice;
 
       return {
         ...prev,
-        customers: prev.customers.map(c => c.id === customerId ? { ...c, state: 'waiting_food', patience: c.maxPatience } : c),
+        customers: prev.customers.map(c => c.id === customerId ? { ...c, state: 'waiting_food', patience: c.maxPatience, currentBill: bill } : c),
         orders: [...prev.orders, {
           id: `o_${Date.now()}`,
           customerId: customer.id,
@@ -564,10 +683,18 @@ export function useGameLoop() {
       const order = prev.orders.find(o => o.id === orderId);
       if (!order || order.state !== 'ready') return prev;
 
+      let newStats = { 
+        ...prev.stats,
+        itemsSold: { ...(prev.stats.itemsSold || {}) }
+      };
+      
+      newStats.itemsSold[order.recipeId] = (newStats.itemsSold[order.recipeId] || 0) + 1;
+
       return {
         ...prev,
         orders: prev.orders.filter(o => o.id !== orderId),
-        customers: prev.customers.map(c => c.id === order.customerId ? { ...c, state: 'eating', patience: 100 } : c)
+        customers: prev.customers.map(c => c.id === order.customerId ? { ...c, state: 'eating', patience: 100 } : c),
+        stats: newStats
       };
     });
   };
@@ -594,13 +721,18 @@ export function useGameLoop() {
   const buyUpgrade = (type: 'table' | 'waiter' | 'chef' | 'mealPrice' | 'cookingSpeed' | 'spawnRate') => {
     setState(prev => {
       let cost = 0;
-      let newState = { ...prev };
+      let newState = { 
+        ...prev,
+        staff: { ...prev.staff },
+        stats: { ...prev.stats }
+      };
 
       switch (type) {
         case 'table':
           cost = UPGRADE_COSTS.table(prev.tables.length);
           if (prev.money >= cost && prev.tables.length < TABLE_POSITIONS.length) {
             newState.money -= cost;
+            newState.stats.upgradeCosts += cost;
             const pos = TABLE_POSITIONS[prev.tables.length];
             newState.tables = [...prev.tables, { id: `t_${Date.now()}`, customerId: null, x: pos.x, y: pos.y }];
           }
@@ -611,12 +743,9 @@ export function useGameLoop() {
             newState.money -= cost;
             newState.staff.waiters += 1;
             newState.waiterEntities = [...prev.waiterEntities, {
-              id: `w_${Date.now()}_${Math.random()}`,
-              state: 'idle',
-              targetCustomerId: null,
-              targetOrderId: null,
-              x: -5 + prev.staff.waiters * 2,
-              y: -8
+              id: `w_${Date.now()}_${Math.random()}`, state: 'idle',
+              targetCustomerId: null, targetOrderId: null,
+              x: -5 + newState.staff.waiters * 2, y: -8
             }];
           }
           break;
@@ -627,18 +756,31 @@ export function useGameLoop() {
             newState.staff.chefs += 1;
           }
           break;
-        case 'mealPrice':
-          // We use a derived level based on current price for simplicity, or just store levels.
-          // Let's store levels in a separate object or just calculate it.
-          // Actually, let's just increment the value and calculate cost based on current value.
-          // To be safe, let's add levels to state.
-          break;
       }
       return newState;
     });
   };
 
-  // Helper to buy upgrades that have levels
+  const unlockApp = (appId: string) => {
+    setState(prev => {
+       if (prev.unlockedApps.includes(appId)) return prev;
+       const app = ONLINE_APPS[appId as keyof typeof ONLINE_APPS];
+       if (prev.money >= app.cost) {
+          return {
+             ...prev,
+             money: prev.money - app.cost,
+             unlockedApps: [...prev.unlockedApps, appId],
+             stats: {
+                ...prev.stats,
+                appCosts: (prev.stats.appCosts || 0) + app.cost,
+                totalExpenses: prev.stats.totalExpenses + app.cost
+             }
+          };
+       }
+       return prev;
+    });
+  };
+
   const buyLevelUpgrade = (type: 'mealPrice' | 'cookingSpeed' | 'spawnRate', currentLevel: number) => {
      setState(prev => {
       let cost = UPGRADE_COSTS[type](currentLevel);
@@ -664,15 +806,7 @@ export function useGameLoop() {
   };
 
   const hireManager = () => {
-    setState(prev => {
-      if (!prev.staff.hasManager) {
-        return {
-          ...prev,
-          staff: { ...prev.staff, hasManager: true }
-        };
-      }
-      return prev;
-    });
+    setState(prev => ({ ...prev, staff: { ...prev.staff, hasManager: true } }));
   };
 
   const unlockRecipe = (recipeId: string) => {
@@ -730,20 +864,16 @@ export function useGameLoop() {
     setState(prev => ({ ...prev, frameColor: color }));
   };
 
+  const toggleRestaurantState = () => {
+    setState(prev => ({ ...prev, isRestaurantOpen: !prev.isRestaurantOpen }));
+  };
+
   return {
     state,
     actions: {
-      takeOrder,
-      serveFood,
-      cookOrder,
-      buyUpgrade,
-      buyLevelUpgrade,
-      hireManager,
-      unlockRecipe,
-      buyIngredient,
-      setRestaurantLayout,
-      setWallColor,
-      setFrameColor
+      takeOrder, serveFood, cookOrder, buyUpgrade, buyLevelUpgrade,
+      hireManager, unlockRecipe, buyIngredient, setRestaurantLayout,
+      setWallColor, setFrameColor, toggleRestaurantState, unlockApp
     }
   };
 }
