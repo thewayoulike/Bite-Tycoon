@@ -19,7 +19,42 @@ const getFoodEmoji = (recipeId: string) => {
   return foods[charCodeSum % foods.length];
 };
 
-// MEMOIZED: Prevents recreating geometries 10 times a second!
+// --- FLOATING STAMINA UI FOR STAFF ---
+const StaminaBar = ({ entity, type, actions }: { entity: any, type: 'waiter'|'chef'|'cleaner', actions: any }) => {
+  if (!entity) return null;
+  const isExhausted = entity.stamina <= 20;
+  
+  return (
+    <Html position={[0, 2.3, 0]} center zIndexRange={[100, 0]}>
+      <div className="flex flex-col items-center pointer-events-none">
+        {isExhausted && entity.state !== 'on_break' && (
+          <div className="bg-red-500 text-white font-black text-[8px] px-1 rounded animate-pulse mb-0.5">TIRED!</div>
+        )}
+        
+        <div className="w-12 h-1.5 bg-stone-900 rounded-full overflow-hidden mb-1 border border-stone-800 shadow-md">
+          <div 
+            className={`h-full transition-all duration-100 ease-linear ${entity.stamina > 50 ? 'bg-green-400' : entity.stamina > 20 ? 'bg-orange-400' : 'bg-red-500'}`}
+            style={{ width: `${entity.stamina}%` }}
+          />
+        </div>
+
+        {entity.stamina < 50 && entity.state !== 'on_break' && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); actions.sendOnBreak(entity.id, type); }}
+            className="px-1.5 py-0.5 bg-stone-100 hover:bg-white text-stone-900 border border-stone-800 text-[8px] font-black rounded shadow-md pointer-events-auto active:scale-95"
+          >
+            ☕ BREAK
+          </button>
+        )}
+        
+        {entity.state === 'on_break' && (
+           <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[8px] font-black rounded shadow-md animate-pulse">RELAXING</span>
+        )}
+      </div>
+    </Html>
+  );
+};
+
 const Person3D = memo(({ color, isWalking, isSitting, role, seed = 0, hasTray = false, isTakingOrder = false, isWaitingOrder = false }: any) => {
   return (
      <group position={[0,0,0]}>
@@ -42,8 +77,8 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
 
   const skinColor = "#ffcda2";
   const hairColor = "#1c1917";
-  const pantsColor = role === 'chef' ? '#ffffff' : role === 'waiter' ? '#1a1a1a' : "#1e293b";
-  const shirtColor = role === 'waiter' ? '#ffffff' : role === 'chef' ? '#ffffff' : color;
+  const pantsColor = role === 'chef' ? '#ffffff' : role === 'waiter' ? '#1a1a1a' : role === 'cleaner' ? '#1e293b' : "#1e293b";
+  const shirtColor = role === 'waiter' ? '#ffffff' : role === 'chef' ? '#ffffff' : role === 'cleaner' ? '#0ea5e9' : color;
   const shoeColor = "#1c1917";
 
   useFrame((state) => {
@@ -62,7 +97,7 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
           leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, 0, 0.1);
           rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, 0, 0.1);
           leftArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, 0, 0.1);
-          rightArmRef.current.rotation.z = THREE.MathUtils.lerp(rightArmRef.current.rotation.z, 0, 0.1);
+          rightArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, 0, 0.1);
         }
       }
       if (bodyRef.current) {
@@ -90,7 +125,7 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
     } else {
       if (leftLegRef.current && rightLegRef.current) {
         leftLegRef.current.rotation.x = THREE.MathUtils.lerp(leftLegRef.current.rotation.x, 0, 0.1);
-        rightLegRef.current.rotation.x = THREE.MathUtils.lerp(rightLegRef.current.rotation.x, 0, 0.1);
+        rightLegRef.current.rotation.x = THREE.MathUtils.lerp(leftLegRef.current.rotation.x, 0, 0.1);
       }
       if (leftArmRef.current && rightArmRef.current) {
         if (role === 'waiter' && isTakingOrder) {
@@ -115,21 +150,12 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
   return (
     <group ref={groupRef} position={position}>
       <group ref={bodyRef} position={[0, 1.1, 0]}>
-        <Cylinder args={[0.06, 0.08, 0.15, 16]} position={[0, 0.45, 0]}>
-          <meshStandardMaterial color={skinColor} />
-        </Cylinder>
+        <Cylinder args={[0.06, 0.08, 0.15, 16]} position={[0, 0.45, 0]}><meshStandardMaterial color={skinColor} /></Cylinder>
 
         <group position={[0, 0.7, 0]}>
-          <Sphere args={[0.22, 32, 32]} scale={[1.05, 0.95, 1]}>
-            <meshStandardMaterial color={skinColor} roughness={0.5} />
-          </Sphere>
-
-          <Sphere args={[0.04, 16, 16]} position={[-0.22, 0, 0.02]} scale={[0.5, 1, 1]}>
-            <meshStandardMaterial color={skinColor} roughness={0.5} />
-          </Sphere>
-          <Sphere args={[0.04, 16, 16]} position={[0.22, 0, 0.02]} scale={[0.5, 1, 1]}>
-            <meshStandardMaterial color={skinColor} roughness={0.5} />
-          </Sphere>
+          <Sphere args={[0.22, 32, 32]} scale={[1.05, 0.95, 1]}><meshStandardMaterial color={skinColor} roughness={0.5} /></Sphere>
+          <Sphere args={[0.04, 16, 16]} position={[-0.22, 0, 0.02]} scale={[0.5, 1, 1]}><meshStandardMaterial color={skinColor} roughness={0.5} /></Sphere>
+          <Sphere args={[0.04, 16, 16]} position={[0.22, 0, 0.02]} scale={[0.5, 1, 1]}><meshStandardMaterial color={skinColor} roughness={0.5} /></Sphere>
           
           <group position={[0, -0.02, 0.2]}>
             <group position={[-0.08, 0.05, 0]}>
@@ -148,7 +174,6 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
             <mesh position={[0.08, 0.12, -0.02]} rotation={[0, 0, 0.1]}><capsuleGeometry args={[0.006, 0.03, 4, 8]} /><meshStandardMaterial color="#291e17" /></mesh>
 
             <Sphere args={[0.015, 16, 16]} position={[0, 0.01, 0.02]} scale={[1.2, 0.8, 0.5]}><meshStandardMaterial color={skinColor} roughness={0.7} /></Sphere>
-            
             <mesh position={[0, -0.03, 0.01]} rotation={[0.2, 0, Math.PI]}><torusGeometry args={[0.02, 0.004, 16, 32, Math.PI * 0.6]} /><meshStandardMaterial color="#451a03" /></mesh>
           </group>
 
@@ -171,12 +196,13 @@ const OldPerson3D = ({ position, color, isWalking, isSitting, role, seed = 0, ha
           )}
         </group>
 
-        <Cylinder args={[0.22, 0.18, 0.7, 32]} position={[0, 0.05, 0]}>
-          <meshStandardMaterial color={shirtColor} roughness={0.8} />
-        </Cylinder>
+        <Cylinder args={[0.22, 0.18, 0.7, 32]} position={[0, 0.05, 0]}><meshStandardMaterial color={shirtColor} roughness={0.8} /></Cylinder>
         
         {role === 'waiter' && (
           <Cylinder args={[0.19, 0.19, 0.4, 32]} position={[0, -0.15, 0.01]}><meshStandardMaterial color="#1a1a1a" roughness={0.9} /></Cylinder>
+        )}
+        {role === 'cleaner' && (
+          <Cylinder args={[0.19, 0.19, 0.4, 32]} position={[0, -0.15, 0.01]}><meshStandardMaterial color="#0c4a6e" roughness={0.9} /></Cylinder>
         )}
         {role === 'chef' && (
           <Cylinder args={[0.19, 0.19, 0.5, 32]} position={[0, -0.1, 0.01]}><meshStandardMaterial color="#f8fafc" roughness={0.9} /></Cylinder>
@@ -280,23 +306,18 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
   
   const seed = useMemo(() => {
     let hash = 0;
-    for (let i = 0; i < customer.id.length; i++) {
-      hash = ((hash << 5) - hash) + customer.id.charCodeAt(i);
-      hash |= 0;
-    }
+    for (let i = 0; i < customer.id.length; i++) { hash = ((hash << 5) - hash) + customer.id.charCodeAt(i); hash |= 0; }
     return Math.abs(hash);
   }, [customer.id]);
   
-  const groupSize = useMemo(() => (seed % 4) + 1, [seed]);
+  // FIX: Visually render the exact amount of people that the engine decided for this group
+  const groupSize = customer.partySize || ((seed % 4) + 1);
   
   let finalTargetX = table ? mapPos(table.x) : 0;
   let finalTargetZ = table ? mapPos(table.y) : 0;
   
-  if (customer.state === 'leaving') {
-    finalTargetX = 0; finalTargetZ = 22;
-  } else if (customer.state === 'entering') {
-    if (!ref.current) { finalTargetX = 0; finalTargetZ = 22; }
-  }
+  if (customer.state === 'leaving') { finalTargetX = 0; finalTargetZ = 22; } 
+  else if (customer.state === 'entering') { if (!ref.current) { finalTargetX = 0; finalTargetZ = 22; } }
 
   useFrame((state, delta) => {
     if (ref.current) {
@@ -305,25 +326,15 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
 
       if (customer.state === 'leaving') {
         if (ref.current.position.z < 14) {
-          if (Math.abs(ref.current.position.x) > 0.5) {
-             currentTargetX = 0; currentTargetZ = ref.current.position.z;
-          } else {
-             currentTargetX = 0; currentTargetZ = 15;
-          }
-        } else {
-           currentTargetX = 0; currentTargetZ = 22;
-        }
+          if (Math.abs(ref.current.position.x) > 0.5) { currentTargetX = 0; currentTargetZ = ref.current.position.z; } 
+          else { currentTargetX = 0; currentTargetZ = 15; }
+        } else { currentTargetX = 0; currentTargetZ = 22; }
       } else if (customer.state !== 'entering') {
-        if (ref.current.position.z > 14) {
-           currentTargetX = 0; currentTargetZ = 14;
-        } else {
-           if (Math.abs(ref.current.position.z - finalTargetZ) > 0.5 && Math.abs(ref.current.position.x) < 0.5) {
-             currentTargetX = 0; currentTargetZ = finalTargetZ;
-           } else if (Math.abs(ref.current.position.x) > 0.5 && Math.abs(ref.current.position.z - finalTargetZ) > 0.5) {
-             currentTargetX = 0; currentTargetZ = ref.current.position.z;
-           } else {
-             currentTargetX = finalTargetX; currentTargetZ = finalTargetZ;
-           }
+        if (ref.current.position.z > 14) { currentTargetX = 0; currentTargetZ = 14; } 
+        else {
+           if (Math.abs(ref.current.position.z - finalTargetZ) > 0.5 && Math.abs(ref.current.position.x) < 0.5) { currentTargetX = 0; currentTargetZ = finalTargetZ; } 
+           else if (Math.abs(ref.current.position.x) > 0.5 && Math.abs(ref.current.position.z - finalTargetZ) > 0.5) { currentTargetX = 0; currentTargetZ = ref.current.position.z; } 
+           else { currentTargetX = finalTargetX; currentTargetZ = finalTargetZ; }
         }
       }
 
@@ -332,21 +343,14 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
       if (dist > 0.1) {
         setIsWalking(true); setIsSitting(false);
         const speed = 4;
-        const dx = currentTargetX - ref.current.position.x;
-        const dz = currentTargetZ - ref.current.position.z;
-        ref.current.position.x += (dx / dist) * speed * delta;
-        ref.current.position.z += (dz / dist) * speed * delta;
+        ref.current.position.x += ((currentTargetX - ref.current.position.x) / dist) * speed * delta;
+        ref.current.position.z += ((currentTargetZ - ref.current.position.z) / dist) * speed * delta;
         const angle = Math.atan2(currentTargetX - ref.current.position.x, currentTargetZ - ref.current.position.z);
         ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 10);
       } else {
         setIsWalking(false);
-        if (table && customer.state !== 'leaving' && customer.state !== 'entering') {
-          setIsSitting(true);
-          ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, 0, delta * 5);
-        } else {
-          setIsSitting(false);
-          ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, 0, delta * 5);
-        }
+        if (table && customer.state !== 'leaving' && customer.state !== 'entering') { setIsSitting(true); ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, 0, delta * 5); } 
+        else { setIsSitting(false); ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, 0, delta * 5); }
       }
     }
   });
@@ -363,33 +367,22 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
       {customer.state !== 'entering' && customer.state !== 'leaving' && (
         <Html position={[0, 4.5, 0]} center>
           <div className="flex flex-col items-center pointer-events-none">
-            <div className="w-16 h-2 bg-white rounded-full overflow-hidden mb-1 border border-stone-800 shadow-md">
-              <div 
-                className={`h-full transition-all duration-100 ease-linear ${
-                  customer.state === 'eating' ? 'bg-green-400' :
-                  customer.patience > 50 ? 'bg-blue-400' : 
-                  customer.patience > 25 ? 'bg-orange-400' : 'bg-red-500'
-                }`}
-                style={{ width: `${(customer.patience / customer.maxPatience) * 100}%` }}
-              />
+            {customer.isVIP && (
+              <div className="bg-yellow-400 border-2 border-yellow-600 text-yellow-900 font-black text-[10px] px-2 py-0.5 rounded-full mb-1 shadow-md animate-bounce">
+                ⭐ VIP
+              </div>
+            )}
+            <div className={`w-16 h-2 bg-white rounded-full overflow-hidden mb-1 border shadow-md ${customer.isVIP ? 'border-yellow-600' : 'border-stone-800'}`}>
+              <div className={`h-full transition-all duration-100 ease-linear ${customer.isVIP ? 'bg-yellow-400' : customer.state === 'eating' ? 'bg-green-400' : customer.patience > 50 ? 'bg-blue-400' : customer.patience > 25 ? 'bg-orange-400' : 'bg-red-500'}`} style={{ width: `${(customer.patience / customer.maxPatience) * 100}%` }} />
             </div>
-            {customer.state === 'waiting_order' && staff.waiters === 0 && (
-              <button 
-                onClick={() => actions.takeOrder(customer.id)}
-                className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black rounded shadow-md border border-stone-800 pointer-events-auto"
-              >
-                ORDER
+            
+            {customer.state === 'waiting_order' && (
+              <button onClick={() => actions.takeOrder(customer.id)} className={`px-2 py-1 text-[10px] font-black rounded shadow-md border border-stone-800 pointer-events-auto transition-transform active:scale-95 ${customer.isVIP ? 'bg-yellow-400 hover:bg-yellow-300 text-yellow-900 animate-pulse' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}>
+                {customer.isVIP ? '⭐ TAKE VIP ORDER' : 'TAKE ORDER'}
               </button>
             )}
-            {customer.state === 'waiting_order' && staff.waiters > 0 && (
-              <span className="text-[10px] font-black text-stone-800 bg-white px-1 rounded border border-stone-800">WAITING</span>
-            )}
-            {customer.state === 'waiting_food' && (
-              <span className="text-[10px] font-black text-stone-800 bg-white px-1 rounded border border-stone-800">HUNGRY</span>
-            )}
-            {customer.state === 'eating' && (
-              <span className="text-[10px] font-black text-stone-800 bg-white px-1 rounded border border-stone-800">EATING</span>
-            )}
+            {customer.state === 'waiting_food' && <span className="text-[10px] font-black text-stone-800 bg-white px-1 rounded border border-stone-800">HUNGRY</span>}
+            {customer.state === 'eating' && <span className="text-[10px] font-black text-stone-800 bg-white px-1 rounded border border-stone-800">EATING</span>}
           </div>
         </Html>
       )}
@@ -397,40 +390,72 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
   );
 };
 
-const Waiter3D = ({ index, state }: any) => {
+const Waiter3D = ({ index, state, actions }: any) => {
   const ref = useRef<THREE.Group>(null);
-  const waiterEntity = state.waiterEntities[index];
+  const entity = state.waiterEntities[index];
 
   useFrame((threeState, delta) => {
-    if (ref.current && waiterEntity) {
-      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, waiterEntity.x, delta * 10);
-      ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, waiterEntity.y, delta * 10);
-      const dist = Math.sqrt(Math.pow(waiterEntity.x - ref.current.position.x, 2) + Math.pow(waiterEntity.y - ref.current.position.z, 2));
+    if (ref.current && entity) {
+      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, entity.x, delta * 10);
+      ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, entity.y, delta * 10);
+      const dist = Math.sqrt(Math.pow(entity.x - ref.current.position.x, 2) + Math.pow(entity.y - ref.current.position.z, 2));
       if (dist > 0.1) {
-        const angle = Math.atan2(waiterEntity.x - ref.current.position.x, waiterEntity.y - ref.current.position.z);
+        const angle = Math.atan2(entity.x - ref.current.position.x, entity.y - ref.current.position.z);
         ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 10);
       }
     }
   });
 
-  if (!waiterEntity) return null;
-  const isWalking = waiterEntity.state !== 'idle' && waiterEntity.state !== 'taking_order';
-  const hasTray = waiterEntity.state === 'walking_to_serve' || waiterEntity.state === 'walking_to_counter_with_order';
-  const isTakingOrder = waiterEntity.state === 'taking_order';
+  if (!entity) return null;
+  const isWalking = entity.state !== 'idle' && entity.state !== 'taking_order' && entity.state !== 'on_break';
+  const hasTray = entity.state === 'walking_to_serve' || entity.state === 'walking_to_counter_with_order';
 
   return (
-    <group ref={ref} position={[waiterEntity.x, 0, waiterEntity.y]}>
-      <Person3D color="#1e293b" isWalking={isWalking} role="waiter" seed={index} hasTray={hasTray} isTakingOrder={isTakingOrder} />
+    <group ref={ref} position={[entity.x, 0, entity.y]}>
+      <Person3D color="#1e293b" isWalking={isWalking} role="waiter" seed={index} hasTray={hasTray} isTakingOrder={entity.state === 'taking_order'} />
+      <StaminaBar entity={entity} type="waiter" actions={actions} />
     </group>
   );
 };
 
-const Chef3D = ({ index }: any) => {
+const Cleaner3D = ({ index, state, actions }: any) => {
+  const ref = useRef<THREE.Group>(null);
+  const entity = state.cleanerEntities[index];
+
+  useFrame((threeState, delta) => {
+    if (ref.current && entity) {
+      ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, entity.x, delta * 10);
+      ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, entity.y, delta * 10);
+      const dist = Math.sqrt(Math.pow(entity.x - ref.current.position.x, 2) + Math.pow(entity.y - ref.current.position.z, 2));
+      if (dist > 0.1) {
+        const angle = Math.atan2(entity.x - ref.current.position.x, entity.y - ref.current.position.z);
+        ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, angle, delta * 10);
+      }
+    }
+  });
+
+  if (!entity) return null;
+  const isWalking = entity.state !== 'idle' && entity.state !== 'cleaning' && entity.state !== 'on_break';
+
+  return (
+    <group ref={ref} position={[entity.x, 0, entity.y]}>
+      <Person3D color="#0ea5e9" isWalking={isWalking} role="cleaner" seed={index} />
+      <StaminaBar entity={entity} type="cleaner" actions={actions} />
+    </group>
+  );
+};
+
+const Chef3D = ({ index, state, actions }: any) => {
   const ref = useRef<THREE.Group>(null);
   const [target, setTarget] = useState([-5 + index * 2, -12.5]);
   const [isWalking, setIsWalking] = useState(false);
+  const entity = state.chefEntities[index] || { stamina: 100, state: 'idle', id: `c_${index}` };
 
   useFrame((threeState, delta) => {
+    if (entity.state === 'on_break') {
+      setIsWalking(false);
+      return; 
+    }
     if (Math.random() < 0.02) setTarget([-5 + index * 2 + (Math.random() * 4 - 2), -12.5 + (Math.random() * 1 - 0.5)]);
     if (ref.current) {
       const dist = Math.sqrt(Math.pow(target[0] - ref.current.position.x, 2) + Math.pow(target[1] - ref.current.position.z, 2));
@@ -450,11 +475,20 @@ const Chef3D = ({ index }: any) => {
   return (
     <group ref={ref} position={[-5 + index * 2, 0, -12.5]}>
       <Person3D color="#f8fafc" isWalking={isWalking} role="chef" seed={index} />
+      <StaminaBar entity={entity} type="chef" actions={actions} />
     </group>
   );
 };
 
-// MEMOIZED: Static Scenery never needs to re-render
+const Bench = ({ position, rotation = [0, 0, 0] }: any) => (
+  <group position={position} rotation={rotation}>
+    <Box args={[2, 0.1, 0.8]} position={[0, 0.4, 0]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
+    <Box args={[2, 0.8, 0.1]} position={[0, 0.8, -0.35]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
+    <Box args={[0.1, 0.4, 0.8]} position={[-0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
+    <Box args={[0.1, 0.4, 0.8]} position={[0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
+  </group>
+);
+
 const Cat = memo(({ position, rotation, color }: any) => {
   return (
     <group position={position} rotation={rotation || [0, 0, 0]}>
@@ -556,15 +590,36 @@ const Lantern = memo(({ position }: any) => (
   </group>
 ), () => true);
 
-const Table3D = memo(({ table, index, isEating }: any) => {
+const Table3D = memo(({ table, index, isEating, actions }: any) => {
   const x = mapPos(table.x);
   const z = mapPos(table.y);
 
   return (
     <group position={[x, 0, z]}>
+      {table.isDirty && (
+        <Html position={[0, 2.5, 0]} center zIndexRange={[100, 0]}>
+          <button 
+            onClick={() => actions.cleanTable(table.id)}
+            className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-yellow-900 border-2 border-yellow-700 font-black text-[10px] rounded shadow-xl animate-pulse whitespace-nowrap pointer-events-auto"
+          >
+            🧽 CLEAN TABLE
+          </button>
+        </Html>
+      )}
+      
+      {table.isDirty && (
+        <group position={[0, 1.15, 0]}>
+          <Box args={[0.4, 0.05, 0.4]} position={[0.2, 0, 0.2]} rotation={[0, 0.3, 0]}><meshStandardMaterial color="#78716c" /></Box>
+          <Box args={[0.3, 0.05, 0.3]} position={[-0.3, 0, -0.1]} rotation={[0, -0.5, 0]}><meshStandardMaterial color="#57534e" /></Box>
+          <Sphere args={[0.05, 8, 8]} position={[0.1, 0, -0.3]}><meshStandardMaterial color="#a8a29e" /></Sphere>
+        </group>
+      )}
+
       <Cylinder args={[0.4, 0.4, 0.05, 32]} position={[0, 0.025, 0]}><meshStandardMaterial color="#78350f" /></Cylinder>
       <Cylinder args={[0.08, 0.08, 1, 16]} position={[0, 0.5, 0]}><meshStandardMaterial color="#78350f" /></Cylinder>
-      <Cylinder args={[1.2, 1.2, 0.1, 32]} position={[0, 1.05, 0]}><meshPhysicalMaterial color="#ffffff" transmission={0.9} opacity={1} metalness={0.1} roughness={0.05} ior={1.5} thickness={0.1} transparent /></Cylinder>
+      <Cylinder args={[1.2, 1.2, 0.1, 32]} position={[0, 1.05, 0]}>
+        <meshPhysicalMaterial color={table.isDirty ? "#d6d3d1" : "#ffffff"} transmission={0.9} opacity={1} metalness={0.1} roughness={table.isDirty ? 0.8 : 0.05} ior={1.5} thickness={0.1} transparent />
+      </Cylinder>
       
       <group position={[-1.4, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
         <Box args={[0.6, 0.1, 0.6]} position={[0, 0.5, 0]}><meshStandardMaterial color="#e06666" /></Box>
@@ -608,7 +663,7 @@ const Table3D = memo(({ table, index, isEating }: any) => {
       )}
     </group>
   );
-}, (prev, next) => prev.isEating === next.isEating);
+}, (prev, next) => prev.isEating === next.isEating && prev.table.isDirty === next.table.isDirty);
 
 const AnimatedDoor = memo(({ isNear, position = [-14.8, 0, 5], rotation = [0, 0, 0], layout = 0, customFrameColor }: any) => {
   const leftDoorRef = useRef<THREE.Group>(null);
@@ -775,15 +830,6 @@ const CityBuilding = ({ position, size, color, roofColor, name, rotation = [0,0,
   );
 };
 
-const Bench = ({ position, rotation = [0, 0, 0] }: any) => (
-  <group position={position} rotation={rotation}>
-    <Box args={[2, 0.1, 0.8]} position={[0, 0.4, 0]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
-    <Box args={[2, 0.8, 0.1]} position={[0, 0.8, -0.35]} castShadow><meshStandardMaterial color="#8B4513" /></Box>
-    <Box args={[0.1, 0.4, 0.8]} position={[-0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
-    <Box args={[0.1, 0.4, 0.8]} position={[0.8, 0.2, 0]} castShadow><meshStandardMaterial color="#333" /></Box>
-  </group>
-);
-
 const Park = ({ position }: any) => (
   <group position={position}>
     <Plane args={[25, 25]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow><meshStandardMaterial color="#86efac" /></Plane>
@@ -802,7 +848,6 @@ const Park = ({ position }: any) => (
   </group>
 );
 
-// MEMOIZED: Background never re-renders!
 const OutdoorScenery = memo(({ isNight }: { isNight: boolean }) => {
   return (
     <group>
@@ -877,7 +922,6 @@ const OutdoorScenery = memo(({ isNight }: { isNight: boolean }) => {
   );
 });
 
-// MEMOIZED: Floor never re-renders!
 const RestaurantFloor = memo(() => {
   return (
     <group position={[0, 0.05, 0]}>
@@ -918,16 +962,18 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
           
           const allReady = tableOrders.every(o => o.state === 'ready');
           const anyCooking = tableOrders.some(o => o.state === 'cooking');
+          const anyOnFire = tableOrders.some(o => o.isOnFire);
           
           return (
             <div
               key={tableId}
               className={`pointer-events-auto w-[170px] rounded-lg p-2.5 flex flex-col shadow-xl border-4 relative transition-colors ${
+                anyOnFire ? 'border-red-600 bg-red-100 animate-pulse' :
                 isOnline ? 'border-blue-800' : 'border-stone-800'
               } ${
-                allReady ? 'bg-green-100' :
-                anyCooking ? 'bg-orange-100' :
-                'bg-white'
+                !anyOnFire && allReady ? 'bg-green-100' :
+                !anyOnFire && anyCooking ? 'bg-orange-100' :
+                !anyOnFire ? 'bg-white' : ''
               }`}
             >
               <div className="flex justify-between items-center border-b-2 border-stone-300 pb-1 mb-2">
@@ -943,11 +989,13 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
               
               <div className="flex flex-wrap gap-2 justify-center mb-2">
                 {tableOrders.map(order => (
-                  <div key={order.id} className="relative flex flex-col items-center bg-white/50 p-1 rounded border border-stone-300">
-                    <span className="text-xl drop-shadow-sm" style={{ imageRendering: 'pixelated' }}>{getFoodEmoji(order.recipeId)}</span>
+                  <div key={order.id} className={`relative flex flex-col items-center p-1 rounded border border-stone-300 ${order.isOnFire ? 'bg-red-200 border-red-500' : 'bg-white/50'}`}>
+                    <span className="text-xl drop-shadow-sm" style={{ imageRendering: 'pixelated' }}>
+                      {order.isOnFire ? '🔥' : getFoodEmoji(order.recipeId)}
+                    </span>
                     <div className="w-8 h-1.5 mt-1 bg-stone-300 rounded-full overflow-hidden border border-stone-500">
                       <div 
-                        className={`h-full transition-all duration-100 ease-linear ${order.state === 'ready' ? 'bg-green-500' : 'bg-orange-500'}`}
+                        className={`h-full transition-all duration-100 ease-linear ${order.isOnFire ? 'bg-red-500' : order.state === 'ready' ? 'bg-green-500' : 'bg-orange-500'}`}
                         style={{ width: `${order.progress}%` }}
                       />
                     </div>
@@ -955,26 +1003,37 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
                 ))}
               </div>
 
-              {!allReady && state.staff.chefs === 0 && (
-                <button 
-                  onClick={() => tableOrders.forEach(o => { if(o.state !== 'ready') actions.cookOrder(o.id) })} 
-                  className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all shadow-sm"
-                >
-                  COOK {isOnline ? 'ORDER' : 'TABLE'}
-                </button>
-              )}
-              {allReady && !isOnline && state.staff.waiters === 0 && (
-                <button 
-                  onClick={() => tableOrders.forEach(o => { if(o.state === 'ready') actions.serveFood(o.id) })} 
-                  className="w-full py-1.5 bg-green-500 hover:bg-green-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all animate-pulse shadow-sm"
-                >
-                  SERVE TABLE
-                </button>
-              )}
-              {allReady && isOnline && (
-                <span className="w-full py-1.5 bg-blue-500 text-white rounded text-[10px] font-black border-2 border-stone-800 text-center animate-pulse shadow-sm">
-                  DRIVER ARRIVING...
-                </span>
+              {anyOnFire ? (
+                 <button 
+                   onClick={() => tableOrders.forEach(o => { if(o.isOnFire) actions.extinguishFire(o.id) })} 
+                   className="w-full py-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-900 transition-all shadow-sm"
+                 >
+                   🧯 EXTINGUISH!
+                 </button>
+              ) : (
+                <>
+                  {!allReady && (
+                    <button 
+                      onClick={() => tableOrders.forEach(o => { if(o.state !== 'ready') actions.cookOrder(o.id) })} 
+                      className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all shadow-sm"
+                    >
+                      COOK {isOnline ? 'ORDER' : 'TABLE'}
+                    </button>
+                  )}
+                  {allReady && !isOnline && (
+                    <button 
+                      onClick={() => tableOrders.forEach(o => { if(o.state === 'ready') actions.serveFood(o.id) })} 
+                      className="w-full py-1.5 bg-green-500 hover:bg-green-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all animate-pulse shadow-sm"
+                    >
+                      SERVE TABLE
+                    </button>
+                  )}
+                  {allReady && isOnline && (
+                    <span className="w-full py-1.5 bg-blue-500 text-white rounded text-[10px] font-black border-2 border-stone-800 text-center animate-pulse shadow-sm">
+                      DRIVER ARRIVING...
+                    </span>
+                  )}
+                </>
               )}
             </div>
           );
@@ -1065,7 +1124,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
 
         {state.tables.map((table, i) => {
           const isEating = state.customers.some(c => c.tableId === table.id && c.state === 'eating');
-          return <Table3D key={table.id} table={table} index={i} isEating={isEating} />
+          return <Table3D key={table.id} table={table} index={i} isEating={isEating} actions={actions} />
         })}
 
         <Suspense fallback={null}>
@@ -1073,14 +1132,17 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
             <Customer3D key={customer.id} customer={customer} table={state.tables.find(t => t.id === customer.tableId)} actions={actions} staff={state.staff}/>
           ))}
           {Array.from({ length: state.staff.chefs }).map((_, i) => (
-            <Chef3D key={`chef-${i}`} index={i} />
+            <Chef3D key={`chef-${i}`} index={i} state={state} actions={actions} />
           ))}
           {Array.from({ length: state.staff.waiters }).map((_, i) => (
-            <Waiter3D key={`waiter-${i}`} index={i} state={state} />
+            <Waiter3D key={`waiter-${i}`} index={i} state={state} actions={actions} />
+          ))}
+          {Array.from({ length: state.staff.cleaners || 0 }).map((_, i) => (
+            <Cleaner3D key={`cleaner-${i}`} index={i} state={state} actions={actions} />
           ))}
         </Suspense>
 
       </Canvas>
     </div>
   );
-};
+}
