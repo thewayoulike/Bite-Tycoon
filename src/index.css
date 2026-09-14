@@ -1,92 +1,184 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=VT323&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-pixel: "Pixelify Sans", "VT323", monospace;
+  --font-mono: "VT323", monospace, Courier;
 }
 
 /* Minecraft UI Styles */
 .mc-panel {
-  background-color: rgba(198, 198, 198, 0.85);
-  backdrop-filter: blur(4px);
-  border: 4px solid rgba(55, 55, 55, 0.8);
-  box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.8), inset -4px -4px 0 rgba(85, 85, 85, 0.8);
-  color: #3f3f3f;
+  background-color: rgba(198, 198, 198, 0.95);
+  backdrop-filter: blur(8px);
+  border: 4px solid #373737;
+  box-shadow: inset 4px 4px 0 #ffffff, inset -4px -4px 0 #555555, 0 8px 24px rgba(0, 0, 0, 0.6);
+  color: #2b2b2b;
 }
 
 .mc-panel-header {
-  color: #3f3f3f;
+  color: #2b2b2b;
   border-bottom: 4px solid #555555;
 }
 
 .mc-slot {
   background-color: #8b8b8b;
-  box-shadow: inset 4px 4px 0 #373737, inset -4px -4px 0 #ffffff;
-  /* Optional: no transparent background, pure block */
+  border: 2px solid #373737;
+  box-shadow: inset 3px 3px 0 #373737, inset -3px -3px 0 #c6c6c6;
+  color: #ffffff;
 }
 
 /* A pressed/sunken panel, like the background area of the inventory */
 .mc-inner-panel {
   background-color: #c6c6c6;
-  box-shadow: inset 4px 4px 0 #555555, inset -4px -4px 0 #ffffff;
+  border: 2px solid #555555;
+  box-shadow: inset 3px 3px 0 #777777, inset -3px -3px 0 #ffffff;
 }
 
 .mc-button {
   background-color: #c6c6c6;
-  border: 4px solid #373737;
-  box-shadow: inset 4px 4px 0 #ffffff, inset -4px -4px 0 #555555;
-  color: #3f3f3f;
+  border: 3px solid #373737;
+  box-shadow: inset 3px 3px 0 #ffffff, inset -3px -3px 0 #555555;
+  color: #2b2b2b;
   transition: transform 0.05s ease;
 }
+.mc-button:hover {
+  background-color: #d8d8d8;
+}
 .mc-button:active {
-  box-shadow: inset 4px 4px 0 #555555, inset -4px -4px 0 #ffffff;
+  box-shadow: inset 3px 3px 0 #555555, inset -3px -3px 0 #ffffff;
   transform: translateY(2px);
 }
 
 .mc-button-selected {
-  background-color: #c6c6c6;
-  border: 4px solid #373737;
-  box-shadow: inset 4px 4px 0 #ffffff, inset -4px -4px 0 #555555;
-  color: #3f3f3f;
+  background-color: #a8a8a8;
+  border: 3px solid #1a1a1a;
+  box-shadow: inset 3px 3px 0 #555555, inset -3px -3px 0 #d8d8d8;
+  color: #111111;
 }
 
 /* Green MC button (for main actions/play) */
 .mc-button-green {
-  background-color: #388e3c;
-  border: 4px solid #1b5e20;
-  box-shadow: inset 4px 4px 0 #aed581, inset -4px -4px 0 #2e7d32;
+  background-color: #2e7d32;
+  border: 3px solid #143e18;
+  box-shadow: inset 3px 3px 0 #81c784, inset -3px -3px 0 #1b5e20;
   color: #ffffff;
-  text-shadow: 2px 2px 0px #1b5e20;
+  text-shadow: 1px 1px 0px #0e2a11;
   transition: transform 0.05s ease;
 }
+.mc-button-green:hover {
+  background-color: #388e3c;
+}
 .mc-button-green:active {
-  box-shadow: inset 4px 4px 0 #2e7d32, inset -4px -4px 0 #aed581;
+  box-shadow: inset 3px 3px 0 #1b5e20, inset -3px -3px 0 #81c784;
   transform: translateY(2px);
 }
 
 /* Red MC Button */
 .mc-button-red {
-  background-color: #d32f2f;
-  border: 4px solid #b71c1c;
-  box-shadow: inset 4px 4px 0 #ef9a9a, inset -4px -4px 0 #c62828;
+  background-color: #c62828;
+  border: 3px solid #7f0000;
+  box-shadow: inset 3px 3px 0 #ef9a9a, inset -3px -3px 0 #8e0000;
   color: #ffffff;
-  text-shadow: 2px 2px 0px #b71c1c;
+  text-shadow: 1px 1px 0px #4d0000;
+  transition: transform 0.05s ease;
+}
+.mc-button-red:hover {
+  background-color: #d32f2f;
 }
 .mc-button-red:active {
-  box-shadow: inset 4px 4px 0 #c62828, inset -4px -4px 0 #ef9a9a;
+  box-shadow: inset 3px 3px 0 #8e0000, inset -3px -3px 0 #ef9a9a;
   transform: translateY(2px);
+}
+
+/* Blue MC Button */
+.mc-button-blue {
+  background-color: #1565c0;
+  border: 3px solid #0d47a1;
+  box-shadow: inset 3px 3px 0 #90caf9, inset -3px -3px 0 #0d47a1;
+  color: #ffffff;
+  text-shadow: 1px 1px 0px #0a2d6c;
+  transition: transform 0.05s ease;
+}
+.mc-button-blue:hover {
+  background-color: #1976d2;
+}
+.mc-button-blue:active {
+  box-shadow: inset 3px 3px 0 #0d47a1, inset -3px -3px 0 #90caf9;
+  transform: translateY(2px);
+}
+
+/* Gold/Yellow MC Button */
+.mc-button-gold {
+  background-color: #d97706;
+  border: 3px solid #78350f;
+  box-shadow: inset 3px 3px 0 #fde68a, inset -3px -3px 0 #92400e;
+  color: #ffffff;
+  text-shadow: 1px 1px 0px #451a03;
+  transition: transform 0.05s ease;
+}
+.mc-button-gold:hover {
+  background-color: #b45309;
+}
+.mc-button-gold:active {
+  box-shadow: inset 3px 3px 0 #92400e, inset -3px -3px 0 #fde68a;
+  transform: translateY(2px);
+}
+
+/* Purple MC Button */
+.mc-button-purple {
+  background-color: #7e22ce;
+  border: 3px solid #4a044e;
+  box-shadow: inset 3px 3px 0 #e9d5ff, inset -3px -3px 0 #581c87;
+  color: #ffffff;
+  text-shadow: 1px 1px 0px #3b0764;
+  transition: transform 0.05s ease;
+}
+.mc-button-purple:hover {
+  background-color: #6b21a8;
+}
+.mc-button-purple:active {
+  box-shadow: inset 3px 3px 0 #581c87, inset -3px -3px 0 #e9d5ff;
+  transform: translateY(2px);
+}
+
+/* Custom Pixel Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #555555;
+  box-shadow: inset 2px 2px 0 #373737;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c6c6c6;
+  border: 2px solid #373737;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #8b8b8b;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d8d8d8;
+}
+
+/* Cauldron brewing pulse */
+@keyframes cauldron-bubble {
+  0% { transform: translateY(0px) scale(0.9); opacity: 0.7; }
+  50% { transform: translateY(-10px) scale(1.1); opacity: 1; }
+  100% { transform: translateY(-20px) scale(0.6); opacity: 0; }
+}
+
+.animate-cauldron-bubble {
+  animation: cauldron-bubble 2s ease-in-out infinite;
 }
 
 body {
   background-color: #1a1a1a;
   background-image: repeating-linear-gradient(45deg, #1a1a1a 25%, #222 25%, #222 50%, #1a1a1a 50%, #1a1a1a 75%, #222 75%, #222 100%);
   background-size: 40px 40px;
-  /* Custom cursor for that flash feel */
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23ffffff" stroke="%23000000" stroke-width="2" d="M5,5 L15,10 L10,12 L12,18 L9,19 L7,13 L3,15 Z"/></svg>'), auto;
 }
 
 button, a, .cursor-pointer {
-  /* Pointer cursor */
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23ffeb3b" stroke="%23000000" stroke-width="2" d="M5,5 L15,10 L10,12 L12,18 L9,19 L7,13 L3,15 Z"/></svg>'), pointer !important;
 }
 

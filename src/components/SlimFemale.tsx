@@ -22,7 +22,7 @@ type GLTFResult = GLTF & {
   }
 }
 
-export function SlimFemale({ isWalking = false, isSitting = false, color, ...props }: { isWalking?: boolean, isSitting?: boolean, color?: string } & JSX.IntrinsicElements['group']) {
+export function SlimFemale({ isWalking = false, isSitting = false, color, ...props }: { isWalking?: boolean, isSitting?: boolean, color?: string } & React.JSX.IntrinsicElements['group']) {
   const { nodes, materials } = useGLTF('/a_slim_female_character.glb') as unknown as GLTFResult
   const group = useRef<THREE.Group>(null)
 

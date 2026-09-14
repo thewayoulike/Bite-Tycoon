@@ -1,7 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
+import { sounds } from '../utils/audio';
 
 export type CustomerState = 'entering' | 'waiting_order' | 'waiting_food' | 'eating' | 'leaving';
+
+export interface FloatingEvent {
+  id: string;
+  x: number;
+  z: number;
+  text: string;
+  subtext?: string;
+  color?: string;
+  createdAt: number;
+  type?: 'tip' | 'vip' | 'event' | 'info';
+}
+
+export interface DaySummary {
+  day: number;
+  week: number;
+  revenue: number;
+  tips: number;
+  served: number;
+  lost: number;
+  starRating: number;
+  topDish?: string;
+}
 
 export interface Customer {
   id: string;
@@ -126,6 +149,16 @@ export interface GameState {
   wallColor: string | null;
   frameColor: string | null;
   isRestaurantOpen: boolean;
+  gameSpeed: number;
+  floatingEvents: FloatingEvent[];
+  daySummary: DaySummary | null;
+  dayStats: {
+    revenue: number;
+    tips: number;
+    served: number;
+    lost: number;
+    itemsSold: Record<string, number>;
+  };
 }
 
 const STARTING_INVENTORY = { water: 50, soda_syrup: 50, coffee_bean: 50, potato: 50, oil: 50, sugar: 50, spices: 50, fruit: 50, rice: 50, fish: 50 };
@@ -162,6 +195,16 @@ const INITIAL_STATE: GameState = {
     salaryCosts: 0, upgradeCosts: 0, itemsSold: {}, itemRevenues: {}, vipBonus: 0, spoilageCosts: 0
   },
   restaurantLayout: 0, wallColor: null, frameColor: null, isRestaurantOpen: false,
+  gameSpeed: 1,
+  floatingEvents: [],
+  daySummary: null,
+  dayStats: {
+    revenue: 0,
+    tips: 0,
+    served: 0,
+    lost: 0,
+    itemsSold: {}
+  }
 };
 
 export const UPGRADE_COSTS = {
@@ -209,7 +252,12 @@ export function useGameLoop() {
 
   const gameTick = useCallback(() => {
     const now = Date.now();
-    const delta = Math.min((now - lastTickRef.current) / 1000, 0.5); 
+    const currentSpeed = stateRef.current.gameSpeed ?? 1;
+    if (currentSpeed === 0) {
+      lastTickRef.current = now;
+      return; // Paused!
+    }
+    const delta = Math.min((now - lastTickRef.current) / 1000, 0.5) * currentSpeed; 
     lastTickRef.current = now;
 
     setState((prevState) => {
@@ -218,10 +266,13 @@ export function useGameLoop() {
         tables: [...prevState.tables], customers: [...prevState.customers], orders: [...prevState.orders],
         stats: { ...prevState.stats, itemsSold: { ...(prevState.stats.itemsSold || {}) }, itemRevenues: { ...(prevState.stats.itemRevenues || {}) } },
         inventory: { ...prevState.inventory },
-        inventoryBatches: { ...prevState.inventoryBatches }
+        inventoryBatches: { ...prevState.inventoryBatches },
+        dayStats: { ...prevState.dayStats, itemsSold: { ...(prevState.dayStats?.itemsSold || {}) } },
+        floatingEvents: [...(prevState.floatingEvents || [])]
       };
       
       let { tables, customers, orders, staff, upgrades, stats, recipes, unlockedApps } = newState;
+      let newFloatingEvents: FloatingEvent[] = [];
 
       let waiterEntities = (prevState.waiterEntities || []).map(w => ({ ...w, stamina: w.stamina ?? 100 }));
       let chefEntities = (prevState.chefEntities || []).map(c => ({ ...c, stamina: c.stamina ?? 100 }));
@@ -232,6 +283,44 @@ export function useGameLoop() {
         if (newState.time >= 100) {
           newState.time = 0;
           newState.day += 1;
+          
+          // Calculate End-of-Day Summary
+          const dayServed = newState.dayStats.served || 0;
+          const dayLost = newState.dayStats.lost || 0;
+          const totalCustomers = dayServed + dayLost;
+          const starRating = totalCustomers > 0 
+            ? Math.min(5, Math.max(1, Math.round((dayServed / totalCustomers) * 5 * 10) / 10))
+            : 5;
+
+          let topDish: string | undefined = undefined;
+          let maxSold = 0;
+          for (const [recId, qty] of Object.entries(newState.dayStats.itemsSold || {})) {
+            if (qty > maxSold) {
+              maxSold = qty;
+              const rec = recipes.find(r => r.id === recId);
+              topDish = rec ? rec.name : recId;
+            }
+          }
+
+          newState.daySummary = {
+            day: newState.day - 1,
+            week: Math.floor((newState.day - 2) / 7) + 1,
+            revenue: newState.dayStats.revenue || 0,
+            tips: newState.dayStats.tips || 0,
+            served: dayServed,
+            lost: dayLost,
+            starRating,
+            topDish
+          };
+
+          // Reset day stats for fresh morning shift
+          newState.dayStats = {
+            revenue: 0,
+            tips: 0,
+            served: 0,
+            lost: 0,
+            itemsSold: {}
+          };
           
           if (newState.day % 7 === 3 && newState.day > 7) {
             const totalSalaries = (staff.waiters * SALARIES.waiter * 7) + (staff.chefs * SALARIES.chef * 7) + ((staff.cleaners || 0) * SALARIES.cleaner * 7) + (staff.hasManager ? SALARIES.manager * 7 : 0);
@@ -247,7 +336,7 @@ export function useGameLoop() {
                 const spoiledQty = Math.floor(qty * 0.1); 
                 newState.inventory[ing] -= spoiledQty;
                 
-                // FIX: Spoilage uses exact FIFO math to find the cost of the rotten items!
+                // Spoilage uses exact FIFO math to find the cost of the rotten items!
                 const res = consumeFIFO(newState.inventoryBatches[ing] || [], spoiledQty);
                 newState.inventoryBatches[ing] = res.remainingBatches;
                 spoiledCost += res.costConsumed;
@@ -278,6 +367,7 @@ export function useGameLoop() {
           };
           customers.push(newCustomer);
           tables = tables.map((t) => (t.id === table.id ? { ...t, customerId: newCustomer.id } : t));
+          sounds.playDoorChime();
         }
       }
 
@@ -360,6 +450,18 @@ export function useGameLoop() {
             
             tipsThisTick += tip; vipBonusThisTick += vipEarnings; earnedThisTick += mealEarnings + vipEarnings + tip; 
             servedThisTick += (newC.partySize || 1); 
+
+            if (table) {
+              newFloatingEvents.push({
+                id: `ev_${Date.now()}_${Math.random()}`,
+                x: mapPos(table.x),
+                z: mapPos(table.y),
+                text: `+$${mealEarnings + vipEarnings}`,
+                subtext: tip > 0 ? `+Tip $${tip} 💖` : (newC.isVIP ? 'VIP ⭐' : undefined),
+                color: '#22c55e',
+                createdAt: Date.now()
+              });
+            }
           }
         } else if (newC.state === 'eating' && newC.tableId.startsWith('online_')) {
           newC.actionTimer -= delta;
@@ -436,8 +538,10 @@ export function useGameLoop() {
           const table = tables.find(t => t.id === w.targetTableId);
           if (!table) { w.state = 'idle'; w.targetTableId = null; } 
           else {
-            const dist = Math.sqrt(Math.pow((mapPos(table.x) - 1.2) - w.x, 2) + Math.pow(mapPos(table.y) - w.y, 2));
-            if (dist < 0.5) {
+            const targetTableX = mapPos(table.x) - 1.4;
+            const targetTableY = mapPos(table.y);
+            const dist = Math.sqrt(Math.pow(targetTableX - w.x, 2) + Math.pow(targetTableY - w.y, 2));
+            if (dist < 0.45) {
               if (w.state === 'walking_to_order') { w.state = 'taking_order'; w.actionTimer = 2; }
               else {
                 orders.filter(o => o.tableId === w.targetTableId && o.state === 'ready').forEach(targetOrder => {
@@ -457,8 +561,8 @@ export function useGameLoop() {
                 w.state = 'walking_to_counter_empty'; w.targetTableId = null;
               }
             } else {
-              w.x += (((mapPos(table.x) - 1.2) - w.x) / dist) * WAITER_SPEED * delta;
-              w.y += ((mapPos(table.y) - w.y) / dist) * WAITER_SPEED * delta;
+              w.x += ((targetTableX - w.x) / dist) * WAITER_SPEED * delta;
+              w.y += ((targetTableY - w.y) / dist) * WAITER_SPEED * delta;
               moving = true;
             }
           }
@@ -515,13 +619,17 @@ export function useGameLoop() {
         }
 
         if (w.state === 'walking_to_counter_empty' || w.state === 'walking_to_counter_with_order') {
-          const dist = Math.sqrt(Math.pow(-5 - w.x, 2) + Math.pow(-8 - w.y, 2));
+          const counterStationX = -6 + (i * 2.2);
+          const counterStationY = -8;
+          const dist = Math.sqrt(Math.pow(counterStationX - w.x, 2) + Math.pow(counterStationY - w.y, 2));
           if (dist < 0.5) {
             if (w.state === 'walking_to_counter_empty') w.state = 'idle';
             else if (orders.some(o => o.tableId === w.targetTableId && o.state === 'ready')) w.state = 'walking_to_serve';
             else { w.state = 'idle'; w.targetTableId = null; }
           } else {
-            w.x += ((-5 - w.x) / dist) * WAITER_SPEED * delta; w.y += ((-8 - w.y) / dist) * WAITER_SPEED * delta; moving = true;
+            w.x += ((counterStationX - w.x) / dist) * WAITER_SPEED * delta;
+            w.y += ((counterStationY - w.y) / dist) * WAITER_SPEED * delta;
+            moving = true;
           }
         }
         if (moving) w.stamina = Math.max(0, w.stamina - 1 * delta);
@@ -593,14 +701,16 @@ export function useGameLoop() {
       }
 
       if (availableChefPower > 0) {
-        orders = orders.map(o => (o.state === 'pending' ? { ...o, state: 'cooking' } : o)).map(o => {
+        orders = orders.map(o => (o.state === 'pending' ? { ...o, state: 'cooking' as const } : o)).map(o => {
           if (o.state === 'cooking') {
             if (o.isOnFire) return o;
             if (Math.random() < 0.0005) return { ...o, isOnFire: true };
             const recipe = recipes.find(r => r.id === o.recipeId) || recipes[0];
             const progressToAdd = Math.min(100 - o.progress, availableChefPower / recipe.cookingTime);
             availableChefPower -= progressToAdd * recipe.cookingTime;
-            return { ...o, progress: o.progress + progressToAdd, state: (o.progress + progressToAdd) >= 100 ? 'ready' : 'cooking' };
+            const newProgress = o.progress + progressToAdd;
+            const newState: 'ready' | 'cooking' = newProgress >= 100 ? 'ready' : 'cooking';
+            return { ...o, progress: newProgress, state: newState };
           }
           return o;
         });
@@ -636,6 +746,23 @@ export function useGameLoop() {
       newState.stats.customersServed += servedThisTick; newState.stats.customersLost += lostThisTick;
       newState.stats.totalEarned += earnedThisTick; newState.stats.totalTips += tipsThisTick;
       newState.stats.vipBonus += vipBonusThisTick; newState.stats.totalExpenses += feesThisTick;
+
+      if (newState.dayStats) {
+        newState.dayStats.revenue = (newState.dayStats.revenue || 0) + earnedThisTick;
+        newState.dayStats.tips = (newState.dayStats.tips || 0) + tipsThisTick;
+        newState.dayStats.served = (newState.dayStats.served || 0) + servedThisTick;
+        newState.dayStats.lost = (newState.dayStats.lost || 0) + lostThisTick;
+      }
+
+      if (earnedThisTick > 0) {
+        sounds.playCashRegister();
+      }
+
+      const nowTime = Date.now();
+      newState.floatingEvents = [
+        ...(newState.floatingEvents || []).filter(e => nowTime - e.createdAt < 3000),
+        ...newFloatingEvents
+      ];
 
       return newState;
     });
@@ -702,6 +829,7 @@ export function useGameLoop() {
   };
 
   const serveFood = (orderId: string) => {
+    sounds.playCashRegister();
     setState(prev => {
       const order = prev.orders.find(o => o.id === orderId);
       if (!order || order.state !== 'ready') return prev;
@@ -724,16 +852,21 @@ export function useGameLoop() {
   };
 
   const cookOrder = (orderId: string) => {
+     sounds.playCooking();
      setState(prev => {
       const order = prev.orders.find(o => o.id === orderId);
       if (!order || order.state === 'ready') return prev;
       const recipe = prev.recipes.find(r => r.id === order.recipeId) || prev.recipes[0];
       const newProgress = Math.min(100, order.progress + (prev.upgrades.cookingSpeed * 15) / recipe.cookingTime);
+      if (newProgress >= 100) {
+        sounds.playOrderReady();
+      }
       return { ...prev, orders: prev.orders.map(o => o.id === orderId ? { ...o, state: newProgress >= 100 ? 'ready' : 'cooking', progress: newProgress } : o) };
     });
   };
 
   const buyUpgrade = (type: 'table' | 'waiter' | 'chef' | 'cleaner') => {
+    sounds.playUpgrade();
     setState(prev => {
       let cost = 0, newState = { ...prev, staff: { ...prev.staff }, stats: { ...prev.stats } };
       switch (type) {
@@ -769,6 +902,7 @@ export function useGameLoop() {
   };
 
   const buyLevelUpgrade = (type: 'mealPrice' | 'cookingSpeed' | 'spawnRate', currentLevel: number) => {
+     sounds.playUpgrade();
      setState(prev => {
       let cost = UPGRADE_COSTS[type](currentLevel);
       if (prev.money >= cost) {
@@ -791,15 +925,49 @@ export function useGameLoop() {
       });
   };
 
-  const hireManager = () => setState(prev => ({ ...prev, staff: { ...prev.staff, hasManager: true } }));
+  const hireManager = () => {
+    sounds.playUpgrade();
+    setState(prev => ({ ...prev, staff: { ...prev.staff, hasManager: true } }));
+  };
+
   const setRestaurantLayout = (layoutIndex: number) => setState(prev => ({ ...prev, restaurantLayout: layoutIndex }));
   const setWallColor = (color: string | null) => setState(prev => ({ ...prev, wallColor: color }));
   const setFrameColor = (color: string | null) => setState(prev => ({ ...prev, frameColor: color }));
-  const toggleRestaurantState = () => setState(prev => ({ ...prev, isRestaurantOpen: !prev.isRestaurantOpen }));
-  const cleanTable = (tableId: string) => setState(prev => ({ ...prev, tables: prev.tables.map(t => t.id === tableId ? { ...t, isDirty: false } : t) }));
-  const extinguishFire = (orderId: string) => setState(prev => ({ ...prev, orders: prev.orders.map(o => o.id === orderId ? { ...o, isOnFire: false } : o) }));
+  const toggleRestaurantState = () => {
+    sounds.playClick();
+    setState(prev => ({ ...prev, isRestaurantOpen: !prev.isRestaurantOpen }));
+  };
+
+  const cleanTable = (tableId: string) => {
+    sounds.playCleanSparkle();
+    setState(prev => {
+      const table = prev.tables.find(t => t.id === tableId);
+      const newFloating = [...(prev.floatingEvents || [])];
+      if (table) {
+        newFloating.push({
+          id: `clean_${Date.now()}_${Math.random()}`,
+          x: mapPos(table.x),
+          z: mapPos(table.y),
+          text: '✨ Sparkle Clean!',
+          color: '#38bdf8',
+          createdAt: Date.now()
+        });
+      }
+      return {
+        ...prev,
+        floatingEvents: newFloating,
+        tables: prev.tables.map(t => t.id === tableId ? { ...t, isDirty: false } : t)
+      };
+    });
+  };
+
+  const extinguishFire = (orderId: string) => {
+    sounds.playExtinguish();
+    setState(prev => ({ ...prev, orders: prev.orders.map(o => o.id === orderId ? { ...o, isOnFire: false } : o) }));
+  };
 
   const unlockRecipe = (recipeId: string) => {
+    sounds.playUpgrade();
     setState(prev => {
       const recipe = prev.recipes.find(r => r.id === recipeId);
       if (!recipe || recipe.unlocked || prev.money < recipe.unlockCost) return prev;
@@ -808,6 +976,7 @@ export function useGameLoop() {
   };
 
   const buyIngredient = (ingredientId: string, amount: number, discount: number = 0) => {
+    sounds.playClick();
     setState(prev => {
       const ingredient = INGREDIENTS[ingredientId];
       if (!ingredient) return prev;
@@ -845,6 +1014,7 @@ export function useGameLoop() {
   };
 
   const unlockApp = (appId: string) => {
+    sounds.playUpgrade();
     setState(prev => {
        if (prev.unlockedApps.includes(appId)) return prev;
        const app = ONLINE_APPS[appId as keyof typeof ONLINE_APPS];
@@ -883,5 +1053,45 @@ export function useGameLoop() {
     }));
   };
 
-  return { state, actions: { takeOrder, serveFood, cookOrder, buyUpgrade, buyLevelUpgrade, hireManager, unlockRecipe, buyIngredient, setRestaurantLayout, setWallColor, setFrameColor, toggleRestaurantState, unlockApp, cleanTable, extinguishFire, sendOnBreak, changeRecipePrice, payResearchCost, addCustomRecipe } };
+  const setGameSpeed = (speed: number) => {
+    sounds.playClick();
+    setState(prev => ({ ...prev, gameSpeed: speed }));
+  };
+
+  const dismissDaySummary = () => {
+    sounds.playClick();
+    setState(prev => ({ ...prev, daySummary: null }));
+  };
+
+  const removeFloatingEvent = (id: string) => {
+    setState(prev => ({ ...prev, floatingEvents: (prev.floatingEvents || []).filter(e => e.id !== id) }));
+  };
+
+  return { 
+    state, 
+    actions: { 
+      takeOrder, 
+      serveFood, 
+      cookOrder, 
+      buyUpgrade, 
+      buyLevelUpgrade, 
+      hireManager, 
+      unlockRecipe, 
+      buyIngredient, 
+      setRestaurantLayout, 
+      setWallColor, 
+      setFrameColor, 
+      toggleRestaurantState, 
+      unlockApp, 
+      cleanTable, 
+      extinguishFire, 
+      sendOnBreak, 
+      changeRecipePrice, 
+      payResearchCost, 
+      addCustomRecipe,
+      setGameSpeed,
+      dismissDaySummary,
+      removeFloatingEvent
+    } 
+  };
 }
