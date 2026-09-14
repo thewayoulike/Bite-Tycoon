@@ -18,7 +18,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
   onUnlockRecipe,
   onChangePrice,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked' | 'custom'>('all');
+  const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked' | 'custom'>('unlocked');
   const [search, setSearch] = useState('');
 
   const filteredRecipes = recipes.filter(r => {
@@ -259,6 +259,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => onChangePrice(recipe.id, recipe.price - 1)}
+                          aria-label={`Decrease ${recipe.name} price`}
                           disabled={recipe.price <= recipe.basePrice}
                           className={`w-7 h-7 flex items-center justify-center font-black rounded text-sm ${
                             recipe.price <= recipe.basePrice ? 'mc-slot text-[#888888] cursor-not-allowed' : 'mc-button-red'
@@ -272,6 +273,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                         </span>
                         <button
                           onClick={() => onChangePrice(recipe.id, recipe.price + 1)}
+                          aria-label={`Increase ${recipe.name} price`}
                           className="w-7 h-7 flex items-center justify-center font-black rounded text-sm mc-button-green"
                           title="Increase menu price"
                         >

@@ -2,6 +2,8 @@ import React, { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Cylinder, Sphere, Plane, Cone, Text, Torus } from '@react-three/drei';
 import * as THREE from 'three';
+import { Neighborhood3D } from './Neighborhood3D';
+import { RoundedCarBody3D, StylizedTree3D } from './StreetAssets3D';
 
 // Victorian Cast-Iron Street Lamp with glowing globe and warm illumination
 export const StreetLamp3D = memo(({ position, isNight }: { position: [number, number, number]; isNight: boolean }) => {
@@ -42,7 +44,6 @@ export const StreetLamp3D = memo(({ position, isNight }: { position: [number, nu
         <Cone args={[0.26, 0.2, 6]} position={[0, 0.3, 0]}>
           <meshStandardMaterial color="#0f172a" metalness={0.8} />
         </Cone>
-        {isNight && <pointLight color="#fef08a" intensity={0.8} distance={10} />}
       </group>
       <group position={[0.45, 5.2, 0]}>
         <Cylinder args={[0.03, 0.03, 0.6, 8]} rotation={[0, 0, -Math.PI / 4]} position={[-0.2, -0.2, 0]}>
@@ -60,7 +61,6 @@ export const StreetLamp3D = memo(({ position, isNight }: { position: [number, nu
         <Cone args={[0.26, 0.2, 6]} position={[0, 0.3, 0]}>
           <meshStandardMaterial color="#0f172a" metalness={0.8} />
         </Cone>
-        {isNight && <pointLight color="#fef08a" intensity={0.8} distance={10} />}
       </group>
     </group>
   );
@@ -141,11 +141,11 @@ export const BrownstoneBuilding3D = memo(({
       <group position={[0, 2.2, 7.25]}>
         {/* Left Display Window */}
         <Box args={[5.5, 3, 0.1]} position={[-4.5, 0, 0]}>
-          <meshPhysicalMaterial color={isNight ? "#fef08a" : "#bae6fd"} transmission={0.9} transparent opacity={0.6} roughness={0.1} />
+          <meshStandardMaterial color={isNight ? "#fef08a" : "#bae6fd"} depthWrite={false} transparent opacity={0.6} roughness={0.1} />
         </Box>
         {/* Right Display Window */}
         <Box args={[5.5, 3, 0.1]} position={[4.5, 0, 0]}>
-          <meshPhysicalMaterial color={isNight ? "#fef08a" : "#bae6fd"} transmission={0.9} transparent opacity={0.6} roughness={0.1} />
+          <meshStandardMaterial color={isNight ? "#fef08a" : "#bae6fd"} depthWrite={false} transparent opacity={0.6} roughness={0.1} />
         </Box>
         {/* Boutique Scalloped Awning */}
         <group position={[0, 2.2, 0.8]} rotation={[-Math.PI / 6, 0, 0]}>
@@ -305,7 +305,7 @@ export const GrandHotel3D = memo(({
         </Cylinder>
         {/* Warm Golden Hotel Doors */}
         <Box args={[3.2, 3.8, 0.2]} position={[0, -0.3, 0.1]}>
-          <meshPhysicalMaterial color={isNight ? "#fef08a" : "#bae6fd"} transmission={0.8} transparent opacity={0.7} />
+          <meshStandardMaterial color={isNight ? "#fef08a" : "#bae6fd"} depthWrite={false} transparent opacity={0.7} />
         </Box>
         {/* Polished Brass Stanchions & Red Carpet leading to sidewalk */}
         <Plane args={[3, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.45, 2]}>
@@ -333,17 +333,18 @@ export const RealisticCar3D = memo(({
   xOffset,
   isHorizontal = false,
   isTaxi = false,
+  gameSpeed = 1,
   isNight
 }: any) => {
   const ref = useRef<THREE.Group>(null);
   useFrame((state, delta) => {
     if (ref.current) {
       if (isHorizontal) {
-        ref.current.position.x += speed * direction * delta;
+        ref.current.position.x += speed * 0.28 * direction * Math.min(delta, 0.1) * gameSpeed;
         if (direction === 1 && ref.current.position.x > 140) ref.current.position.x = -140;
         if (direction === -1 && ref.current.position.x < -140) ref.current.position.x = 140;
       } else {
-        ref.current.position.z += speed * direction * delta;
+        ref.current.position.z += speed * 0.28 * direction * Math.min(delta, 0.1) * gameSpeed;
         if (direction === 1 && ref.current.position.z > 140) ref.current.position.z = -140;
         if (direction === -1 && ref.current.position.z < -140) ref.current.position.z = 140;
       }
@@ -356,62 +357,7 @@ export const RealisticCar3D = memo(({
       position={isHorizontal ? [initialZ, 0, xOffset] : [xOffset, 0, initialZ]}
       rotation={[0, isHorizontal ? (direction === 1 ? Math.PI / 2 : -Math.PI / 2) : (direction === 1 ? 0 : Math.PI), 0]}
     >
-      {/* Chassis and Sleek Aerodynamic Body */}
-      <Box args={[2.2, 0.5, 4.8]} position={[0, 0.6, 0]} castShadow>
-        <meshStandardMaterial color="#1e293b" roughness={0.6} />
-      </Box>
-      <Box args={[2.3, 0.8, 4.6]} position={[0, 1.1, 0]} castShadow>
-        <meshStandardMaterial color={isTaxi ? "#eab308" : color} metalness={0.7} roughness={0.2} />
-      </Box>
-      {/* Cabin Roof & Tinted Windows */}
-      <Box args={[1.9, 0.85, 2.5]} position={[0, 1.85, -0.2]} castShadow>
-        <meshStandardMaterial color={isTaxi ? "#eab308" : color} metalness={0.7} roughness={0.2} />
-      </Box>
-      <Box args={[1.92, 0.65, 2.3]} position={[0, 1.8, -0.2]}>
-        <meshStandardMaterial color="#0f172a" roughness={0.1} metalness={0.9} />
-      </Box>
-
-      {/* Taxi Rooftop Light */}
-      {isTaxi && (
-        <group position={[0, 2.4, -0.2]}>
-          <Box args={[0.9, 0.3, 0.4]}>
-            <meshStandardMaterial color="#fef08a" emissive="#fde047" emissiveIntensity={isNight ? 1.5 : 0.2} />
-          </Box>
-        </group>
-      )}
-
-      {/* Detailed Alloy Wheels */}
-      {[-1.3, 1.3].map((wz, i) => (
-        <group key={`wheel-${i}`}>
-          <Cylinder args={[0.42, 0.42, 0.28, 16]} position={[-1.15, 0.45, wz]} rotation={[0, 0, Math.PI / 2]} castShadow>
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
-          </Cylinder>
-          <Cylinder args={[0.26, 0.26, 0.3, 12]} position={[-1.16, 0.45, wz]} rotation={[0, 0, Math.PI / 2]}>
-            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
-          </Cylinder>
-          <Cylinder args={[0.42, 0.42, 0.28, 16]} position={[1.15, 0.45, wz]} rotation={[0, 0, Math.PI / 2]} castShadow>
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
-          </Cylinder>
-          <Cylinder args={[0.26, 0.26, 0.3, 12]} position={[1.16, 0.45, wz]} rotation={[0, 0, Math.PI / 2]}>
-            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
-          </Cylinder>
-        </group>
-      ))}
-
-      {/* Headlights with Glowing Beams */}
-      <Box args={[0.45, 0.25, 0.1]} position={[-0.8, 1.0, 2.32]}>
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={isNight ? 3 : 1} />
-      </Box>
-      <Box args={[0.45, 0.25, 0.1]} position={[0.8, 1.0, 2.32]}>
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={isNight ? 3 : 1} />
-      </Box>
-      {/* Rear Taillights */}
-      <Box args={[0.5, 0.25, 0.1]} position={[-0.8, 1.0, -2.32]}>
-        <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={isNight ? 2.5 : 0.8} />
-      </Box>
-      <Box args={[0.5, 0.25, 0.1]} position={[0.8, 1.0, -2.32]}>
-        <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={isNight ? 2.5 : 0.8} />
-      </Box>
+      <RoundedCarBody3D color={color} isTaxi={isTaxi} isNight={isNight} speed={speed} gameSpeed={gameSpeed} />
     </group>
   );
 });
@@ -449,12 +395,12 @@ export const ParkFountain3D = memo(({ position }: { position: [number, number, n
 ));
 
 // Upgraded Outdoor Scenery with Realistic Cityscape, Traffic, Sidewalks, and Park
-export const AttractiveCityScenery3D = memo(({ isNight }: { isNight: boolean }) => {
+export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNight: boolean; gameSpeed?: number }) => {
   return (
     <group>
       {/* Vast Ground Terrain */}
       <Plane args={[450, 450]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <meshStandardMaterial color={isNight ? "#064e3b" : "#22c55e"} roughness={0.9} />
+        <meshStandardMaterial color="#718263" roughness={1} />
       </Plane>
 
       {/* ASPHALT CITY BOULEVARDS & AVENUES */}
@@ -507,13 +453,13 @@ export const AttractiveCityScenery3D = memo(({ isNight }: { isNight: boolean }) 
 
       {/* WHITE PEDESTRIAN ZEBRA CROSSINGS */}
       {Array.from({ length: 6 }).map((_, i) => (
-        <Plane key={`cross-s-${i}`} args={[1.2, 8]} rotation={[-Math.PI / 2, 0, 0]} position={[-4 + i * 1.6, 0.035, 25]}>
+        <Plane key={`cross-s-${i}`} args={[1.2, 11.5]} rotation={[-Math.PI / 2, 0, 0]} position={[-4 + i * 1.6, 0.035, 25]}>
           <meshStandardMaterial color="#ffffff" roughness={0.4} />
         </Plane>
       ))}
 
       {/* RESTAURANT FRONT SIDEWALK PLAZA */}
-      <Plane args={[28, 8]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 18]} receiveShadow>
+      <Plane args={[28, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 17]} receiveShadow>
         <meshStandardMaterial color={isNight ? "#475569" : "#cbd5e1"} roughness={0.7} />
       </Plane>
       {/* Stone Curb Edge */}
@@ -522,7 +468,7 @@ export const AttractiveCityScenery3D = memo(({ isNight }: { isNight: boolean }) 
       </Box>
 
       {/* OUTDOOR PATIO BISTRO DINING TABLES (In front of restaurant) */}
-      <group position={[-9, 0.04, 18]}>
+      <group position={[-9, 0.1, 16.2]}>
         {/* Striped Patio Parasol Umbrella */}
         <Cylinder args={[0.04, 0.04, 3.2, 8]} position={[0, 1.6, 0]} castShadow><meshStandardMaterial color="#334155" metalness={0.8} /></Cylinder>
         <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#e11d48" /></Cone>
@@ -530,7 +476,7 @@ export const AttractiveCityScenery3D = memo(({ isNight }: { isNight: boolean }) 
         <Cylinder args={[0.6, 0.6, 0.04, 16]} position={[0, 1.0, 0]}><meshStandardMaterial color="#f8fafc" /></Cylinder>
         <Cylinder args={[0.05, 0.05, 1.0, 8]} position={[0, 0.5, 0]}><meshStandardMaterial color="#1e293b" /></Cylinder>
       </group>
-      <group position={[9, 0.04, 18]}>
+      <group position={[9, 0.1, 16.2]}>
         <Cylinder args={[0.04, 0.04, 3.2, 8]} position={[0, 1.6, 0]} castShadow><meshStandardMaterial color="#334155" metalness={0.8} /></Cylinder>
         <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#0284c7" /></Cone>
         <Cylinder args={[0.6, 0.6, 0.04, 16]} position={[0, 1.0, 0]}><meshStandardMaterial color="#f8fafc" /></Cylinder>
@@ -544,63 +490,47 @@ export const AttractiveCityScenery3D = memo(({ isNight }: { isNight: boolean }) 
       <StreetLamp3D position={[18, 0, -18.5]} isNight={isNight} />
 
       {/* DYNAMIC REALISTIC MOVING TRAFFIC (Cars, Taxis, Vans) */}
-      <RealisticCar3D initialZ={-60} speed={28} color="#ef4444" direction={1} xOffset={-28} isNight={isNight} />
-      <RealisticCar3D initialZ={10} speed={25} color="#eab308" direction={1} xOffset={-28} isTaxi={true} isNight={isNight} />
-      <RealisticCar3D initialZ={70} speed={30} color="#3b82f6" direction={-1} xOffset={-22} isNight={isNight} />
-      <RealisticCar3D initialZ={-20} speed={26} color="#10b981" direction={-1} xOffset={-22} isNight={isNight} />
+      <RealisticCar3D initialZ={-60} speed={28} color="#ef4444" direction={1} xOffset={-28} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={10} speed={25} color="#eab308" direction={1} xOffset={-28} isTaxi={true} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={70} speed={30} color="#3b82f6" direction={-1} xOffset={-22} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={-20} speed={26} color="#10b981" direction={-1} xOffset={-22} isNight={isNight} gameSpeed={gameSpeed} />
 
-      <RealisticCar3D initialZ={-80} speed={27} color="#eab308" direction={1} xOffset={22} isTaxi={true} isNight={isNight} />
-      <RealisticCar3D initialZ={20} speed={24} color="#8b5cf6" direction={1} xOffset={22} isNight={isNight} />
-      <RealisticCar3D initialZ={90} speed={31} color="#f43f5e" direction={-1} xOffset={28} isNight={isNight} />
-      <RealisticCar3D initialZ={-40} speed={26} color="#06b6d4" direction={-1} xOffset={28} isNight={isNight} />
+      <RealisticCar3D initialZ={-80} speed={27} color="#eab308" direction={1} xOffset={22} isTaxi={true} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={20} speed={24} color="#8b5cf6" direction={1} xOffset={22} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={90} speed={31} color="#f43f5e" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={-40} speed={26} color="#06b6d4" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
 
-      <RealisticCar3D initialZ={-50} speed={26} color="#eab308" direction={1} xOffset={28} isHorizontal isTaxi={true} isNight={isNight} />
-      <RealisticCar3D initialZ={40} speed={29} color="#ec4899" direction={-1} xOffset={22} isHorizontal isNight={isNight} />
-      <RealisticCar3D initialZ={-70} speed={25} color="#14b8a6" direction={1} xOffset={-22} isHorizontal isNight={isNight} />
-      <RealisticCar3D initialZ={30} speed={28} color="#f97316" direction={-1} xOffset={-28} isHorizontal isNight={isNight} />
+      <RealisticCar3D initialZ={-50} speed={26} color="#eab308" direction={1} xOffset={28} isHorizontal isTaxi={true} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={40} speed={29} color="#ec4899" direction={-1} xOffset={22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={-70} speed={25} color="#14b8a6" direction={1} xOffset={-22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={30} speed={28} color="#f97316" direction={-1} xOffset={-28} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
 
       {/* SURROUNDING ARCHITECTURAL BUILDINGS & CITY DISTRICT */}
-      {/* West Side: Classic Red Brick Brownstone with Fire Escapes & Bakery */}
-      <BrownstoneBuilding3D position={[-52, 0, 0]} name="LE BISTRO & BAKERY" isNight={isNight} />
-      {/* North-West Corner: High-Rise Modern Corporate Headquarters */}
-      <ModernSkyscraper3D position={[-55, 0, -55]} height={38} isNight={isNight} />
-      {/* North Side: Grand Hotel with Mansard Roof & Glowing Neon */}
-      <GrandHotel3D position={[0, 0, -56]} isNight={isNight} />
-      {/* North-East Corner: Luxury Tower */}
-      <ModernSkyscraper3D position={[55, 0, -55]} height={42} isNight={isNight} />
-      {/* East Side: Art Deco City Department Store & Library */}
-      <BrownstoneBuilding3D position={[52, 0, 0]} name="ROYAL OPERA HOUSE" isNight={isNight} />
-      {/* South-West: High Rise Residence */}
-      <ModernSkyscraper3D position={[-55, 0, 55]} height={30} isNight={isNight} />
-      {/* South-East: Classic Boutique Brownstone */}
-      <BrownstoneBuilding3D position={[55, 0, 55]} name="VINTAGE CINEMA" isNight={isNight} />
+      <Neighborhood3D isNight={isNight} gameSpeed={gameSpeed} />
+      <ModernSkyscraper3D position={[-60, 0, -74]} height={32} isNight={isNight} />
+      <GrandHotel3D position={[0, 0, -70]} isNight={isNight} />
+      <ModernSkyscraper3D position={[60, 0, -74]} height={38} isNight={isNight} />
+      <ModernSkyscraper3D position={[-66, 0, 76]} height={26} isNight={isNight} />
+      <BrownstoneBuilding3D position={[66, 0, 70]} rotation={[0, Math.PI, 0]} name="VINTAGE CINEMA" isNight={isNight} />
 
       {/* BEAUTIFUL MUNICIPAL PARK WITH FOUNTAIN & CHERRY BLOSSOMS */}
       <group position={[0, 0, 58]}>
         {/* Lush Green Lawn */}
         <Plane args={[36, 32]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
-          <meshStandardMaterial color={isNight ? "#064e3b" : "#4ade80"} roughness={0.8} />
+          <meshStandardMaterial color="#7e9663" roughness={1} />
         </Plane>
         {/* Tiered Splashing Fountain */}
         <ParkFountain3D position={[0, 0, 0]} />
         {/* Park Cobblestone Ring Path */}
-        <Torus args={[8, 1.2, 8, 32]} position={[0, 0.04, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color="#cbd5e1" roughness={0.8} />
-        </Torus>
-        {/* Flowering Cherry Blossom Trees */}
-        {[-12, 12].map((tx, i) => (
-          <group key={`tree-${i}`} position={[tx, 0, 0]}>
-            <Cylinder args={[0.3, 0.5, 4, 12]} position={[0, 2, 0]} castShadow>
-              <meshStandardMaterial color="#3b271d" roughness={0.9} />
-            </Cylinder>
-            <Sphere args={[2.4, 16, 16]} position={[0, 4.5, 0]} scale={[1.2, 0.9, 1.2]} castShadow>
-              <meshStandardMaterial color="#f472b6" roughness={0.7} />
-            </Sphere>
-            <Sphere args={[1.8, 12, 12]} position={[0.8, 4.2, 0.8]} castShadow>
-              <meshStandardMaterial color="#fb7185" roughness={0.7} />
-            </Sphere>
-          </group>
-        ))}
+        <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <ringGeometry args={[6.8, 9.2, 48]} />
+          <meshStandardMaterial color="#c6bdab" roughness={0.95} />
+        </mesh>
+        <mesh position={[0, 0.06, -13.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[3.5, 13]} />
+          <meshStandardMaterial color="#c6bdab" roughness={0.95} />
+        </mesh>
+        {[-12, 12].map((x, i) => <StylizedTree3D key={x} position={[x, 0.04, 0]} seed={i + 2} blossom scale={1.4} gameSpeed={gameSpeed} />)}
       </group>
     </group>
   );

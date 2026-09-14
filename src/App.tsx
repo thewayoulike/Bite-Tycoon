@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameLoop } from './hooks/useGameLoop';
 import { 
   ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle, 
@@ -29,6 +29,14 @@ export default function App() {
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>('menu');
   const [showWelcome, setShowWelcome] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveTab('restaurant');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const currentWeek = Math.floor((state.day - 1) / 7) + 1;
   const dayOfWeek = ((state.day - 1) % 7) + 1;
@@ -104,7 +112,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden font-mono select-none relative bg-stone-900">
+    <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900">
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
         <Scene3D state={state} actions={actions} />
@@ -247,8 +255,8 @@ export default function App() {
               { id: 'upgrades', label: 'Staff & Shop', icon: <ArrowUpCircle size={18} />, badge: null },
               { id: 'recipes', label: 'Menu & Prices', icon: <BookOpen size={18} />, badge: null },
               { id: 'lab', label: 'Research Lab', icon: <Beaker size={18} />, badge: state.money >= 2500 ? '⭐' : null },
-              { id: 'inventory', label: 'Pantry / FIFO', icon: <Package size={18} />, badge: lowStockCount > 0 ? `${lowStockCount}!` : null },
-              { id: 'layouts', label: 'Decor / Decor', icon: <PaintBucket size={18} />, badge: null },
+              { id: 'inventory', label: 'Pantry', icon: <Package size={18} />, badge: lowStockCount > 0 ? `${lowStockCount}!` : null },
+              { id: 'layouts', label: 'Decor', icon: <PaintBucket size={18} />, badge: null },
               { id: 'stats', label: 'Financials', icon: <Users size={18} />, badge: null },
               { id: 'analysis', label: 'Sales Mix', icon: <TrendingUp size={18} />, badge: null }
             ].map((tab) => {
@@ -256,13 +264,16 @@ export default function App() {
               return (
                 <button 
                   key={tab.id} 
+                  aria-label={tab.label}
+                  aria-pressed={isActive}
+                  title={tab.label}
                   onClick={() => setActiveTab(isActive ? 'restaurant' : tab.id as any)} 
                   className={`px-3 py-2 font-black flex items-center gap-1.5 transition-all outline-none whitespace-nowrap text-xs relative ${
                     isActive ? 'mc-button-selected scale-95' : 'mc-button'
                   }`}
                 >
                   {tab.icon}
-                  <span className="hidden sm:inline uppercase tracking-wider text-[10px]">
+                  <span className="uppercase tracking-wider text-[10px]">
                     {tab.label}
                   </span>
 
@@ -291,7 +302,7 @@ export default function App() {
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
               exit={{ scale: 0.9, y: 20 }} 
-              className="mc-panel w-full max-w-lg p-6 flex flex-col font-mono text-center items-center gap-4 shadow-2xl"
+              className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 flex flex-col font-mono text-center items-center gap-4 shadow-2xl"
             >
               <div className="w-14 h-14 mc-slot flex items-center justify-center text-3xl bg-[#475569]">
                 👨‍🍳
@@ -314,7 +325,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">2</span>
-                    <span><strong>Review Pantry Inventory:</strong> Ensure you have ingredients for Rice Bowl & Noodles.</span>
+                    <span><strong>Review Pantry Inventory:</strong> Stock ingredients for your active dishes in Menu & Prices.</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">3</span>

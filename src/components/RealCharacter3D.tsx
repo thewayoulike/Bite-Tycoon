@@ -2,6 +2,7 @@ import React, { useRef, useMemo, memo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Box, Cylinder, Sphere, Cone } from '@react-three/drei';
 import * as THREE from 'three';
+import { CustomerHead3D } from './CustomerHead3D';
 
 export interface RealCharacterProps {
   role?: 'customer' | 'waiter' | 'chef' | 'cleaner';
@@ -94,22 +95,28 @@ export const RealCharacter3D = memo(({
   const eatingItemRef = useRef<THREE.Group>(null);
   const walkWeightRef = useRef(0);
   const walkPhaseRef = useRef(0);
+  const legsRef = useRef<THREE.Group>(null);
 
   // Deterministic styling based on seed
   const charConfig = useMemo(() => {
     const s = Math.abs(seed || 0);
-    const skin = isVIP ? SKIN_TONES[s % 3] : SKIN_TONES[s % SKIN_TONES.length];
-    const hair = isVIP ? '#1c1917' : HAIR_COLORS[s % HAIR_COLORS.length];
-    const eye = EYE_COLORS[s % EYE_COLORS.length];
-    const hairStyle = s % 8; // 0 to 7 styles
-    const outfitStyle = s % 8; // 0 to 7 clothing styles
-    const palette = CASUAL_OUTFITS[s % CASUAL_OUTFITS.length];
+    const pick = (salt: number, count: number) => {
+      let hash = Math.imul(s ^ salt, 0x45d9f3b);
+      hash = Math.imul(hash ^ (hash >>> 16), 0x45d9f3b);
+      return ((hash ^ (hash >>> 16)) >>> 0) % count;
+    };
+    const skin = SKIN_TONES[pick(11, SKIN_TONES.length)];
+    const hair = HAIR_COLORS[pick(23, HAIR_COLORS.length)];
+    const eye = EYE_COLORS[pick(37, EYE_COLORS.length)];
+    const hairStyle = pick(51, role === 'customer' ? 6 : 8);
+    const outfitStyle = pick(67, 8);
+    const palette = CASUAL_OUTFITS[pick(83, CASUAL_OUTFITS.length)];
     const hasGlasses = (s % 5 === 0) || isVIP;
     const glassesStyle = isVIP ? 'sunglasses' : (s % 2 === 0 ? 'round' : 'square');
     const hasBackpack = role === 'customer' && !isSitting && (s % 3 === 0);
     const hasEarrings = s % 4 === 0;
 
-    let shirtColor = color || palette.top;
+    let shirtColor = role === 'customer' ? palette.top : color || palette.top;
     let pantsColor = palette.pants;
     let shoeColor = palette.shoes;
 
@@ -151,6 +158,9 @@ export const RealCharacter3D = memo(({
   // Articulated skeletal procedural animation
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime;
+    if (legsRef.current) {
+      legsRef.current.position.y = THREE.MathUtils.damp(legsRef.current.position.y, isSitting ? -0.38 : 0, 8, delta);
+    }
     const targetWalkWeight = (isWalking && !isSitting) ? 1 : 0;
     walkWeightRef.current = THREE.MathUtils.damp(walkWeightRef.current, targetWalkWeight, 10, delta);
     const weight = walkWeightRef.current;
@@ -420,11 +430,28 @@ export const RealCharacter3D = memo(({
 
         {/* Sculpted Torso / Chest / Upper Outfit */}
         <mesh position={[0, 0.16, 0]}>
-          <cylinderGeometry args={[0.22, 0.18, 0.42, 20]} />
+          {role === 'customer' ? <capsuleGeometry args={[0.19, 0.12, 6, 16]} /> : <cylinderGeometry args={[0.22, 0.18, 0.42, 20]} />}
           <meshStandardMaterial color={charConfig.shirtColor} roughness={0.8} />
         </mesh>
 
         {/* CLOTHING STYLING DETAILS */}
+        {role === 'customer' && !isVIP && charConfig.outfitStyle >= 3 && (
+          <group>
+            <mesh position={[0, 0.35, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.105, 0.018, 6, 20]} />
+              <meshStandardMaterial color={charConfig.palette.accent} roughness={0.95} />
+            </mesh>
+            {charConfig.outfitStyle % 2 === 0 ? [0.05, 0.12, 0.19].map(y => (
+              <mesh key={y} position={[0, y, 0.183]}>
+                <boxGeometry args={[0.24, 0.025, 0.014]} />
+                <meshStandardMaterial color={charConfig.palette.accent} roughness={0.95} />
+              </mesh>
+            )) : <mesh position={[-0.09, 0.2, 0.177]}>
+              <boxGeometry args={[0.075, 0.085, 0.018]} />
+              <meshStandardMaterial color={charConfig.palette.accent} roughness={0.95} />
+            </mesh>}
+          </group>
+        )}
         {role === 'customer' && !isVIP && charConfig.outfitStyle === 0 && (
           // HOODIE POCKET & HOOD
           <group position={[0, 0.05, 0]}>
@@ -558,6 +585,7 @@ export const RealCharacter3D = memo(({
 
         {/* HEAD & FACIAL FEATURES HIERARCHY */}
         <group ref={headGroupRef} position={[0, 0.68, 0]}>
+          {role === 'customer' ? <CustomerHead3D skin={charConfig.skin} hair={charConfig.hair} eye={charConfig.eye} accent={charConfig.palette.accent} style={charConfig.hairStyle} seed={seed} glasses={charConfig.hasGlasses} vip={isVIP} earrings={charConfig.hasEarrings} /> : <>
           {/* Stylized Sculpted Head / Cranium */}
           <mesh position={[0, 0, 0]} scale={[1.05, 1.08, 1.02]}>
             <sphereGeometry args={[0.22, 32, 32]} />
@@ -886,6 +914,7 @@ export const RealCharacter3D = memo(({
               </mesh>
             </group>
           )}
+          </>}
         </group>
 
         {/* LEFT ARM SKELETAL ASSEMBLY */}
@@ -1110,6 +1139,7 @@ export const RealCharacter3D = memo(({
       </group>
 
       {/* LEFT LEG SKELETAL ASSEMBLY */}
+      <group ref={legsRef}>
       <group position={[-0.12, 0.95, 0]}>
         {/* Left Thigh (Pivots at hip) */}
         <group ref={leftThighRef}>
@@ -1195,6 +1225,7 @@ export const RealCharacter3D = memo(({
             </group>
           </group>
         </group>
+      </group>
       </group>
     </group>
   );

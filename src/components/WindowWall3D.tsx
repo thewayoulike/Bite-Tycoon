@@ -19,7 +19,6 @@ export const WallSconce3D = memo(({ position, rotation = [0, 0, 0] }: {
       <meshStandardMaterial color="#fef3c7" emissive="#fde68a" emissiveIntensity={0.6} transparent opacity={0.85} roughness={0.3} />
     </Cylinder>
     {/* Warm Interior Glow */}
-    <pointLight position={[0, 0.22, 0.18]} color="#fef08a" intensity={0.4} distance={6} />
   </group>
 ));
 
@@ -175,14 +174,13 @@ export const AttractiveRestaurantWall = memo(({
               <group key={`win-${i}`} position={[x, windowY, 0]}>
                 {/* Translucent Glass Pane with Environment Reflections */}
                 <Box args={[windowWidth, windowHeight, 0.08]}>
-                  <meshPhysicalMaterial
+                  <meshStandardMaterial
                     color={glassColor}
                     transparent
                     opacity={glassOpacity}
                     roughness={0.08}
                     metalness={0.2}
-                    transmission={0.85}
-                    ior={1.52}
+                    depthWrite={false}
                   />
                 </Box>
 

@@ -200,7 +200,6 @@ export const BistroTable3D = memo(({ table, index, isEating, actions }: {
               <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={2.5} />
             </Sphere>
             {/* Micro subtle candle light */}
-            <pointLight position={[0, 0.1, 0]} intensity={0.4} color="#fde68a" distance={3} />
           </group>
 
           {/* Stainless Salt & Pepper Shakers */}

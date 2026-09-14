@@ -83,7 +83,6 @@ export const GasBurners3D = memo(({ position }: { position: [number, number, num
           <Torus args={[0.2, 0.025, 8, 16]} position={[0, 0.07, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <meshStandardMaterial color="#f97316" emissive="#ea580c" emissiveIntensity={2.5} />
           </Torus>
-          <pointLight position={[0, 0.15, 0]} color="#38bdf8" intensity={0.6} distance={2.5} />
 
           {/* Stainless Stockpot on stove with simmering steam */}
           <group position={[0, 0.25, 0]}>

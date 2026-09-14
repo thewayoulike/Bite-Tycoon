@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Box, Cylinder, Sphere, Torus, Plane, Text } from '@react-three/drei';
+import { WoodFloorMaterial } from './WoodFloorMaterial';
 
 // Indoor Potted Fiddle Leaf Fig / Monstera Plant
 export const IndoorPlant3D = memo(({ position, type = 'fiddle' }: { position: [number, number, number]; type?: string }) => (
@@ -28,9 +29,9 @@ export const IndoorPlant3D = memo(({ position, type = 'fiddle' }: { position: [n
       { pos: [0.2, 2.6, 0.3], rot: [0.4, -0.3, 0.3], scale: [0.48, 0.02, 0.65] },
       { pos: [0, 2.9, 0], rot: [0.1, 0, 0], scale: [0.52, 0.02, 0.72] },
     ].map((leaf, idx) => (
-      <Box key={`leaf-${idx}`} args={leaf.scale as [number, number, number]} position={leaf.pos as [number, number, number]} rotation={leaf.rot as [number, number, number]} castShadow>
-        <meshStandardMaterial color={type === 'palm' ? "#16a34a" : "#15803d"} roughness={0.4} />
-      </Box>
+      <Sphere key={`leaf-${idx}`} args={[1, 12, 8]} scale={[leaf.scale[0] * 0.65, 0.035, leaf.scale[2] * 0.65]} position={leaf.pos as [number, number, number]} rotation={leaf.rot as [number, number, number]} castShadow>
+        <meshStandardMaterial color={idx % 2 === 0 ? '#387342' : '#54864b'} roughness={0.55} />
+      </Sphere>
     ))}
   </group>
 ));
@@ -48,7 +49,7 @@ export const PendantLamp3D = memo(({ position, isNight }: { position: [number, n
     </Cylinder>
     {/* Polished Brass Lamp Shade Dome */}
     <group position={[0, -3.2, 0]}>
-      <Sphere args={[0.45, 24, 24, 0, Math.PI * 2, 0, Math.PI / 2]} rotation={[Math.PI, 0, 0]} castShadow>
+      <Sphere args={[0.45, 24, 24, 0, Math.PI * 2, 0, Math.PI / 2]} castShadow>
         <meshStandardMaterial color="#d97706" metalness={0.9} roughness={0.15} />
       </Sphere>
       {/* Warm Glowing Bulb Inside */}
@@ -56,7 +57,7 @@ export const PendantLamp3D = memo(({ position, isNight }: { position: [number, n
         <meshStandardMaterial color="#fef08a" emissive="#fde047" emissiveIntensity={1.8} />
       </Sphere>
       {/* Downward Warm Pool of Light onto tables */}
-      <pointLight position={[0, -0.3, 0]} intensity={1.2} distance={8} color="#fef3c7" />
+      <pointLight position={[0, -0.3, 0]} intensity={isNight ? 32 : 14} distance={12} decay={2} color="#ffcf91" />
     </group>
   </group>
 ));
@@ -90,7 +91,7 @@ export const AttractiveBarCounter3D = memo(({ isNight }: { isNight?: boolean }) 
 
       {/* Sneeze Guard / Tempered Glass Partition with Chrome Clips */}
       <Box args={[28, 1.1, 0.08]} position={[0, 2.8, 0.8]} castShadow>
-        <meshPhysicalMaterial color="#e0f2fe" transparent opacity={0.35} transmission={0.9} roughness={0.05} />
+        <meshStandardMaterial color="#e0f2fe" transparent opacity={0.35} depthWrite={false} roughness={0.05} />
       </Box>
       <Box args={[28.2, 0.06, 0.14]} position={[0, 3.38, 0.8]}>
         <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
@@ -127,14 +128,14 @@ export const AttractiveBarCounter3D = memo(({ isNight }: { isNight?: boolean }) 
       {/* GLASS PASTRY DISPLAY SHOWCASE */}
       <group position={[0, 2.26, -0.2]}>
         <Box args={[4.2, 1.2, 1.4]} position={[0, 0.6, 0]}>
-          <meshPhysicalMaterial color="#f0fdf4" transparent opacity={0.3} transmission={0.92} roughness={0.05} />
+          <meshStandardMaterial color="#f0fdf4" transparent opacity={0.3} depthWrite={false} roughness={0.05} />
         </Box>
         {/* Wood Base & Frame */}
         <Box args={[4.3, 0.08, 1.5]} position={[0, 0.04, 0]}><meshStandardMaterial color="#451a03" /></Box>
         <Box args={[4.3, 0.06, 1.5]} position={[0, 1.22, 0]}><meshStandardMaterial color="#f59e0b" metalness={0.8} /></Box>
         {/* Glass Shelf inside */}
         <Box args={[4.0, 0.04, 1.2]} position={[0, 0.6, 0]}>
-          <meshPhysicalMaterial color="#bae6fd" transparent opacity={0.4} transmission={0.9} />
+          <meshStandardMaterial color="#bae6fd" transparent opacity={0.4} depthWrite={false} />
         </Box>
         {/* Delicious miniature pastries (Croissants, Donut, Tart) */}
         {[-1.4, -0.5, 0.5, 1.4].map((px, i) => (
@@ -201,7 +202,7 @@ export const AttractiveFloor3D = memo(() => {
     <group position={[0, 0.05, 0]}>
       {/* Warm Hardwood Parquet Planks Base */}
       <Plane args={[30, 30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <meshStandardMaterial color="#d4a373" roughness={0.4} metalness={0.05} />
+        <WoodFloorMaterial />
       </Plane>
 
       {/* Decorative Brass Inlay Border around dining room */}
@@ -224,6 +225,17 @@ export const AttractiveFloor3D = memo(() => {
           <meshStandardMaterial color="#881337" roughness={0.9} />
         </Plane>
         {/* Carpet Border Fringe */}
+        {[-1.85, 1.85].map(x => (
+          <Box key={x} args={[0.08, 0.008, 7.2]} position={[x, 0.005, 0]}>
+            <meshStandardMaterial color="#d5ac73" roughness={1} />
+          </Box>
+        ))}
+        {[-2.6, -1.3, 0, 1.3, 2.6].map(z => (
+          <mesh key={z} position={[0, 0.008, z]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+            <planeGeometry args={[0.55, 0.55]} />
+            <meshStandardMaterial color="#c69966" roughness={1} />
+          </mesh>
+        ))}
         <Box args={[4.2, 0.02, 0.2]} position={[0, 0.01, 3.8]}>
           <meshStandardMaterial color="#fef3c7" roughness={0.8} />
         </Box>

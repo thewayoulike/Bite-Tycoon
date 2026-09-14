@@ -195,3 +195,66 @@ button, a, .cursor-pointer {
   background-size: 40px 40px;
   background-position: 0 0, 20px 20px;
 }
+
+/* Readable management UI, with the pixel branding retained on the title screen. */
+.game-ui .font-mono {
+  font-family: var(--font-sans);
+}
+.game-ui [class*="text-[8px]"],
+.game-ui [class*="text-[9px]"],
+.game-ui [class*="text-[10px]"] {
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+}
+.game-ui .mc-panel {
+  background-color: rgba(250, 246, 237, 0.97);
+  border: 1px solid #a99c86;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px #17221c33, inset 0 1px 0 #ffffff;
+}
+.game-ui .mc-panel-header {
+  border-bottom: 1px solid #cfc6b5;
+}
+.game-ui .mc-button,
+.game-ui .mc-button-selected {
+  border: 1px solid #b6ac9c;
+  border-radius: 8px;
+  box-shadow: 0 2px 3px #29251e14;
+  background: #f8f4ec;
+}
+.game-ui .mc-button-selected {
+  background: #d6e8dd;
+  border-color: #4e7c61;
+  color: #254d37;
+}
+.game-ui .mc-slot {
+  border-width: 1px;
+  border-radius: 7px;
+  box-shadow: inset 0 1px 3px #29251e26;
+}
+.game-ui button { min-height: 36px; }
+.game-ui button:focus-visible,
+.game-ui select:focus-visible,
+.game-ui input:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}
+.game-ui button:disabled { cursor: not-allowed !important; opacity: 0.55; }
+.order-queue { top: 100px; padding-bottom: 10px; }
+.order-queue > div { flex: 0 0 170px; pointer-events: auto; }
+.order-queue:has(> div) { pointer-events: auto; }
+@media (max-width: 767px) {
+  .order-queue { top: 180px; max-height: 30vh; }
+  .scene-tools { bottom: 100px; right: 12px; left: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  .game-ui header { gap: 6px; padding: 8px; }
+  .game-ui header button { padding-left: 8px; padding-right: 8px; }
+  .game-ui header > div:last-child { flex-wrap: wrap; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

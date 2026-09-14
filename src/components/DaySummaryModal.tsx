@@ -26,7 +26,7 @@ export const DaySummaryModal: React.FC<DaySummaryModalProps> = ({ summary, onClo
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.85, opacity: 0, y: 20 }}
         transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-        className="mc-panel w-full max-w-lg p-6 flex flex-col font-mono shadow-2xl border-4 border-amber-800 bg-[#e2d6b5] relative overflow-hidden"
+        className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 flex flex-col font-mono shadow-2xl border-4 border-amber-800 bg-[#e2d6b5] relative"
       >
         {/* Decorative Gold Header Stamp */}
         <div className="flex items-center justify-between border-b-4 border-stone-800 pb-3 mb-4">

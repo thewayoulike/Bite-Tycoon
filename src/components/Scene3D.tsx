@@ -1,5 +1,5 @@
-import React, { useRef, useMemo, useState, Suspense, memo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useRef, useMemo, useState, useEffect, Suspense, memo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Box, Cylinder, Sphere, Plane, Html, Cone, Sky, Grid, Torus } from '@react-three/drei';
 import { GameState } from '../hooks/useGameLoop';
 import { RealCharacter3D } from './RealCharacter3D';
@@ -23,6 +23,18 @@ import {
 import * as THREE from 'three';
 
 const mapPos = (percent: number) => (percent / 100) * 20 - 10;
+
+function CameraControls({ reset, neighborhood }: { reset: number; neighborhood: boolean }) {
+  const controls = useRef<React.ElementRef<typeof OrbitControls>>(null);
+  const { camera } = useThree();
+  useEffect(() => {
+    camera.position.set(...(neighborhood ? [65, 70, 88] : [0, 25, 32]) as [number, number, number]);
+    controls.current?.target.set(0, 0, 0);
+    controls.current?.update();
+  }, [camera, reset, neighborhood]);
+  return <OrbitControls ref={controls} enablePan enableDamping dampingFactor={0.08}
+    minPolarAngle={Math.PI / 6} maxPolarAngle={Math.PI / 2.1} minDistance={5} maxDistance={150} />;
+}
 
 const getFoodEmoji = (recipeId: string) => {
   const exactMatches: Record<string, string> = {
@@ -476,7 +488,6 @@ const Lantern = memo(({ position }: any) => (
     <Cylinder args={[0.04, 0.08, 0.3, 12]} position={[0, -1.35, 0]}>
       <meshStandardMaterial color="#f59e0b" metalness={0.9} />
     </Cylinder>
-    <pointLight position={[0, -0.55, 0]} intensity={0.6} color="#fca5a5" distance={10} />
   </group>
 ), () => true);
 
@@ -516,7 +527,7 @@ const AnimatedDoor = memo(({ isNear, position = [0, 0, 14.8], rotation = [0, Mat
       {/* Left Sliding Door */}
       <group ref={leftDoorRef} position={[0, 3.1, -0.75]}>
         <Box args={[0.1, 6, 1.4]}>
-          <meshPhysicalMaterial color="#e0f2fe" transparent opacity={0.35} transmission={0.9} roughness={0.08} />
+          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.35} depthWrite={false} roughness={0.08} />
         </Box>
         <Box args={[0.22, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color={doorFrameColor} roughness={0.6} /></Box>
         <Box args={[0.22, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color={doorFrameColor} roughness={0.6} /></Box>
@@ -535,7 +546,7 @@ const AnimatedDoor = memo(({ isNear, position = [0, 0, 14.8], rotation = [0, Mat
       {/* Right Sliding Door */}
       <group ref={rightDoorRef} position={[0, 3.1, 0.75]}>
         <Box args={[0.1, 6, 1.4]}>
-          <meshPhysicalMaterial color="#e0f2fe" transparent opacity={0.35} transmission={0.9} roughness={0.08} />
+          <meshStandardMaterial color="#e0f2fe" transparent opacity={0.35} depthWrite={false} roughness={0.08} />
         </Box>
         <Box args={[0.22, 6, 0.15]} position={[0, 0, 0.65]}><meshStandardMaterial color={doorFrameColor} roughness={0.6} /></Box>
         <Box args={[0.22, 6, 0.15]} position={[0, 0, -0.65]}><meshStandardMaterial color={doorFrameColor} roughness={0.6} /></Box>
@@ -556,6 +567,10 @@ const AnimatedDoor = memo(({ isNear, position = [0, 0, 14.8], rotation = [0, Mat
 
 export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) => {
   const isNight = state.time > 70 || state.time < 10;
+  const [cameraReset, setCameraReset] = useState(0);
+  const [cutaway, setCutaway] = useState(true);
+  const [neighborhood, setNeighborhood] = useState(false);
+  const [fastGraphics, setFastGraphics] = useState(false);
 
   const groupedOrders = useMemo(() => {
     const groups: Record<string, typeof state.orders> = {};
@@ -572,7 +587,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
     <div className={`w-full h-full rounded-2xl overflow-hidden border-4 border-stone-800 shadow-inner relative transition-colors duration-1000 ${isNight ? 'bg-slate-900' : 'bg-sky-200'}`}>
       
       {/* RESTAURANT ORDER TICKETS */}
-      <div className="absolute top-20 md:top-24 left-0 right-0 px-4 z-10 pointer-events-none flex flex-wrap gap-4 justify-center items-start">
+      <div className="order-queue absolute left-0 right-0 px-4 z-10 pointer-events-none flex gap-3 overflow-x-auto items-start">
         {Object.entries(groupedOrders).map(([tableId, tableOrders]) => {
           
           const isOnline = tableId.startsWith('online_');
@@ -659,28 +674,49 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
         })}
       </div>
 
-      <Canvas camera={{ position: [0, 20, 25], fov: 50 }}>
-        <ambientLight intensity={isNight ? 0.5 : 0.8} color={isNight ? "#64748b" : "#fffbeb"} />
+      <div className="scene-tools absolute bottom-24 right-4 z-20 flex gap-2">
+        <select className="mc-button px-3 py-2 text-xs" aria-label="Graphics quality" title="Fast graphics disables real-time shadows and caps rendering resolution." value={fastGraphics ? 'fast' : 'detailed'} onChange={event => setFastGraphics(event.target.value === 'fast')}>
+          <option value="detailed">Graphics: Detailed</option>
+          <option value="fast">Graphics: Fast</option>
+        </select>
+        <button className="mc-button px-3 py-2 text-xs" aria-pressed={neighborhood} onClick={() => setNeighborhood(v => !v)}>{neighborhood ? 'Restaurant view' : 'Neighborhood view'}</button>
+        <button className="mc-button px-3 py-2 text-xs" onClick={() => { setNeighborhood(false); setCameraReset(n => n + 1); }}>Reset view</button>
+        <button className="mc-button px-3 py-2 text-xs" aria-pressed={cutaway} onClick={() => setCutaway(v => !v)}>{cutaway ? 'Show full room' : 'Cutaway view'}</button>
+      </div>
+      <Canvas
+        shadows={fastGraphics ? false : 'percentage'}
+        dpr={fastGraphics ? 1 : [1, 1.5]}
+        camera={{ position: [0, 25, 32], fov: 48, near: 0.1, far: 250 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+      >
+        <color attach="background" args={[isNight ? '#17263e' : '#cbdce3']} />
+        <fog attach="fog" args={[isNight ? '#17263e' : '#cbdce3', 100, 240]} />
+        <hemisphereLight intensity={isNight ? 0.65 : 1.5} color={isNight ? '#a7c4eb' : '#e5f1ff'} groundColor="#8b6246" />
+        <ambientLight intensity={isNight ? 0.2 : 0.3} color="#ffdfb2" />
         <directionalLight 
-          position={isNight ? [10, 10, 10] : [10, 20, 10]} 
-          intensity={isNight ? 0.8 : 1.2} 
+          position={[-12, 24, 8]}
+          intensity={isNight ? 0.65 : 2.4}
           color={isNight ? "#94a3b8" : "#fef3c7"} 
-          castShadow 
+          castShadow={!fastGraphics}
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-left={-25}
+          shadow-camera-right={25}
+          shadow-camera-top={25}
+          shadow-camera-bottom={-25}
+          shadow-camera-near={0.5}
+          shadow-camera-far={75}
+          shadow-normalBias={0.04}
+          shadow-bias={-0.0001}
         />
+        <directionalLight position={[10, 12, -8]} intensity={isNight ? 0.3 : 0.55} color="#b8d4ef" />
         
-        <OrbitControls 
-          enablePan={true} 
-          minPolarAngle={Math.PI / 6} 
-          maxPolarAngle={Math.PI / 2.1}
-          minDistance={5}
-          maxDistance={100}
-        />
+        <CameraControls reset={cameraReset} neighborhood={neighborhood} />
 
         {!isNight && <Sky sunPosition={[10, 20, 10]} />}
         
-        <AttractiveCityScenery3D isNight={isNight} />
+        <AttractiveCityScenery3D isNight={isNight} gameSpeed={state.gameSpeed} />
         <AttractiveFloor3D />
-        <CeilingBeams3D />
+        {!cutaway && <CeilingBeams3D />}
 
         {/* Ambient warm dining area pendant lights */}
         <PendantLamp3D position={[-7, 9.8, -2]} isNight={isNight} />
@@ -694,20 +730,19 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
         <IndoorPlant3D position={[-13.5, 0, 13.5]} type="palm" />
         <IndoorPlant3D position={[13.5, 0, 13.5]} type="fiddle" />
 
-        {isNight && <pointLight position={[0, 6, 0]} intensity={120} distance={32} color="#fef08a" />}
+        {isNight && <pointLight position={[0, 6, 0]} intensity={75} distance={32} color="#ffdab1" />}
 
         <AttractiveRestaurantWall position={[0, 0, -15]} rotation={[0, 0, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />
         <AttractiveRestaurantWall position={[-15, 0, 0]} rotation={[0, Math.PI / 2, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />
         <AttractiveRestaurantWall position={[15, 0, 0]} rotation={[0, -Math.PI / 2, 0]} width={30} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />
-        <AttractiveRestaurantWall position={[-8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />
-        <AttractiveRestaurantWall position={[8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />
-
+        {!cutaway && <AttractiveRestaurantWall position={[-8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />}
+        {!cutaway && <AttractiveRestaurantWall position={[8.3, 0, 15]} rotation={[0, 0, 0]} width={13.4} height={10} layout={state.restaurantLayout} customWallColor={state.wallColor} customFrameColor={state.frameColor} isNight={isNight} />}
         <Lantern position={[-8, 8, -10]} />
         <Lantern position={[8, 8, -10]} />
         <Lantern position={[-10, 8, 0]} />
         <Lantern position={[10, 8, 0]} />
 
-        <AnimatedDoor isNear={isNearDoor} position={[0, 0, 14.8]} rotation={[0, Math.PI / 2, 0]} layout={state.restaurantLayout} customFrameColor={state.frameColor} />
+        {!cutaway && <AnimatedDoor isNear={isNearDoor} position={[0, 0, 14.8]} rotation={[0, Math.PI / 2, 0]} layout={state.restaurantLayout} customFrameColor={state.frameColor} />}
 
         {/* Upgraded Service Counter, Bar, Espresso Machine & Pastry Case */}
         <AttractiveBarCounter3D isNight={isNight} />
@@ -724,7 +759,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
         <AmbientDustMotes3D count={28} />
 
         {/* Exterior Neon 3D Restaurant Marquee over entrance */}
-        <NeonRestaurantMarquee3D position={[0, 7.8, 15.3]} isNight={isNight} />
+        {!cutaway && <NeonRestaurantMarquee3D position={[0, 7.8, 15.3]} isNight={isNight} />}
 
         <CatTree position={[12, 0, 10]} />
         <Cat position={[11.5, 2.3, 10]} rotation={[0, -Math.PI/4, 0]} color="#1c1917" />
