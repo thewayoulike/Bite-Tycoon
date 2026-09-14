@@ -156,7 +156,7 @@ const CustomerMember3D = ({ index, isSitting, isWalking, color, seed, isWaitingO
   );
 };
 
-const Customer3D = ({ customer, table, actions, staff }: any) => {
+const Customer3D = ({ customer, table, actions, staff, gameSpeed }: any) => {
   const ref = useRef<THREE.Group>(null);
   const [isWalking, setIsWalking] = useState(false);
   const [isSitting, setIsSitting] = useState(false);
@@ -199,7 +199,7 @@ const Customer3D = ({ customer, table, actions, staff }: any) => {
       
       if (dist > 0.1) {
         setIsWalking(true); setIsSitting(false);
-        const speed = 4;
+        const speed = 4 * gameSpeed;
         ref.current.position.x += ((currentTargetX - ref.current.position.x) / dist) * speed * delta;
         ref.current.position.z += ((currentTargetZ - ref.current.position.z) / dist) * speed * delta;
         const angle = Math.atan2(currentTargetX - ref.current.position.x, currentTargetZ - ref.current.position.z);
@@ -637,6 +637,8 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
                 ))}
               </div>
 
+              {!allReady && <button className="w-full mb-2 rounded border border-amber-500 bg-amber-50 text-amber-900 text-[10px] font-bold py-1" aria-pressed={state.priorityTableId === tableId} onClick={() => actions.prioritizeTable(tableId)}>{state.priorityTableId === tableId ? '★ Kitchen priority' : 'Prioritize this table'}</button>}
+
               {anyOnFire ? (
                  <button 
                    onClick={() => tableOrders.forEach(o => { if(o.isOnFire) actions.extinguishFire(o.id) })} 
@@ -646,14 +648,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
                  </button>
               ) : (
                 <>
-                  {!allReady && (
-                    <button 
-                      onClick={() => tableOrders.forEach(o => { if(o.state !== 'ready') actions.cookOrder(o.id) })} 
-                      className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all shadow-sm"
-                    >
-                      COOK {isOnline ? 'ORDER' : 'TABLE'}
-                    </button>
-                  )}
+                  {!allReady && <span className="block text-center text-[10px] text-stone-600 py-1">Your chef is preparing this order</span>}
                   {allReady && !isOnline && (
                     <button 
                       onClick={() => tableOrders.forEach(o => { if(o.state === 'ready') actions.serveFood(o.id) })} 
@@ -773,7 +768,7 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
 
         <Suspense fallback={null}>
           {state.customers.map(customer => (
-            <Customer3D key={customer.id} customer={customer} table={state.tables.find(t => t.id === customer.tableId)} actions={actions} staff={state.staff}/>
+            <Customer3D key={customer.id} customer={customer} table={state.tables.find(t => t.id === customer.tableId)} actions={actions} staff={state.staff} gameSpeed={state.gameSpeed}/>
           ))}
           {Array.from({ length: state.staff.chefs }).map((_, i) => (
             <Chef3D key={`chef-${i}`} index={i} state={state} actions={actions} />

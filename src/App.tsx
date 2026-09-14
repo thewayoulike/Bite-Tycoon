@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useGameLoop } from './hooks/useGameLoop';
-import { 
-  ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle, 
-  BookOpen, Package, PaintBucket, TrendingUp, Beaker, AlertTriangle, 
+import {
+  ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle,
+  BookOpen, Package, PaintBucket, TrendingUp, Beaker, AlertTriangle,
   Sparkles, Layers, CheckCircle2, UserCheck, Eraser, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,7 +14,8 @@ import { StatsModal } from './components/StatsModal';
 import { AnalysisModal } from './components/AnalysisModal';
 import { LayoutsModal } from './components/LayoutsModal';
 import { UpgradesModal } from './components/UpgradesModal';
-import { DaySummaryModal } from './components/DaySummaryModal';
+import { WeekSummaryModal } from './components/DaySummaryModal';
+import { activeRecipes, nextMilestone, shiftLabel } from './gameplay';
 import { soundEngine } from './utils/audio';
 
 const originalWarn = console.warn;
@@ -38,8 +39,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const currentWeek = Math.floor((state.day - 1) / 7) + 1;
-  const dayOfWeek = ((state.day - 1) % 7) + 1;
+  const currentWeek = state.week;
+  const milestone = nextMilestone(state);
+  const payroll = state.pendingPayroll[0];
+  const dayOfWeek = Math.min(7, Math.floor(state.time * 7 / 100) + 1);
 
   // Calculate table occupancy
   const occupiedTables = state.tables.filter(t => t.customerId !== null).length;
@@ -47,7 +50,7 @@ export default function App() {
   // Calculate ingredients needed for currently unlocked recipes
   const neededIngredients = new Set<string>();
   state.recipes.forEach(r => {
-    if (r.unlocked) {
+    if (r.unlocked && state.activeMenu.includes(r.id)) {
       Object.keys(r.ingredients || {}).forEach(ingId => neededIngredients.add(ingId));
     }
   });
@@ -63,11 +66,11 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4 font-mono select-none bg-stone-950">
         <div className="w-full max-w-[900px] aspect-[4/3] bg-[#2563eb] rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.9)] border-8 border-stone-800 relative overflow-hidden flex flex-col items-center justify-center p-6">
           <div className="absolute inset-0 bg-[repeating-conic-gradient(from_0deg,#3b82f6_0deg_15deg,#1d4ed8_15deg_30deg)] opacity-60 animate-[spin_80s_linear_infinite]" />
-          
-          <motion.div 
-            initial={{ scale: 0.6, y: -40 }} 
-            animate={{ scale: 1, y: 0 }} 
-            transition={{ type: 'spring', bounce: 0.5 }} 
+
+          <motion.div
+            initial={{ scale: 0.6, y: -40 }}
+            animate={{ scale: 1, y: 0 }}
+            transition={{ type: 'spring', bounce: 0.5 }}
             className="z-10 flex flex-col items-center text-center"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -75,15 +78,15 @@ export default function App() {
               <span className="text-4xl animate-bounce [animation-delay:200ms]">🍜</span>
               <span className="text-4xl animate-bounce [animation-delay:400ms]">🍕</span>
             </div>
-            
-            <h1 
-              className="text-6xl sm:text-7xl md:text-8xl font-black text-white drop-shadow-[0_8px_0_#172554] tracking-tighter" 
+
+            <h1
+              className="text-6xl sm:text-7xl md:text-8xl font-black text-white drop-shadow-[0_8px_0_#172554] tracking-tighter"
               style={{ WebkitTextStroke: '4px #172554' }}
             >
               BITE
             </h1>
-            <h2 
-              className="text-4xl sm:text-5xl md:text-6xl font-black text-yellow-300 drop-shadow-[0_6px_0_#854d0e] -mt-3 tracking-tight rotate-2" 
+            <h2
+              className="text-4xl sm:text-5xl md:text-6xl font-black text-yellow-300 drop-shadow-[0_6px_0_#854d0e] -mt-3 tracking-tight rotate-2"
               style={{ WebkitTextStroke: '3px #854d0e' }}
             >
               TYCOON 3D
@@ -94,13 +97,13 @@ export default function App() {
             </p>
           </motion.div>
 
-          <motion.button 
-            initial={{ scale: 0 }} 
-            animate={{ scale: 1 }} 
-            transition={{ delay: 0.3, type: 'spring' }} 
-            whileHover={{ scale: 1.05 }} 
-            whileTap={{ scale: 0.95 }} 
-            onClick={() => setGamePhase('playing')} 
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: 'spring' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setGamePhase('playing')}
             className="mt-12 px-14 py-3.5 mc-button-green font-black text-2xl md:text-3xl z-10 transition-all font-mono tracking-widest shadow-2xl flex items-center gap-3"
           >
             <span>ENTER DINER</span>
@@ -121,8 +124,8 @@ export default function App() {
       {/* Retro HUD Overlay */}
       <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 md:p-3">
         {/* Top Header Bar */}
-        <header 
-          className="mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2" 
+        <header
+          className="mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2"
           style={{ imageRendering: 'pixelated' }}
         >
           {/* Brand & Table Status */}
@@ -145,19 +148,20 @@ export default function App() {
               </div>
             </div>
           </div>
-          
+
           {/* Center: Big Tactile Restaurant Status Button & Low Stock Alert */}
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => actions.toggleRestaurantState()} 
+            <button
+              onClick={() => actions.toggleRestaurantState()}
+              disabled={state.phase === "closing"}
               className={`px-5 py-2 font-black text-xs md:text-sm tracking-widest transition-all active:scale-95 flex items-center gap-2 ${
-                state.isRestaurantOpen 
-                  ? 'mc-button-red animate-none' 
+                state.isRestaurantOpen
+                  ? 'mc-button-red animate-none'
                   : 'mc-button-green animate-pulse'
               }`}
             >
               <span className={`w-2.5 h-2.5 rounded-full ${state.isRestaurantOpen ? 'bg-white animate-ping' : 'bg-white'}`} />
-              <span>{state.isRestaurantOpen ? "CLOSE RESTAURANT" : "OPEN RESTAURANT"}</span>
+              <span>{state.phase === "planning" ? `START WEEK ${state.week}` : state.phase === "closing" ? "FINISHING SERVICE" : state.isRestaurantOpen ? "PAUSE ARRIVALS" : "RESUME ARRIVALS"}</span>
             </button>
 
             {lowStockCount > 0 && (
@@ -191,9 +195,9 @@ export default function App() {
                   Wk {currentWeek}, Day {dayOfWeek}
                 </span>
                 <div className="w-16 sm:w-20 h-2 bg-[#94a3b8] overflow-hidden mt-1 rounded-sm border border-[#475569]">
-                  <div 
-                    className="h-full bg-[#2e7d32] transition-all duration-100 ease-linear shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]" 
-                    style={{ width: `${state.time}%` }} 
+                  <div
+                    className="h-full bg-[#2e7d32] transition-all duration-100 ease-linear shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                    style={{ width: `${state.time}%` }}
                   />
                 </div>
               </div>
@@ -247,8 +251,8 @@ export default function App() {
 
         {/* Bottom Hotbar Navigation Dock */}
         <div className="p-2 flex justify-center pointer-events-auto pb-4">
-          <div 
-            className="mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl" 
+          <div
+            className="mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl"
             style={{ imageRendering: 'pixelated' }}
           >
             {[
@@ -262,12 +266,12 @@ export default function App() {
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
-                <button 
-                  key={tab.id} 
+                <button
+                  key={tab.id}
                   aria-label={tab.label}
                   aria-pressed={isActive}
                   title={tab.label}
-                  onClick={() => setActiveTab(isActive ? 'restaurant' : tab.id as any)} 
+                  onClick={() => setActiveTab(isActive ? 'restaurant' : tab.id as any)}
                   className={`px-3 py-2 font-black flex items-center gap-1.5 transition-all outline-none whitespace-nowrap text-xs relative ${
                     isActive ? 'mc-button-selected scale-95' : 'mc-button'
                   }`}
@@ -289,19 +293,28 @@ export default function App() {
         </div>
       </div>
 
+      <div className="shift-dashboard absolute z-20 rounded-xl bg-[#faf7ef]/95 border border-stone-300 px-4 py-2 shadow-sm">
+        <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm">
+          <strong>{shiftLabel(state)}</strong>
+          <span>{state.phase === 'planning' ? '3 minutes of service per week at 1×' : `Week ${state.week} · Day ${dayOfWeek}`}</span>
+        </div>
+        <button className="text-left text-sm mt-1 text-emerald-800 font-semibold" onClick={() => setActiveTab('upgrades')}>{milestone.text} · {milestone.current}/{milestone.target}</button>
+        {payroll && <p className="text-xs text-stone-600 mt-1">Wages owed: ${payroll.amount.toFixed(2)} · paid after Day 3, Week {payroll.dueWeek}</p>}
+      </div>
+
       {/* Onboarding / Welcome Modal */}
       <AnimatePresence>
         {showWelcome && gamePhase === 'playing' && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="absolute inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 pointer-events-auto"
           >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} 
-              animate={{ scale: 1, y: 0 }} 
-              exit={{ scale: 0.9, y: 20 }} 
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
               className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 flex flex-col font-mono text-center items-center gap-4 shadow-2xl"
             >
               <div className="w-14 h-14 mc-slot flex items-center justify-center text-3xl bg-[#475569]">
@@ -313,36 +326,36 @@ export default function App() {
               </h2>
 
               <p className="text-xs font-bold text-[#555555] uppercase tracking-wide">
-                Your restaurant is currently <span className="text-[#ef4444] font-black">CLOSED</span> for pre-opening setup.
+                Your first week is ready. Your restaurant is <span className="text-[#ef4444] font-black">CLOSED</span> while you plan.
               </p>
 
               <div className="mc-inner-panel p-4 w-full text-left space-y-2.5 text-xs font-bold text-[#2b2b2b] uppercase tracking-wide bg-[#f8fafc]">
-                <p className="font-black text-[#1565c0]">Three Quick Steps Before Doors Open:</p>
+                <p className="font-black text-[#1565c0]">Your first goal: serve 6 guests</p>
                 <div className="space-y-1.5 text-[11px] text-[#475569]">
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">1</span>
-                    <span><strong>Check Staff & Upgrades:</strong> Hire 1 Chef and 1 Waiter to cook and serve.</span>
+                    <span><strong>Your chef is ready:</strong> You have two tables and three active dishes. Start Week 1 when ready.</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">2</span>
-                    <span><strong>Review Pantry Inventory:</strong> Stock ingredients for your active dishes in Menu & Prices.</span>
+                    <span><strong>Run the floor:</strong> Take orders, serve completed tables, and click dirty tables to clean them.</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">3</span>
-                    <span><strong>Open For Business:</strong> Click the neon "OPEN RESTAURANT" button at top!</span>
+                    <span><strong>Earn your first helper:</strong> Serve 6 guests to unlock a waiter. Watch for the lunch rush at 40% of the week.</span>
                   </div>
                 </div>
               </div>
 
               <p className="text-[10px] font-black text-[#64748b] uppercase">
-                Tip: Use the Culinary Lab tab anytime to invent signature recipes with custom pricing!
+                Each week ends with a paused report. Wages are paid three game days after the week ends.
               </p>
 
-              <button 
-                onClick={() => setShowWelcome(false)} 
+              <button
+                onClick={() => setShowWelcome(false)}
                 className="mt-1 px-8 py-3 mc-button-green font-black text-lg w-full tracking-wider shadow"
               >
-                LET'S GET COOKING! 🚀
+                LET’S OPEN THE DINER
               </button>
             </motion.div>
           </motion.div>
@@ -352,18 +365,18 @@ export default function App() {
       {/* Main Feature Modals Overlay */}
       <AnimatePresence>
         {activeTab !== 'restaurant' && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 pointer-events-auto" 
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 pointer-events-auto"
             onClick={() => setActiveTab('restaurant')}
           >
-            <motion.div 
-              initial={{ scale: 0.94, y: 16 }} 
-              animate={{ scale: 1, y: 0 }} 
-              exit={{ scale: 0.94, y: 16 }} 
-              className="mc-panel w-full max-w-5xl max-h-[90vh] flex flex-col font-mono shadow-2xl border-4 border-[#373737]" 
+            <motion.div
+              initial={{ scale: 0.94, y: 16 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 16 }}
+              className="mc-panel w-full max-w-5xl max-h-[90vh] flex flex-col font-mono shadow-2xl border-4 border-[#373737]"
               onClick={e => e.stopPropagation()}
             >
               {/* Window Title Bar */}
@@ -381,12 +394,12 @@ export default function App() {
                   <div>
                     <h2 className="text-base sm:text-xl font-black uppercase tracking-wider text-[#2b2b2b] drop-shadow-sm leading-none">
                       {activeTab === 'upgrades' ? 'Staff, Equipment & Operations' :
-                       activeTab === 'recipes' ? 'Menu & Recipe Pricing' :
+                       activeTab === 'recipes' ? 'Menu & Prices' :
                        activeTab === 'lab' ? 'Culinary Research & Development' :
-                       activeTab === 'stats' ? 'Financial Reports & GAAP Statements' :
+                       activeTab === 'stats' ? 'Financial Reports' :
                        activeTab === 'layouts' ? 'Diner Architecture & Decor' :
                        activeTab === 'analysis' ? 'Sales Mix & Performance Analytics' :
-                       'Pantry & FIFO Batch Inventory'}
+                       'Pantry'}
                     </h2>
                     <span className="text-[9px] font-bold text-[#555555] uppercase">
                       Bite Tycoon Management Console
@@ -394,10 +407,11 @@ export default function App() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setActiveTab('restaurant')} 
+                <button
+                  onClick={() => setActiveTab('restaurant')}
                   className="w-8 h-8 sm:w-9 sm:h-9 mc-button-red flex items-center justify-center font-black text-sm shadow active:scale-95"
                   title="Close Window"
+                  aria-label="Close Window"
                 >
                   ✕
                 </button>
@@ -419,7 +433,7 @@ export default function App() {
                     inventory={state.inventory}
                     inventoryBatches={state.inventoryBatches}
                     money={state.money}
-                    unlockedRecipes={state.recipes.filter(r => r.unlocked)}
+                    unlockedRecipes={activeRecipes(state)}
                     onBuyIngredient={actions.buyIngredient}
                   />
                 )}
@@ -431,6 +445,8 @@ export default function App() {
                     money={state.money}
                     onUnlockRecipe={actions.unlockRecipe}
                     onChangePrice={actions.changeRecipePrice}
+                    activeMenu={state.activeMenu}
+                    onToggleActive={actions.toggleActiveRecipe}
                   />
                 )}
 
@@ -466,6 +482,7 @@ export default function App() {
                     onBuyLevelUpgrade={actions.buyLevelUpgrade}
                     onHireManager={actions.hireManager}
                     onUnlockApp={actions.unlockApp}
+                    onUpdateManager={actions.updateManager}
                   />
                 )}
               </div>
@@ -497,8 +514,8 @@ export default function App() {
       </div>
 
       {/* End-of-Day Financial Summary & Ledger Modal */}
-      {state.daySummary && (
-        <DaySummaryModal summary={state.daySummary} onClose={actions.dismissDaySummary} />
+      {state.weekSummary && (
+        <WeekSummaryModal summary={state.weekSummary} onClose={actions.dismissWeekSummary} />
       )}
     </div>
   );

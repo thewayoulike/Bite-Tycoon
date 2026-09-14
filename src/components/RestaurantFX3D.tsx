@@ -135,9 +135,8 @@ export const EntranceMarquee3D = memo(({ position, isNight }: { position: [numbe
           anchorX="center"
           anchorY="middle"
           letterSpacing={0.12}
-          font="/fonts/Inter-Bold.woff" // fallback to built-in if absent
         >
-          ★ BITE TYCOON ★
+          BITE TYCOON
         </Text>
       </group>
 

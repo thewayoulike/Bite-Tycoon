@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Users, DollarSign, TrendingUp, TrendingDown, PieChart, Landmark, FileText, Activity } from 'lucide-react';
+import { INITIAL_INVENTORY_VALUE, STARTING_MONEY } from '../gameplay';
 import { GameState } from '../hooks/useGameLoop';
 
 interface StatsModalProps {
@@ -15,7 +16,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
     return `$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
-  const INITIAL_INVENTORY_VALUE = 880;
+  const unpaidWages = state.pendingPayroll.reduce((sum, p) => sum + p.amount, 0) + state.weekStats.wages;
 
   // Accurate asset valuation by summing FIFO batch queue
   const currentInventoryValue = Object.values(state.inventoryBatches || {}).flat().reduce((total, batch) => {
@@ -26,15 +27,15 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
   const inHouseSales = state.stats.totalEarned - (state.stats.totalTips || 0) - (state.stats.onlineEarned || 0) - (state.stats.vipBonus || 0);
   const grossProfit = state.stats.totalEarned - cogs;
 
-  const totalOpex = state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0);
+  const totalOpex = state.weekStats.wages + state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0);
   const netProfit = grossProfit - totalOpex;
 
   const inventoryChange = currentInventoryValue - INITIAL_INVENTORY_VALUE;
-  const netOperatingCash = netProfit - inventoryChange;
+  const netOperatingCash = netProfit - inventoryChange + unpaidWages;
 
   const totalInvestments = state.stats.upgradeCosts + state.stats.recipeCosts + (state.stats.appCosts || 0);
   const totalAssets = state.money + currentInventoryValue + totalInvestments;
-  const ownersEquity = 10880 + netProfit;
+  const ownersEquity = STARTING_MONEY + INITIAL_INVENTORY_VALUE + netProfit;
 
   // Operational KPIs
   const totalCustomers = state.stats.customersServed + state.stats.customersLost;
@@ -57,7 +58,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
               Financial Reporting & Performance Intelligence
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              GAAP compliant double-entry ledger tracking P&L, FIFO Balance Sheet, and operational KPIs
+              Sales, food costs, cash and wages owed
             </p>
           </div>
         </div>
@@ -188,11 +189,11 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     Operating Overhead (OPEX)
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
-                    <span>Waiters & Chefs Wages</span>
-                    <span className="text-[#c62828] font-bold">{formatMoney(-state.stats.salaryCosts)}</span>
+                    <span>Staff wages earned</span>
+                    <span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.salaryCosts + state.weekStats.wages))}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
-                    <span>Manager Automated Fees</span>
+                    <span>Staff recruitment fees</span>
                     <span className="text-[#c62828] font-bold">{formatMoney(-state.stats.managerCosts)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
@@ -251,7 +252,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     </span>
                   </div>
                   <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
-                    <span>Net Operating Cash</span>
+                    <span>Net Operating Cash (adjusted for unpaid wages)</span>
                     <span className={netOperatingCash >= 0 ? "text-[#2e7d32]" : "text-[#c62828]"}>
                       {formatMoney(netOperatingCash)}
                     </span>
@@ -333,12 +334,12 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     Liabilities & Shareholder Equity
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
-                    <span>Debt & Outstanding Liabilities</span>
-                    <span className="text-[#2b2b2b] font-bold">$0</span>
+                    <span>Unpaid wages (including this week)</span>
+                    <span className="text-[#2b2b2b] font-bold">{formatMoney(unpaidWages)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>Initial Contributed Capital</span>
-                    <span className="text-[#2b2b2b] font-bold">$10,880</span>
+                    <span className="text-[#2b2b2b] font-bold">{formatMoney(STARTING_MONEY + INITIAL_INVENTORY_VALUE)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>Cumulative Retained Earnings</span>
@@ -357,7 +358,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
             <div className="flex justify-between items-center text-sm font-black border-t-2 border-[#373737] pt-2 mt-3 bg-[#e2e8f0] p-2 rounded">
               <span className="text-[#2b2b2b]">TOTAL LIAB. & EQUITY</span>
               <span className="text-[#2b2b2b]">
-                {formatMoney(ownersEquity)}
+                {formatMoney(ownersEquity + unpaidWages)}
               </span>
             </div>
           </div>

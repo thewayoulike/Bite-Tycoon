@@ -241,11 +241,13 @@ button, a, .cursor-pointer {
   outline-offset: 3px;
 }
 .game-ui button:disabled { cursor: not-allowed !important; opacity: 0.55; }
-.order-queue { top: 100px; padding-bottom: 10px; }
+.shift-dashboard { top: 94px; left: 16px; right: 16px; max-width: 660px; }
+.order-queue { top: 200px; padding-bottom: 10px; }
 .order-queue > div { flex: 0 0 170px; pointer-events: auto; }
 .order-queue:has(> div) { pointer-events: auto; }
 @media (max-width: 767px) {
-  .order-queue { top: 180px; max-height: 30vh; }
+  .shift-dashboard { top: 164px; left: 12px; right: 12px; }
+  .order-queue { top: 290px; max-height: 25vh; }
   .scene-tools { bottom: 100px; right: 12px; left: 12px; flex-wrap: wrap; justify-content: flex-end; }
   .game-ui header { gap: 6px; padding: 8px; }
   .game-ui header button { padding-left: 8px; padding-right: 8px; }

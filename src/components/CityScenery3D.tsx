@@ -317,7 +317,7 @@ export const GrandHotel3D = memo(({
       <group position={[0, 24.5, 3]}>
         <Box args={[14, 2.2, 0.4]} position={[0, 0, 0]}><meshStandardMaterial color="#0f172a" /></Box>
         <Text position={[0, 0, 0.3]} fontSize={1.3} color={isNight ? "#fbbf24" : "#fef08a"} anchorX="center" anchorY="middle">
-          ★ GRAND HOTEL ★
+          GRAND HOTEL
         </Text>
       </group>
     </group>

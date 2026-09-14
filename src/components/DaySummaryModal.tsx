@@ -1,149 +1,29 @@
 import React from 'react';
-import { motion } from 'motion/react';
-import { DaySummary } from '../hooks/useGameLoop';
-import { Award, DollarSign, Heart, Star, Users, TrendingUp, CheckCircle, ArrowRight, Utensils } from 'lucide-react';
-import { sounds } from '../utils/audio';
+import { WeekSummary } from '../hooks/useGameLoop';
 
-interface DaySummaryModalProps {
-  summary: DaySummary;
-  onClose: () => void;
+export function WeekSummaryModal({ summary, onClose }: { summary: WeekSummary; onClose: () => void }) {
+  const money = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+  return <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <section role="dialog" aria-modal="true" aria-labelledby="weekly-report-title" className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-4">
+      <div><p className="text-sm text-stone-600">Service finished · game paused</p><h2 id="weekly-report-title" className="text-2xl font-bold">Week {summary.week} report</h2></div>
+      <div className={`rounded-xl p-4 ${summary.profit >= 0 ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+        <p className="text-sm">Profit after food, wages, fees and spoilage</p>
+        <p className="text-3xl font-bold">{money(summary.profit)}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <dt>Revenue (including tips)</dt><dd className="text-right">{money(summary.revenue)}</dd>
+        <dt>Food used</dt><dd className="text-right">−{money(summary.foodCost)}</dd>
+        <dt>Wages earned</dt><dd className="text-right">−{money(summary.wages)}</dd>
+        <dt>Delivery fees</dt><dd className="text-right">−{money(summary.fees)}</dd>
+        <dt>Stock spoiled</dt><dd className="text-right">−{money(summary.spoilage)}</dd>
+        <dt>Guests served / walked out</dt><dd className="text-right">{summary.served} / {summary.lost}</dd>
+        <dt>Service rating</dt><dd className="text-right">{summary.served + summary.lost ? `${summary.starRating.toFixed(1)} / 5` : 'No guests yet'}</dd>
+        {summary.topDish && <><dt>Most ordered dish</dt><dd className="text-right">{summary.topDish}</dd></>}
+      </dl>
+      <p className="text-sm rounded-lg border border-blue-200 bg-blue-50 p-3"><strong>Payroll scheduled:</strong> {money(summary.wages)} will leave your cash after Day 3 of Week {summary.payrollDueWeek}. It is already included in this week’s profit.</p>
+      <p className="text-sm text-stone-700">{summary.feedback}</p>
+      <p className="text-xs text-stone-500">Equipment, recruitment and recipe purchases are separate investments or expenses; see Financials for the full picture.</p>
+      <button autoFocus onClick={onClose} className="mc-button-green w-full px-4 py-3 font-bold">Plan Week {summary.week + 1}</button>
+    </section>
+  </div>;
 }
-
-export const DaySummaryModal: React.FC<DaySummaryModalProps> = ({ summary, onClose }) => {
-  const handleContinue = () => {
-    sounds.playClick();
-    onClose();
-  };
-
-  const satisfactionPercent = Math.round(
-    (summary.served / Math.max(1, summary.served + summary.lost)) * 100
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 select-none pointer-events-auto">
-      <motion.div
-        initial={{ scale: 0.85, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.85, opacity: 0, y: 20 }}
-        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-        className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 flex flex-col font-mono shadow-2xl border-4 border-amber-800 bg-[#e2d6b5] relative"
-      >
-        {/* Decorative Gold Header Stamp */}
-        <div className="flex items-center justify-between border-b-4 border-stone-800 pb-3 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 mc-slot bg-amber-500 text-stone-900 flex items-center justify-center text-2xl shadow">
-              <Award size={26} className="text-amber-950" />
-            </div>
-            <div>
-              <div className="text-[10px] font-black text-amber-900 uppercase tracking-widest">
-                Daily Business Report
-              </div>
-              <h2 className="text-2xl font-black text-stone-900 tracking-tight leading-none">
-                END OF DAY {summary.day}
-              </h2>
-              <span className="text-[10px] font-bold text-stone-600 uppercase">
-                Week {summary.week} Shift Concluded
-              </span>
-            </div>
-          </div>
-
-          {/* Star Rating Badge */}
-          <div className="flex flex-col items-end">
-            <div className="flex items-center gap-1 text-amber-500 drop-shadow">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  size={16}
-                  className={i < Math.round(summary.starRating) ? 'fill-amber-400 text-amber-600' : 'text-stone-400'}
-                />
-              ))}
-            </div>
-            <span className="text-[11px] font-black text-stone-800 mt-1">
-              {summary.starRating.toFixed(1)} / 5.0 Rating
-            </span>
-          </div>
-        </div>
-
-        {/* Ledger Statistics Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {/* Revenue */}
-          <div className="mc-inner-panel p-3 bg-stone-100/90 flex items-center gap-3 border-2 border-stone-700">
-            <div className="p-2 bg-green-100 text-green-700 rounded border border-green-400">
-              <DollarSign size={20} />
-            </div>
-            <div>
-              <div className="text-[9px] font-black text-stone-500 uppercase">Gross Revenue</div>
-              <div className="text-base font-black text-green-800">
-                +${summary.revenue.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* Tips */}
-          <div className="mc-inner-panel p-3 bg-stone-100/90 flex items-center gap-3 border-2 border-stone-700">
-            <div className="p-2 bg-pink-100 text-pink-700 rounded border border-pink-400">
-              <Heart size={20} />
-            </div>
-            <div>
-              <div className="text-[9px] font-black text-stone-500 uppercase">Gratuity / Tips</div>
-              <div className="text-base font-black text-pink-700">
-                +${summary.tips.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* Guests Served */}
-          <div className="mc-inner-panel p-3 bg-stone-100/90 flex items-center gap-3 border-2 border-stone-700">
-            <div className="p-2 bg-blue-100 text-blue-700 rounded border border-blue-400">
-              <Users size={20} />
-            </div>
-            <div>
-              <div className="text-[9px] font-black text-stone-500 uppercase">Guests Served</div>
-              <div className="text-base font-black text-blue-900">
-                {summary.served} customers
-              </div>
-            </div>
-          </div>
-
-          {/* Satisfaction Rate */}
-          <div className="mc-inner-panel p-3 bg-stone-100/90 flex items-center gap-3 border-2 border-stone-700">
-            <div className="p-2 bg-amber-100 text-amber-700 rounded border border-amber-400">
-              <CheckCircle size={20} />
-            </div>
-            <div>
-              <div className="text-[9px] font-black text-stone-500 uppercase">Satisfaction</div>
-              <div className={`text-base font-black ${satisfactionPercent >= 80 ? 'text-green-700' : 'text-amber-700'}`}>
-                {satisfactionPercent}% ({summary.lost} walkouts)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Top Dish Highlight */}
-        {summary.topDish && (
-          <div className="mc-inner-panel p-3 mb-5 bg-gradient-to-r from-amber-100 to-orange-100 border-2 border-amber-700 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🏆</span>
-              <div>
-                <div className="text-[9px] font-black text-amber-900 uppercase">Best Seller of the Day</div>
-                <div className="text-sm font-black text-stone-900">{summary.topDish}</div>
-              </div>
-            </div>
-            <span className="text-[10px] font-black text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded border border-amber-400 uppercase">
-              Fan Favorite
-            </span>
-          </div>
-        )}
-
-        {/* Continue to Next Day Button */}
-        <button
-          onClick={handleContinue}
-          className="w-full py-3.5 mc-button-green text-stone-900 font-black text-base uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
-        >
-          <span>BEGIN DAY {summary.day + 1} SHIFT</span>
-          <ArrowRight size={18} />
-        </button>
-      </motion.div>
-    </div>
-  );
-};

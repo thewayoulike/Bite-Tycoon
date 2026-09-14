@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BookOpen, Search, DollarSign, Clock, Check, AlertCircle, Sparkles, TrendingUp, Lock } from 'lucide-react';
+import { demandFor, MENU_LIMIT } from '../gameplay';
 import { Recipe, INGREDIENTS } from '../data/recipes';
 import { INGREDIENT_ICONS } from '../data/categories';
 
@@ -7,6 +8,8 @@ interface RecipesModalProps {
   recipes: Recipe[];
   inventory: Record<string, number>;
   money: number;
+  activeMenu: string[];
+  onToggleActive: (id: string) => void;
   onUnlockRecipe: (id: string) => void;
   onChangePrice: (id: string, newPrice: number) => void;
 }
@@ -15,13 +18,16 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
   recipes,
   inventory,
   money,
+  activeMenu,
+  onToggleActive,
   onUnlockRecipe,
   onChangePrice,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked' | 'custom'>('unlocked');
+  const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom'>('active');
   const [search, setSearch] = useState('');
 
   const filteredRecipes = recipes.filter(r => {
+    if (filter === 'active' && !activeMenu.includes(r.id)) return false;
     if (filter === 'unlocked' && !r.unlocked) return false;
     if (filter === 'locked' && r.unlocked) return false;
     if (filter === 'custom' && !r.id.startsWith('custom_')) return false;
@@ -43,10 +49,10 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
           </div>
           <div>
             <h3 className="font-black text-[#2b2b2b] text-base md:text-lg uppercase tracking-wider">
-              Restaurant Menu & Pricing Engineering
+              Choose your weekly menu
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              Analyze COGS, fine-tune retail markup, and verify ingredient pantry readiness
+              Choose 1–6 dishes. Higher prices reduce demand; new recipes go into your collection.
             </p>
           </div>
         </div>
@@ -65,8 +71,9 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex gap-1">
           {[
+            { id: 'active', label: `On menu (${activeMenu.length}/${MENU_LIMIT})` },
             { id: 'all', label: `All (${recipes.length})` },
-            { id: 'unlocked', label: `Active (${recipes.filter(r => r.unlocked).length})` },
+            { id: 'unlocked', label: `Collection (${recipes.filter(r => r.unlocked).length})` },
             { id: 'locked', label: `Locked (${recipes.filter(r => !r.unlocked).length})` },
             { id: 'custom', label: `⭐ Lab (${recipes.filter(r => r.id.startsWith('custom_')).length})` }
           ].map(tab => (
@@ -164,7 +171,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
-                              <Clock size={11} /> {recipe.cookingTime}s prep
+                              <Clock size={11} /> {recipe.cookingTime * 5}s base prep
                             </span>
                             {isCustom && (
                               <span className="text-[8px] font-black text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5">
@@ -178,7 +185,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                       <div className="shrink-0">
                         {recipe.unlocked ? (
                           <span className="mc-slot px-2 py-0.5 text-[9px] font-black uppercase bg-[#2e7d32] text-white">
-                            Active
+                            {activeMenu.includes(recipe.id) ? "On menu" : "In collection"}
                           </span>
                         ) : (
                           <span className="mc-slot px-2 py-0.5 text-[9px] font-black uppercase bg-[#64748b] text-white flex items-center gap-1">
@@ -246,13 +253,18 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                     </div>
                   </div>
 
+                  {recipe.unlocked && <button onClick={() => onToggleActive(recipe.id)}
+                    disabled={activeMenu.includes(recipe.id) ? activeMenu.length === 1 : activeMenu.length >= MENU_LIMIT}
+                    aria-pressed={activeMenu.includes(recipe.id)} className="mc-button px-3 py-2 mb-2 text-sm">
+                    {activeMenu.includes(recipe.id) ? 'Remove from menu' : 'Add to menu'} · {recipe.name}
+                  </button>}
                   {/* Actions Row */}
                   {recipe.unlocked ? (
                     <div className="flex items-center justify-between bg-[#c6c6c6] p-2 border-2 border-[#8b8b8b] rounded">
                       <div className="flex flex-col">
                         <span className="text-[8px] font-black uppercase text-[#555555]">Menu Price</span>
                         <span className={`text-[8px] font-black px-1 rounded ${elasticity.color}`}>
-                          {elasticity.label}
+                          {Math.round(demandFor(recipe) * 100)}% demand at this price
                         </span>
                       </div>
 
@@ -273,6 +285,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                         </span>
                         <button
                           onClick={() => onChangePrice(recipe.id, recipe.price + 1)}
+                          disabled={recipe.price >= recipe.basePrice * 3}
                           aria-label={`Increase ${recipe.name} price`}
                           className="w-7 h-7 flex items-center justify-center font-black rounded text-sm mc-button-green"
                           title="Increase menu price"
