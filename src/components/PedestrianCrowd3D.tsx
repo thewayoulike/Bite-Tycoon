@@ -2,6 +2,7 @@ import { memo, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RealCharacter3D } from './RealCharacter3D';
+import { streetCastId } from '../characters/gameCast';
 
 type Point = [number, number];
 type Segment = { start: Point; end: Point; length: number };
@@ -27,25 +28,27 @@ const Pedestrian3D = memo(function Pedestrian3D({ route, index, gameSpeed,size=1
 }) {
   const group = useRef<THREE.Group>(null);
   const elapsed = useRef(0);
-  const speed = .85 + index % 4 * .12;
-  const start = useMemo(() => routePosition(route, index * 11.7), [route, index]);
+  // Children follow an adult along the same pavement, at the same pace.
+  const leader = index % 4 === 3 ? index - 1 : index;
+  const speed = .85 + leader % 4 * .12;
+  const offset = leader * 11.7 - (index !== leader ? .85 : 0);
+  const start = useMemo(() => routePosition(route, offset), [route, offset]);
   useFrame((_, delta) => {
     if (!group.current || gameSpeed === 0) return;
     elapsed.current += Math.min(delta, .06) * gameSpeed;
-    const next = routePosition(route, elapsed.current * speed + index * 11.7);
+    const next = routePosition(route, elapsed.current * speed + offset);
     group.current.position.set(next.x, .1, next.z);
     const angle = next.heading - group.current.rotation.y;
     const shortestTurn = Math.atan2(Math.sin(angle), Math.cos(angle));
     group.current.rotation.y += shortestTurn * Math.min(1, delta * gameSpeed * 10);
   });
-  return <group ref={group} position={[start.x, .1, start.z]} rotation={[0, start.heading, 0]} scale={size*(.94 + index % 3 * .06)}>
-    <RealCharacter3D role="customer" seed={index * 7 + 3} isWalking gameSpeed={gameSpeed * speed}
+  return <group ref={group} position={[start.x, .1, start.z]} rotation={[0, start.heading, 0]} scale={size}>
+    <RealCharacter3D role="customer" castId={streetCastId(index)} seed={index * 7 + 3} isWalking gameSpeed={gameSpeed * speed}
       detail="crowd" name="street-person" />
   </group>;
 });
 
-// The same modeled people as the restaurant, with fewer surface subdivisions.
-// Shared geometry/materials and one body draw per pedestrian keep the crowd light.
+// Detailed people load near the camera; distant crowds use lightweight bodies.
 export const PedestrianCrowd3D = memo(function PedestrianCrowd3D({ routes, gameSpeed, count = 20,size=1 }: {
   routes: Point[][]; gameSpeed: number; count?: number;size?:number;
 }) {
@@ -59,6 +62,6 @@ export const PedestrianCrowd3D = memo(function PedestrianCrowd3D({ routes, gameS
   if (!paths.length) return null;
   return <group name="street-crowd">
     {Array.from({ length: count }, (_, index) => <Pedestrian3D key={index}
-      route={paths[index % paths.length]} index={index} gameSpeed={gameSpeed} size={size} />)}
+      route={paths[(index % 4 === 3 ? index - 1 : index) % paths.length]} index={index} gameSpeed={gameSpeed} size={size} />)}
   </group>;
 });

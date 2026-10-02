@@ -34,17 +34,17 @@ console.warn = (...args) => {
   originalWarn(...args);
 };
 
-export default function App({gameOptions}:{gameOptions?:GameOptions}={}) {
-  const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>('menu');
+export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean}={}) {
+  const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>(prototype?'playing':'menu');
   const { state, actions, empire, district, saveError } = useGameLoop(gamePhase==='playing',gameOptions);
   const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
-  const [focusedProperty,setFocusedProperty]=useState<string|null>(empire.activeRestaurantId);
+  const [focusedProperty,setFocusedProperty]=useState<string|null>(prototype?null:empire.activeRestaurantId);
   const [selectedProperty,setSelectedProperty]=useState<string|null>(null);
   const [propertyTab,setPropertyTab]=useState<ManagementTab>('run');
   const [selectedUnit,setSelectedUnit]=useState<number|undefined>();
   const [showDistrictReport,setShowDistrictReport]=useState(false);
   const [insideVenue,setInsideVenue]=useState<string|null>(null);
-  const [showWelcome, setShowWelcome] = useState(state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
+  const [showWelcome, setShowWelcome] = useState(!prototype&&state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
   const [isMuted, setIsMuted] = useState(false);
   const headerRef=useRef<HTMLElement|null>(null);
   const [hudBottom,setHudBottom]=useState(96);
@@ -191,7 +191,7 @@ export default function App({gameOptions}:{gameOptions?:GameOptions}={}) {
     <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`} as React.CSSProperties}>
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
-        <GameWorld3D state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)}/>
+        <WorldComponent state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)}/>
       </div>
 
       {/* Retro HUD Overlay */}

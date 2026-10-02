@@ -139,24 +139,24 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
         <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
       </Torus>
       {/* Fluted Central Cast Iron Column */}
-      <Cylinder args={[0.07, 0.09, 0.94, 24]} position={[0, 0.54, 0]} castShadow>
+      <Cylinder args={[0.07, 0.09, 0.64, 24]} position={[0, 0.39, 0]} castShadow>
         <meshStandardMaterial color="#1c1917" metalness={0.6} roughness={0.4} />
       </Cylinder>
       {/* Turned Column Decorative Rings */}
       <Cylinder args={[0.11, 0.11, 0.04, 24]} position={[0, 0.22, 0]}>
         <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
       </Cylinder>
-      <Cylinder args={[0.11, 0.11, 0.04, 24]} position={[0, 0.85, 0]}>
+      <Cylinder args={[0.11, 0.11, 0.04, 24]} position={[0, 0.62, 0]}>
         <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
       </Cylinder>
 
       {/* Under-table Support Spider Bracket */}
-      <Cylinder args={[0.4, 0.15, 0.05, 16]} position={[0, 1.02, 0]}>
+      <Cylinder args={[0.4, 0.15, 0.05, 16]} position={[0, 0.72, 0]}>
         <meshStandardMaterial color="#292524" roughness={0.8} />
       </Cylinder>
 
       {/* TABLETOP: Carrera White Marble with Brass Bullnose Trim */}
-      <group position={[0, 1.06, 0]}>
+      <group position={[0, 0.76, 0]}>
         {/* Brass Beveled Edge Rim */}
         <Cylinder args={[1.22, 1.22, 0.07, 48]} castShadow receiveShadow>
           <meshStandardMaterial color="#d97706" metalness={0.75} roughness={0.25} />
@@ -173,7 +173,7 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
 
       {/* PERMANENT TABLETOP CENTERPIECE (Bistro Ambience) */}
       {!table.isDirty && (
-        <group position={[0, 1.1, 0]}>
+        <group position={[0, 0.803, 0]}>
           {/* Ceramic Flower Vase with blooming rose */}
           <group position={[-0.2, 0, -0.15]}>
             <Cylinder args={[0.04, 0.06, 0.14, 16]} position={[0, 0.07, 0]} castShadow>
@@ -227,13 +227,13 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
       {/* Served plates retain the actual order after tickets leave the queue. */}
       {isEating && servedRecipeIds.slice(0, 6).map((recipeId, i, dishes) => {
         const angle = i / dishes.length * Math.PI * 2;
-        return <group key={`${recipeId}-${i}`} position={[Math.cos(angle) * .69, 1.105, Math.sin(angle) * .69]} rotation={[0, -angle, 0]}>
+        return <group key={`${recipeId}-${i}`} position={[Math.cos(angle) * .69, .805, Math.sin(angle) * .69]} rotation={[0, -angle, 0]}>
           <FoodPlate3D recipeId={recipeId} scale={.93} />
         </group>;
       })}
       {/* DIRTY TABLE DISHES & CRUMBS */}
       {table.isDirty && (
-        <group position={[0, 1.1, 0]}>
+        <group position={[0, 0.803, 0]}>
           {/* Stacked dirty plates */}
           <group position={[0.15, 0, 0.1]} rotation={[0, 0.2, 0]}>
             <Cylinder args={[0.22, 0.18, 0.03, 24]} position={[0, 0.015, 0]}>
@@ -287,3 +287,4 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
   prev.table.x === next.table.x &&
   prev.table.y === next.table.y
 ));
+

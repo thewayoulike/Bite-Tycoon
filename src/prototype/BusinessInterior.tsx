@@ -99,9 +99,9 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
       {p.kind==='shop'&&<StockDisplay b={b}/>}
     </>}
     {/* One opening service worker and one caretaker; hiring adds visible helpers. */}
-    {floor===0&&Array.from({length:1+(b.hires?.service??0)},(_,i)=><group key={`service-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[6+i,0,-6.6]:[-5.2+i,0,5.6]}><RealCharacter3D role="waiter" seed={p.id.length*5+i} gameSpeed={gameSpeed} isWorking={serviceActive&&waiting.length>0}/></group>)}
-    {Array.from({length:1+(b.hires?.care??0)},(_,i)=><group key={`care-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[-6+i,0,-6]:[7.8,0,-6+i*2]}><RealCharacter3D role="cleaner" seed={21+i} gameSpeed={gameSpeed} isWorking={serviceActive}/></group>)}
-    {b.manager&&<group position={park?[8,0,-7]:[-7.5,0,3]}><RealCharacter3D role="customer" seed={45} gameSpeed={gameSpeed}/></group>}
+    {floor===0&&Array.from({length:1+(b.hires?.service??0)},(_,i)=><group key={`service-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[6+i,0,-6.6]:[-5.2+i,0,5.6]}><RealCharacter3D role={park?"helper":"cashier"} seed={p.id.length*5+i} gameSpeed={gameSpeed} isWorking={serviceActive&&waiting.length>0}/></group>)}
+    {Array.from({length:1+(b.hires?.care??0)},(_,i)=><group key={`care-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[-6+i,0,-6]:[7.8,0,-6+i*2]}><RealCharacter3D role={park?"gardener":"cleaner"} seed={21+i} gameSpeed={gameSpeed} isWorking={serviceActive}/></group>)}
+    {b.manager&&<group position={park?[8,0,-7]:[-7.5,0,3]}><RealCharacter3D role="manager" seed={45} gameSpeed={gameSpeed}/></group>}
     {venue.visitors.map(person=><MovingPerson key={person.id} person={person} p={p} index={Math.max(0,waiting.findIndex(v=>v.id===person.id))} speed={gameSpeed} onServe={interactive?()=>person.state==='waiting'?act('serve',person.id):act('bookings'):undefined}/>)}
     {interactive&&rules&&<>
       {floor===0&&<Hotspot position={park?[6,3,-4.5]:[-4,2.9,7]} title={rules.verb} note={serviceBlocker(p,b)??`${waiting.length} waiting · click to serve`} disabled={!!serviceBlocker(p,b)} onClick={()=>act('serve')}/>}
@@ -110,3 +110,4 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
     </>}
   </>;
 }
+

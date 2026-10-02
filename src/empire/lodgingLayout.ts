@@ -63,7 +63,7 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
       put('shower',side*2.5,cz-3.5,1.4,1.35,2.3);put('vanity',side*3.8,cz-1.4,.8,.65,.85);put('toilet',side*3.85,cz-3.3,.58,.9,.85);
       put('cabinet',side*2.6,cz+.15,1.8,.7,2.1);
       put('minibar',side*3,cz+3.65,1.35,.7,.9);
-      put('table',side*8.2,cz+1.25,.7,1.55,.8);put('chair',side*7.15,cz+1.25,.65,.65,1.05);
+      put('table',side*8.2,cz+1.25,.7,1.55,.8);put('chair',side*7.15,cz+1.25,.65,.65,1.05,side*Math.PI/2);
       if(type==='suite'){put('sofa',side*6.1,cz+3.5,3.3,1,1,Math.PI);put('table',side*6.1,cz+2.05,1.6,.6,.46);}
       put('luggage',side*8.2,cz+3.4,.6,.85,.65);
       const door={x:side*1.45,z:cz+2.2};
@@ -170,3 +170,4 @@ export function advanceFloorWalker(walker:FloorWalker,distance:number){
     if(step===length)walker.next++;
   }return moved;
 }
+

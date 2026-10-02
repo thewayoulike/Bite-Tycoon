@@ -3,6 +3,7 @@ build/
 dist/
 coverage/
 artifacts/
+public/models/game-fit/*.glb
 .DS_Store
 *.log
 .env*

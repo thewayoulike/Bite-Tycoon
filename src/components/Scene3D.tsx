@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Box, Cylinder, Sphere, Plane, Html, Cone, Sky, Grid, Torus } from '@react-three/drei';
 import { GameState } from '../hooks/useGameLoop';
 import { RealCharacter3D } from './RealCharacter3D';
+import { diningCastId } from '../characters/gameCast';
 import { FoodIllustration } from './FoodIllustration';
 import { OutdoorReflections3D } from './OutdoorReflections3D';
 import { BistroTable3D } from './BistroFurniture3D';
@@ -133,7 +134,7 @@ const Person3D = memo(({ color, isWalking, isSitting, role = 'customer', seed = 
   prev.gameSpeed === next.gameSpeed
 ));
 
-const CustomerMember3D = ({ index, customer, table, tables, color, seed, gameSpeed }: any) => {
+const CustomerMember3D = ({ index, customer, table, tables, color, seed, castId, gameSpeed }: any) => {
   const ref=useRef<THREE.Group>(null);
   const leaving=customer.state==='leaving',signature=layoutKey(tables);
   const seatedOnMount=useRef(customer.state!=='entering');
@@ -163,7 +164,7 @@ const CustomerMember3D = ({ index, customer, table, tables, color, seed, gameSpe
   });
   return <group ref={ref} name={'dining-guest-'+customer.id+'-'+index} position={[initial.current.x,0,initial.current.z]}>
     {customer.isVIP&&index===0&&<VIPCrown3D position={[0,4.5,0]}/>}
-    <RealCharacter3D size={2} role="customer" gameSpeed={gameSpeed} color={color} seed={seed} isWalking={isWalking} isSitting={isSitting}
+    <RealCharacter3D size={2} role="customer" castId={castId} gameSpeed={gameSpeed} color={color} seed={seed} isWalking={isWalking} isSitting={isSitting}
       isWaitingOrder={isSitting&&customer.state==='waiting_order'} isWaitingFood={isSitting&&customer.state==='waiting_food'} isEating={isSitting&&customer.state==='eating'} isVIP={customer.isVIP}/>
   </group>;
 };
@@ -194,6 +195,7 @@ const Customer3D = ({ customer, table, tables, actions, staff, gameSpeed }: any)
           tables={tables}
           color={colors[(seed + i * 3) % colors.length]}
           seed={seed + i * 23}
+          castId={diningCastId(seed, i, groupSize)}
           isWaitingOrder={customer.state === 'waiting_order'}
           isWaitingFood={customer.state === 'waiting_food'}
           isEating={customer.state === 'eating'}

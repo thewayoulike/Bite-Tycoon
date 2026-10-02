@@ -1,0 +1,14 @@
+Free rigged sample characters: Eric 001, Carla 001, Claudia 002
+Creator / copyright: Renderpeople GmbH
+Source: https://renderpeople.com/free-3d-people/
+Download: https://renderpeople.com/sample/free/renderpeople_free_rigged_people_FBX.zip
+Retrieved: 2026-10-02
+Terms: https://renderpeople.com/general-terms-and-conditions/
+The source labels these samples free for commercial use. This is a proprietary
+Renderpeople license, not CC0. Retain the original source and terms when reviewing
+any public release; do not redistribute these files as a standalone asset library.
+
+This local, separate game prototype uses the included Unity FBX rigs and resized
+2048px diffuse textures. Procedural pose demonstrations, chef hat/apron, tools,
+and trays were created for the prototype and are not Renderpeople animations or
+complete profession-specific uniform models. No paid characters were used.

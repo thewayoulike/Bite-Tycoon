@@ -1,0 +1,28 @@
+Bite Tycoon — 100-person visual prototype
+
+Source: MakeHuman core human mesh, morph targets and system assets (CC0).
+https://static.makehumancommunity.org/about/license.html
+https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+
+Generated with MPFB 2.0.6-rc2 and Blender 4.2.23 LTS.
+The GPL software licenses for these tools do not change the CC0 license
+of the exported core MakeHuman characters and bundled system assets.
+
+100 individually configured faces and bodies: 50 adult customers, 30 child
+visitors aged 5–15, and 20 adult staff. manifest.json records outfits, hairstyles and a mesh
+signature for each person. These are generated characters, not scanned
+Renderpeople models. Renderpeople assets in the parent folder have a
+different license, documented in the parent SOURCES.txt.
+
+All models are rigged. Motions, trays, hats and other role accessories
+in this preview are original procedural demonstrations, not mocap clips.
+Portraits and full-outfit images show the actual exported models. All outfits
+use audited long-sleeved shirts/jackets and full-length trousers with closed
+shoes, fitted to each body. The asset names begin with "male" because that is
+the source pack's naming; MPFB fits these garments to all selected body shapes.
+No short skirts, shorts or crop tops are included in this cast. Some service
+uniforms use simple new material colors on the same fitted clothing meshes.
+
+This page is a separate visual prototype. No live game characters,
+management behavior or saved progress are replaced.

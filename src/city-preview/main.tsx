@@ -1,9 +1,9 @@
 import React, { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Html, OrbitControls, useGLTF, useProgress } from '@react-three/drei';
+import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { Building2, Home, Store, Sun, Moon, RotateCcw, ArrowUpRight, MousePointer2, Check, Eye, ChevronRight, Map } from 'lucide-react';
+import { Building2, Home, Store, Sun, Moon, RotateCcw, ArrowUpRight, MousePointer2, Check, Eye, ChevronRight, Map as MapIcon } from 'lucide-react';
 import { StylizedTree3D, RoundedCarBody3D } from '../components/StreetAssets3D';
 import { OutdoorReflections3D } from '../components/OutdoorReflections3D';
 import './preview.css';
@@ -16,8 +16,8 @@ type ModelName = 'Building_Small_1' | 'Building_Medium_2_001' | 'Building_Large_
 const VIEWS: Record<View, { title: string; subtitle: string; camera: Vec3; target: Vec3 }> = {
   overview: { title: 'A connected neighbourhood', subtitle: 'Paired buildings, a cross street and a small public garden.', camera: [65, 46, 65], target: [0, 7, -4] },
   residential: { title: 'Cedar Street', subtitle: 'Brick apartments, detailed entrances and a shared pavement.', camera: [-4, 11, 14], target: [-31, 9, -17] },
-  shopping: { title: 'The high street', subtitle: 'Ground-floor shops with homes and offices above.', camera: [57, 10, 12], target: [26, 8, -17] },
-  detail: { title: 'Look a little closer', subtitle: 'Inspect the actual brickwork, window frames and doorways.', camera: [29, 5, -2], target: [34, 4, -10] },
+  shopping: { title: 'The high street', subtitle: 'Ground-floor shops with homes and offices above.', camera: [65, 19, 25], target: [27, 12, -17] },
+  detail: { title: 'Look a little closer', subtitle: 'Inspect the actual brickwork, window frames and doorways.', camera: [45, 5, -1], target: [40, 4, -12] },
 };
 const BUILDINGS: { name: ModelName; position: Vec3; rotation?: number; tint: string; label: string }[] = [
   { name: 'Building_Small_1', position: [-42, .14, -17], tint: '#c9ad9b', label: 'Cedar apartments' },
@@ -120,9 +120,9 @@ function Streets({ evening }: { evening: boolean }) {
     <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.17,0]} receiveShadow><planeGeometry args={[1000,1000]}/><meshStandardMaterial color="#a3a19a" roughness={1}/></mesh>
     <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.155,0]} receiveShadow><planeGeometry args={[122,88]}/><meshStandardMaterial map={paving} roughness={.96}/></mesh>
     <Model name="Street_4WayIntersection" />
-    {[-54,-42,-30,-18,18,30,42,54].map(x=><Model key={`x${x}`} name="Street_2Lane" position={[x,0,0]} rotation={Math.PI/2}/>)}
-    {[-42,-30,-18,18,30,42].map(z=><Model key={`z${z}`} name="Street_2Lane" position={[0,0,z]}/>)}
-    {[-1,1].flatMap(side=>[-1,1].map(row=><Box key={`${side}${row}`} position={[side*33,-.03,row*20.6]} size={[45,.28,34.2]} color="#c3c0b8"/>))}
+    {Array.from({length:9},(_,i)=>12+i*6).flatMap(x=>[-1,1].map(side=><Model key={`x${side*x}`} name="Street_2Lane" position={[side*x,0,0]}/>))}
+    {Array.from({length:6},(_,i)=>12+i*6).flatMap(z=>[-1,1].map(side=><Model key={`z${side*z}`} name="Street_2Lane" position={[0,0,side*z]} rotation={Math.PI/2}/>))}
+    {[-1,1].flatMap(side=>[-1,1].map(row=><Box key={`${side}${row}`} position={[side*33,-.03,row*21.65]} size={[45,.28,31.3]} color="#c3c0b8"/>))}
     {[-51,-35,-18,14,31,49].flatMap((x,i)=>[-1,1].map(side=><Lamp key={`${x}:${side}`} position={[x,.14,side*4.2]} evening={evening}/>))}
     {[-9,-7,7,9].flatMap(x=>[-1,1].map(side=><Model key={`${x}${side}`} name="Prop_Bollard" position={[x,.14,side*4.2]}/>))}
     {[-25,24].map(x=><Model key={x} name="Prop_ManholeCover" position={[x,.025,.8]}/>)}
@@ -169,8 +169,7 @@ function CameraRig({ view, revision }: { view: View; revision: number }) {
 }
 
 function Loading() {
-  const { progress } = useProgress();
-  return <Html center><div className="loading-card"><Building2 size={26}/><strong>Loading the neighbourhood</strong><span>Buildings & materials · {Math.round(progress)}%</span><progress max="100" value={progress}/></div></Html>;
+  return <Html center><div className="loading-card"><Building2 size={26}/><strong>Loading the neighbourhood</strong><span>Preparing buildings & materials…</span></div></Html>;
 }
 
 function City({ view, revision, evening, labels }: { view: View; revision: number; evening: boolean; labels: boolean }) {
@@ -186,9 +185,9 @@ function City({ view, revision, evening, labels }: { view: View; revision: numbe
         <Model {...building} centered evening={evening}/>
         {labels && <Html position={[building.position[0], i===1||i===5 ? 28 : i===2 ? 31 : 20, building.position[2]]} center distanceFactor={75} zIndexRange={[10,0]} style={{pointerEvents:'none'}}><div className="building-label">{building.label}</div></Html>}
       </group>)}
-      <Sign text="CEDAR HOUSE" position={[-42,3.15,-9.65]} width={5}/>
-      <Sign text="THE CORNER MARKET" position={[22,3.15,-9.57]} width={7}/>
-      <Sign text="WILLOW & COFFEE" position={[40,3.15,-9.65]} width={5}/>
+      <Sign text="CEDAR HOUSE" position={[-42,3.15,-11.94]} width={5}/>
+      <Sign text="THE CORNER MARKET" position={[22,3.15,-9.88]} width={7}/>
+      <Sign text="WILLOW & COFFEE" position={[40,3.15,-11.94]} width={5}/>
       <Garden/>
     </Suspense>
     <CameraRig view={view} revision={revision}/>
@@ -206,7 +205,7 @@ function App() {
   const [revision,setRevision] = useState(0);
   const [evening,setEvening] = useState(false);
   const [labels,setLabels] = useState(false);
-  const icons = { overview: Map, residential: Home, shopping: Store, detail: Eye };
+  const icons = { overview: MapIcon, residential: Home, shopping: Store, detail: Eye };
   const names = { overview: 'Whole neighbourhood', residential: 'Residential street', shopping: 'Shopping street', detail: 'Building details' };
   return <div className="preview-app">
     <header className="topbar"><a className="brand" href="/"><Building2 size={22}/><span>BITE TYCOON<small>City design studio</small></span></a><div className="preview-badge"><span/>Separate visual preview</div><a className="game-link" href="/">Back to game <ArrowUpRight size={16}/></a></header>
