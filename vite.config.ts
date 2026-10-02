@@ -17,7 +17,7 @@ export default defineConfig(({mode}) => {
     },
     build: {
       rollupOptions: {
-        input: { main: path.resolve(__dirname, 'index.html'), expansion: path.resolve(__dirname, 'expansion.html'), propertyPreview: path.resolve(__dirname, 'property-preview.html') },
+        input: { main: path.resolve(__dirname, 'index.html'), expansion: path.resolve(__dirname, 'expansion.html'), propertyPreview: path.resolve(__dirname, 'property-preview.html'), cityModelPreview: path.resolve(__dirname, 'city-model-preview.html') },
       },
     },
     server: {
