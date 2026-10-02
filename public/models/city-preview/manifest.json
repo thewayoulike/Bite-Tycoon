@@ -1,0 +1,269 @@
+{
+  "creator": "Quaternius",
+  "license": "CC0-1.0",
+  "source": "https://quaternius.com/packs/downtowncitymegakit.html",
+  "mirror": "https://github.com/AetherRadar/operation-steel-tide/tree/c62744623058dd2c1dab804efdcfa6816dc56b72/assets/models/quaternius_downtown_city",
+  "revision": "c62744623058dd2c1dab804efdcfa6816dc56b72",
+  "files": [
+    {
+      "file": "Building_Large_2.bin",
+      "bytes": 3345228,
+      "sha256": "e25636464da7b96a346f89314e498099ce33d3b0e9b1f8d9cba3eee94b63fac3"
+    },
+    {
+      "file": "Building_Large_2.gltf",
+      "bytes": 22880,
+      "sha256": "903209b63ad4e151190dce32ccab47a2c0dc256c09d999835984a0459ef2bd91"
+    },
+    {
+      "file": "Building_Medium_2_001.bin",
+      "bytes": 2443288,
+      "sha256": "8a8bd4462ff5f784e0ea7fbe753b009713f4017192c9d82b467f445eae88a35d"
+    },
+    {
+      "file": "Building_Medium_2_001.gltf",
+      "bytes": 25244,
+      "sha256": "423f4b3e709ef5633eac4a94a8a1ce25750aa42fe34e3b983d7aac39846f9a1c"
+    },
+    {
+      "file": "Building_Small_1.bin",
+      "bytes": 1556100,
+      "sha256": "a5fb691fe7ab0d93d5d47eef51af576f2d65bd78103c92c9e714215b26d679a2"
+    },
+    {
+      "file": "Building_Small_1.gltf",
+      "bytes": 27435,
+      "sha256": "3c864724fffd016ca440191bca169d6ba486e14617bb3cafa09ddbac7532f3d7"
+    },
+    {
+      "file": "Decal_BrokenLine_Straight.bin",
+      "bytes": 172,
+      "sha256": "20881f24ce840570fd59189ab873268fb8eb72414ba53a11ac1f4772d94a841f"
+    },
+    {
+      "file": "Decal_BrokenLine_Straight.gltf",
+      "bytes": 2039,
+      "sha256": "270c6af2b8399f31aa4bb7d68f1fd07de517b96810517c648ded5b2ef614d058"
+    },
+    {
+      "file": "Decal_Crosswalk.bin",
+      "bytes": 140,
+      "sha256": "d2830f63d0487f0d67db64ee0b1c94e718bf4bdbb89285d336b3d57ae3e12a1d"
+    },
+    {
+      "file": "Decal_Crosswalk.gltf",
+      "bytes": 1863,
+      "sha256": "979b6024af70ca61270ce07c89e0996d2eb2debf1357e7ca10d5fc559d6b2c90"
+    },
+    {
+      "file": "Prop_Bollard.bin",
+      "bytes": 10140,
+      "sha256": "53b7227fade437ae5066359170e88fbcb537f9e96773a6c1ad0fb2bcc0f92125"
+    },
+    {
+      "file": "Prop_Bollard.gltf",
+      "bytes": 2394,
+      "sha256": "4a05291a05873e4043c6354c7cae969c0726fd9b4590625a24ee3bcf940a1c9a"
+    },
+    {
+      "file": "Prop_ManholeCover.bin",
+      "bytes": 4548,
+      "sha256": "de8edeb728cac5469eea1e6e3fed6fc0f4afe875d7c416ec14dc03886650daa7"
+    },
+    {
+      "file": "Prop_ManholeCover.gltf",
+      "bytes": 2198,
+      "sha256": "c8519276b3628a217ec7ae0198e598868279046e329f9f6d16b3eec3e0aa2fc9"
+    },
+    {
+      "file": "Prop_Planter_Single.bin",
+      "bytes": 9428,
+      "sha256": "9350eb1b2bf17f057c8d57b9a59de8dc0c4c0bf8ec3580bba13fc7d0f9016e91"
+    },
+    {
+      "file": "Prop_Planter_Single.gltf",
+      "bytes": 4132,
+      "sha256": "5ab51700931236c2de45c9c8c5c1206ff312d56f00cedf134bfa462da4ef4f13"
+    },
+    {
+      "file": "QUATERNIUS_LICENSE.txt",
+      "bytes": 824,
+      "sha256": "40e0a81bfbb91f1305fd1c052ce590956a9dbac07572612d8552ef75bd970435"
+    },
+    {
+      "file": "README.md",
+      "bytes": 1749,
+      "sha256": "39e2b8f639f2d954032ffeb881d78c7671c3e27131267d43104e0ed765e1f1a3"
+    },
+    {
+      "file": "Sidewalk_Planter.bin",
+      "bytes": 50708,
+      "sha256": "43679701cfeaf2d06d0be191c296e01421a099194158b448d186b7662e469c26"
+    },
+    {
+      "file": "Sidewalk_Planter.gltf",
+      "bytes": 4215,
+      "sha256": "55bf5b2b916999a08e8f995bdc1c3c51a54dff4b7e1b1d9c3fbe7d5dfc70fbe3"
+    },
+    {
+      "file": "Stairs_Entrance_Concrete.bin",
+      "bytes": 7088,
+      "sha256": "324b94af265d614751154bb21d60cdcf6a32b3f9c0d52690a07b71c352875463"
+    },
+    {
+      "file": "Stairs_Entrance_Concrete.gltf",
+      "bytes": 4227,
+      "sha256": "8645a6e3a0cfd3018d0b53655720dbe5a23ecbd24b98037593b5892caf2748aa"
+    },
+    {
+      "file": "Street_2Lane.bin",
+      "bytes": 15912,
+      "sha256": "f01d04eeb99a1bc486703e27f8f05e3976a73c08493b828ed9e680e68c6a6b43"
+    },
+    {
+      "file": "Street_2Lane.gltf",
+      "bytes": 6364,
+      "sha256": "4bfa763a0a1988276fd5604e8e9e1d401c31cf5438401d42a15cf3a7ec3a60fe"
+    },
+    {
+      "file": "Street_4WayIntersection.bin",
+      "bytes": 54360,
+      "sha256": "b26844243cf82d51f1106308b0bdbcf4c53ac7e1f093c7187e479c690712b193"
+    },
+    {
+      "file": "Street_4WayIntersection.gltf",
+      "bytes": 6432,
+      "sha256": "b332bf9afd47ec6ae1c19151f8eafccee3b45037f4dfff2f115001d9d4cac34e"
+    },
+    {
+      "file": "T_Concrete_Asphalt_BaseColor.png",
+      "bytes": 462975,
+      "sha256": "140d4e698d8a3c6780d123eb26c9ffeb103a3c1b486a8e5c873b359307ee3660"
+    },
+    {
+      "file": "T_Concrete_BaseColor.png",
+      "bytes": 642164,
+      "sha256": "59f00d23fe8edd16629ecf75628124e282a3115dd667e8a185c3cec300e45adf"
+    },
+    {
+      "file": "T_Concrete_Normal.png",
+      "bytes": 1369214,
+      "sha256": "81d15d3f0d91ba7bd61b1037eaf35a2ed0eb70629b6148a91e39060fd1131ecc"
+    },
+    {
+      "file": "T_Concrete_ORM.png",
+      "bytes": 448533,
+      "sha256": "18684d4ff1834bf3743d2c6409e7d9eeec2ee46bb0104f1e005aa17f72a5a4f2"
+    },
+    {
+      "file": "T_dark_interior.png",
+      "bytes": 325090,
+      "sha256": "59e5c77292953d93c3cd239c2f06d4e80e393761195da66d886d3887ad59f1dc"
+    },
+    {
+      "file": "T_Dirt_BaseColor.png",
+      "bytes": 618482,
+      "sha256": "46f328a9e4fd540536c59af1d697e5610f390065cdae994fd18258069bcc34de"
+    },
+    {
+      "file": "T_Dirt_Normal.png",
+      "bytes": 2894105,
+      "sha256": "a96d8124ea463ef234b32498b4cf80848999d0a3658cfe4910a4a0054af9601b"
+    },
+    {
+      "file": "T_Dirt_ORM.png",
+      "bytes": 529373,
+      "sha256": "5e33a5998dad736060cc6e708becabb22a2c6324c7f94cb198d4f047b3e3bd9c"
+    },
+    {
+      "file": "T_lit_interior_1.png",
+      "bytes": 395226,
+      "sha256": "d20aa9f249a506eb145d76e264e59667cec4bef66c07e4baace6583a28cc3be4"
+    },
+    {
+      "file": "T_lit_interior_2.png",
+      "bytes": 316427,
+      "sha256": "83c3f1b2ad84b65aab88d5744e6997730a04140e41d230e2cecfe9bfb2ae0559"
+    },
+    {
+      "file": "T_MarbleFloor_BaseColor.png",
+      "bytes": 1095714,
+      "sha256": "a01f57e2976d3af21a59f1ae18e12be84d2acae7ba3e93d184d2874224f737c0"
+    },
+    {
+      "file": "T_MarbleFloor_Normal.png",
+      "bytes": 526119,
+      "sha256": "5b83ef19f39bdbb329c3879d24244d92f43f2f762f85c40f1e9993fdac46b2c3"
+    },
+    {
+      "file": "T_MarbleFloor_ORM.png",
+      "bytes": 567860,
+      "sha256": "95008e79cdba191b525afce2a95452fe28934efd5546d35919c24ea6cbcc0c22"
+    },
+    {
+      "file": "T_MetalConcrete_BaseColor.png",
+      "bytes": 628712,
+      "sha256": "60b73981cf8f4e12d0e15adb26d5adaf40389a20aa5e648565d423eab56b8eb9"
+    },
+    {
+      "file": "T_MetalConcrete_Normal.png",
+      "bytes": 1354429,
+      "sha256": "d0781f667bf443836a67273d30eb88fc487b11b28c38551056cbcd39f6442be0"
+    },
+    {
+      "file": "T_MetalConcrete_ORM.png",
+      "bytes": 752218,
+      "sha256": "fb6bebf7590ad3d5485408f575dcf638ea44f9704550fcbf307ae913cb38ee91"
+    },
+    {
+      "file": "T_Ornaments_BaseColor.png",
+      "bytes": 1312482,
+      "sha256": "4ca7254768c022b279ee499724c9a5f42d86bccbdd847082c8c23749d295baa4"
+    },
+    {
+      "file": "T_Ornaments_Normal.png",
+      "bytes": 2241217,
+      "sha256": "665299ad08f7bdc01513bee8931b9922e93433596abcf6209f73d8bb9eed9ce2"
+    },
+    {
+      "file": "T_Ornaments_ORM.png",
+      "bytes": 1571536,
+      "sha256": "e61ddbf18c4f77f0eaaaf33efb2b1befc3fff2ea0496a5724384e999816ffbe5"
+    },
+    {
+      "file": "T_RedBrick_BaseColor.png",
+      "bytes": 881052,
+      "sha256": "bc7d87ef508165388dbd07b37ad09932d1948bbfefbcabf179eb1c13ef4c1445"
+    },
+    {
+      "file": "T_RedBrick_Normal.png",
+      "bytes": 2461794,
+      "sha256": "fc46074f8ea62e99239261efddf27992ab0de88066a994a67f05d1e49c97f0bb"
+    },
+    {
+      "file": "T_RedBrick_ORM.png",
+      "bytes": 992052,
+      "sha256": "1354cb33d74ae24ccc77c61b41a82542a2c2355179e6f02d14ea075279d9f495"
+    },
+    {
+      "file": "T_Street_Decals.png",
+      "bytes": 933830,
+      "sha256": "07b0ac60da1b9b877962ac165933da24b190b3b55c0b7d91cca24bf6684d8684"
+    },
+    {
+      "file": "T_Trim_BaseColor.png",
+      "bytes": 1368756,
+      "sha256": "4f252e3f44739ff100871cc584fd846a373c930d72ddee695e2d36ddf23ba503"
+    },
+    {
+      "file": "T_Trim_Normal.png",
+      "bytes": 1193906,
+      "sha256": "421ca062c014687a03fca852ef727652e8faa2abff4ea6e32a242764e91dc31b"
+    },
+    {
+      "file": "T_Trim_ORM.png",
+      "bytes": 885665,
+      "sha256": "bebce62c2a32b2b633f3fa7e4aade0d2cd59360c3d339f40f7f4810a5e2c07a4"
+    }
+  ]
+}
