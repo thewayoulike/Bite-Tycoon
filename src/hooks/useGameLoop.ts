@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import {TABLE_POSITIONS,mapPos,ROOM,nextTablePosition,applyTableLayout,normalizeTableLayout,servicePoint,walkStaff,customerTravelTime} from '../restaurantLayout';
+export {TABLE_POSITIONS,mapPos} from '../restaurantLayout';
 import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
 import { sounds } from '../utils/audio';
-import { SHIFT_SECONDS, STARTING_MONEY, STARTING_INVENTORY, UPGRADE_COSTS, activeRecipes, chooseRecipe, menuDemand, weeklyWages, purchasingPlan, finishShift, toggleMenuRecipe, hireStaff, startOrPauseArrivals, changeManagerSettings, payDueWages, serveReadyTable } from '../gameplay';
+import {advanceEmpire, applyDistrictUpdate, createEmpire, districtView, EmpireState, parseEmpireSave, SAVE_KEY, setEmpireSpeed, startEmpireWeek, unlockTestDistrict, updateRestaurant} from '../empire/empire';
+import type {ExpansionState} from '../prototype/expansionModel';
+import { SHIFT_SECONDS, STARTING_MONEY, STARTING_INVENTORY, UPGRADE_COSTS, activeRecipes, chooseRecipe, menuDemand, weeklyWages, applyManagerPurchases, finishShift, toggleMenuRecipe, hireStaff, startOrPauseArrivals, changeManagerSettings, payDueWages, serveReadyTable } from '../gameplay';
 export { UPGRADE_COSTS, SALARIES } from '../gameplay';
 
 export type CustomerState = 'entering' | 'waiting_order' | 'waiting_food' | 'eating' | 'leaving';
@@ -18,6 +22,7 @@ export interface FloatingEvent {
 }
 
 export interface WeekSummary {
+  propertyRent?: number;
   week: number;
   revenue: number;
   tips: number;
@@ -46,6 +51,7 @@ export interface Customer {
   vipBonus: number;
   partySize: number;
   tipModifier?: number;
+  servedRecipeIds?: string[];
 }
 
 export interface Table {
@@ -55,14 +61,6 @@ export interface Table {
   y: number;
   isDirty: boolean;
 }
-
-export const TABLE_POSITIONS = [
-  { x: 15, y: 70 }, { x: 35, y: 70 }, { x: 55, y: 70 }, { x: 75, y: 70 },
-  { x: 25, y: 85 }, { x: 45, y: 85 }, { x: 65, y: 85 }, { x: 85, y: 85 },
-  { x: 15, y: 95 }, { x: 35, y: 95 }, { x: 55, y: 95 }, { x: 75, y: 95 },
-];
-
-export const mapPos = (percent: number) => (percent / 100) * 20 - 10;
 
 export const ONLINE_APPS = {
   bitedash: { id: 'bitedash', name: 'BiteDash', cost: 100, fee: 0.20, spawnMultiplier: 1.0 },
@@ -115,6 +113,10 @@ export interface GameState {
   time: number;
   phase: 'planning' | 'service' | 'closing';
   activeMenu: string[];
+  testingUnlocked?: boolean;
+  identityVersion?: number;
+  tableLayoutVersion?: number;
+  restaurantIdentity?: 'diner'|'cafe'|'bistro';
   priorityTableId: string | null;
   pendingPayroll: { amount: number; dueWeek: number }[];
   manager: { enabled: boolean; target: number; budget: number; reserve: number; spent: number };
@@ -157,6 +159,7 @@ export interface GameState {
     itemRevenues: Record<string, number>;
     vipBonus: number;
     spoilageCosts: number;
+    rentCosts?: number;
   };
   restaurantLayout: number;
   wallColor: string | null;
@@ -282,16 +285,15 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
     const spawnChance = (0.08 + upgrades.spawnRate * 0.02) * rush * menuDemand(newState) * delta;
     if (Math.random() < spawnChance || (newState.week === 1 && newState.time >= 2 && customers.length === 0 && newState.stats.customersServed + newState.stats.customersLost === 0)) {
       const table = emptyTables[Math.floor(Math.random() * emptyTables.length)];
-      const targetX = mapPos(table.x);
-      const targetZ = mapPos(table.y);
-      const walkTime = (11 + Math.abs(targetZ - 14) + Math.abs(targetX)) / 4;
+      const partySize = Math.floor(Math.random() * 4) + 1;
+      const walkTime = customerTravelTime(table,partySize,tables);
       const isVIP = Math.random() < 0.10;
 
       const newCustomer: Customer = {
         id: `c_${Date.now()}_${Math.random()}`, state: 'entering',
         patience: isVIP ? 50 : 100, maxPatience: isVIP ? 50 : 100,
         tableId: table.id, actionTimer: walkTime, currentBill: 0, isVIP, vipBonus: 0,
-        partySize: Math.floor(Math.random() * 4) + 1,
+        partySize,
         tipModifier: 1
       };
       customers.push(newCustomer);
@@ -355,7 +357,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
       if (newC.patience <= 0) {
         newC.state = 'leaving';
         const table = tables.find(t => t.id === newC.tableId);
-        newC.actionTimer = (11 + Math.abs((table ? mapPos(table.y) : 0) - 14) + Math.abs((table ? mapPos(table.x) : 0))) / 4;
+        newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
         lostThisTick += (newC.partySize || 1);
         orders = orders.filter(o => o.customerId !== newC.id);
         tables = tables.map(t => t.id === newC.tableId ? { ...t, isDirty: true } : t);
@@ -365,7 +367,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
       if (newC.patience <= 0) {
         newC.state = 'leaving';
         const table = tables.find(t => t.id === newC.tableId);
-        newC.actionTimer = (11 + Math.abs((table ? mapPos(table.y) : 0) - 14) + Math.abs((table ? mapPos(table.x) : 0))) / 4;
+        newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
         tables = tables.map(t => t.id === newC.tableId ? { ...t, isDirty: true } : t);
 
         const mealEarnings = newC.currentBill || 0;
@@ -470,8 +472,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
       const table = tables.find(t => t.id === w.targetTableId);
       if (!table) { w.state = 'idle'; w.targetTableId = null; }
       else {
-        const targetTableX = mapPos(table.x) - 1.4;
-        const targetTableY = mapPos(table.y);
+        const {x:targetTableX,z:targetTableY}=servicePoint(table);
         const dist = Math.sqrt(Math.pow(targetTableX - w.x, 2) + Math.pow(targetTableY - w.y, 2));
         if (dist < 0.45) {
           if (w.state === 'walking_to_order') { w.state = 'taking_order'; w.actionTimer = 2; }
@@ -482,7 +483,8 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
                   let tipMod = 1;
                   if (cust.patience < -30) tipMod = 0;
                   else if (cust.patience <= 0) tipMod = 0.5;
-                  return { ...cust, state: 'eating', patience: cust.maxPatience, tipModifier: tipMod };
+                  return { ...cust, state: 'eating', patience: cust.maxPatience, tipModifier: tipMod,
+                    servedRecipeIds: [...(cust.servedRecipeIds ?? []), targetOrder.recipeId] };
                 }
                 return cust;
               });
@@ -494,8 +496,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
             w.state = 'walking_to_counter_empty'; w.targetTableId = null;
           }
         } else {
-          w.x += ((targetTableX - w.x) / dist) * WAITER_SPEED * delta;
-          w.y += ((targetTableY - w.y) / dist) * WAITER_SPEED * delta;
+          walkStaff(w,{x:targetTableX,z:targetTableY},tables,WAITER_SPEED*delta);
           moving = true;
         }
       }
@@ -561,8 +562,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         else if (orders.some(o => o.tableId === w.targetTableId && o.state === 'ready')) w.state = 'walking_to_serve';
         else { w.state = 'idle'; w.targetTableId = null; }
       } else {
-        w.x += ((counterStationX - w.x) / dist) * WAITER_SPEED * delta;
-        w.y += ((counterStationY - w.y) / dist) * WAITER_SPEED * delta;
+        walkStaff(w,{x:counterStationX,z:counterStationY},tables,WAITER_SPEED*delta);
         moving = true;
       }
     }
@@ -584,7 +584,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         const dirtyTable = tables.find(t => t.isDirty && !cleanerEntities.some(oc => oc.targetTableId === t.id));
         if (dirtyTable) { c.targetTableId = dirtyTable.id; c.state = 'walking_to_table'; }
         else {
-            const tx = -8, ty = -2 + i * 2;
+            const tx = -18 + i * 1.1, ty = -7;
             if (Math.abs(c.x - tx) > 0.1 || Math.abs(c.y - ty) > 0.1) c.state = 'walking_to_counter';
         }
     }
@@ -593,10 +593,10 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         const table = tables.find(t => t.id === c.targetTableId);
         if (!table || !table.isDirty) { c.state = 'idle'; c.targetTableId = null; }
         else {
-            const targetX = mapPos(table.x) + 1.2, targetY = mapPos(table.y);
+            const {x:targetX,z:targetY} = servicePoint(table);
             const dist = Math.sqrt(Math.pow(targetX - c.x, 2) + Math.pow(targetY - c.y, 2));
             if (dist < 0.5) { c.state = 'cleaning'; c.actionTimer = 2; }
-            else { c.x += ((targetX - c.x)/dist) * CLEANER_SPEED * delta; c.y += ((targetY - c.y)/dist) * CLEANER_SPEED * delta; moving = true; }
+            else { walkStaff(c,{x:targetX,z:targetY},tables,CLEANER_SPEED*delta); moving = true; }
         }
     }
 
@@ -610,10 +610,10 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
     }
 
     if (c.state === 'walking_to_counter') {
-        const tx = -8, ty = -2 + i * 2;
+        const tx = -18 + i * 1.1, ty = -7;
         const dist = Math.sqrt(Math.pow(tx - c.x, 2) + Math.pow(ty - c.y, 2));
         if (dist < 0.5) { c.x = tx; c.y = ty; c.state = 'idle'; }
-        else { c.x += ((tx - c.x)/dist) * CLEANER_SPEED * delta; c.y += ((ty - c.y)/dist) * CLEANER_SPEED * delta; moving = true; }
+        else { walkStaff(c,{x:tx,z:ty},tables,CLEANER_SPEED*delta); moving = true; }
     }
     if (moving) c.stamina = Math.max(0, c.stamina - delta);
     else if (c.state === 'idle') c.stamina = Math.min(100, c.stamina + delta * 3);
@@ -653,14 +653,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
     });
   }
 
-  for (const purchase of purchasingPlan(newState)) {
-    newState.money -= purchase.cost;
-    newState.manager.spent += purchase.cost;
-    newState.inventory[purchase.id] = (newState.inventory[purchase.id] || 0) + purchase.qty;
-    newState.inventoryBatches[purchase.id] = [...(newState.inventoryBatches[purchase.id] || []), { qty: purchase.qty, costPerUnit: purchase.unitCost }];
-    newState.stats.inventoryCosts += purchase.cost;
-    newState.stats.totalExpenses += purchase.cost;
-  }
+  newState = applyManagerPurchases(newState);
 
   newState.tables = tables; newState.customers = customers; newState.orders = orders;
   newState.waiterEntities = waiterEntities; newState.chefEntities = chefEntities; newState.cleanerEntities = cleanerEntities;
@@ -751,27 +744,56 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
   };
 }
 
-export function useGameLoop() {
-  const [state, setState] = useState<GameState>(INITIAL_STATE);
+export type GameOptions={saveKey?:string;startingState?:GameState};
+export function useGameLoop(enabled=true,options:GameOptions={}) {
+  const saveKey=options.saveKey??SAVE_KEY;
+  const [empire, setEmpire] = useState<EmpireState>(() => {
+    try { return parseEmpireSave(localStorage.getItem(saveKey)) ?? createEmpire(structuredClone(options.startingState??INITIAL_STATE)); }
+    catch { return createEmpire(structuredClone(options.startingState??INITIAL_STATE)); }
+  });
+  useEffect(()=>setEmpire(prev=>({...prev,restaurants:Object.fromEntries(Object.entries(prev.restaurants).map(([id,r])=>[id,normalizeTableLayout(r)]))})),[]);
+  const [saveError,setSaveError]=useState(false);
+  const state=empire.restaurants[empire.activeRestaurantId];
+  const setState=(update:(r:GameState)=>GameState)=>setEmpire(prev=>updateRestaurant(prev,empire.activeRestaurantId,update));
   const lastTickRef = useRef<number>(Date.now());
-  const stateRef = useRef<GameState>(state);
+  const stateRef = useRef(empire);
+  const lastSavedRef = useRef(JSON.stringify(empire));
 
   useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+    stateRef.current = empire;
+  }, [empire]);
+
+  useEffect(()=>{
+    const save=()=>{
+      const value=JSON.stringify(stateRef.current);
+      // An idle second tab must not overwrite progress made in the active game.
+      if(value===lastSavedRef.current)return;
+      try{localStorage.setItem(saveKey,value);lastSavedRef.current=value;setSaveError(false);}catch{setSaveError(true);}
+    };
+    const sync=(event:StorageEvent)=>{
+      if(event.key!==saveKey||event.newValue===lastSavedRef.current)return;
+      const saved=parseEmpireSave(event.newValue);if(!saved)return;
+      lastSavedRef.current=event.newValue!;stateRef.current=saved;setEmpire(saved);
+    };
+    const timer=setInterval(save,2000);
+    window.addEventListener('pagehide',save);
+    window.addEventListener('storage',sync);
+    document.addEventListener('visibilitychange',save);
+    return()=>{clearInterval(timer);save();window.removeEventListener('pagehide',save);window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',save);};
+  },[saveKey]);
 
   const gameTick = useCallback(() => {
     const now = Date.now();
-    const currentSpeed = stateRef.current.gameSpeed ?? 1;
-    if (currentSpeed === 0) {
+    const currentSpeed = stateRef.current.speed;
+    if (!enabled || currentSpeed === 0) {
       lastTickRef.current = now;
       return; // Paused!
     }
     const delta = Math.min((now - lastTickRef.current) / 1000, 0.5) * currentSpeed;
     lastTickRef.current = now;
 
-    setState(prev => advanceGame(prev, delta));
-  }, []);
+    setEmpire(prev => advanceEmpire(prev, delta, advanceGame));
+  }, [enabled]);
 
   useEffect(() => {
     const intervalId = setInterval(gameTick, 100);
@@ -804,7 +826,8 @@ export function useGameLoop() {
       if (type !== 'table') return hireStaff(prev, type);
       const cost = UPGRADE_COSTS.table(prev.tables.length);
       if (prev.money < cost || prev.tables.length >= TABLE_POSITIONS.length) return prev;
-      const position = TABLE_POSITIONS[prev.tables.length];
+      const position = nextTablePosition(prev.tables);
+      if (!position) return prev;
       return { ...prev, money: prev.money - cost,
         stats: { ...prev.stats, upgradeCosts: prev.stats.upgradeCosts + cost, totalExpenses: prev.stats.totalExpenses + cost },
         tables: [...prev.tables, { id: `t_${Date.now()}`, customerId: null, x: position.x, y: position.y, isDirty: false }] };
@@ -847,7 +870,9 @@ export function useGameLoop() {
   const setFrameColor = (color: string | null) => setState(prev => ({ ...prev, frameColor: color }));
   const toggleRestaurantState = () => {
     sounds.playClick();
-    setState(startOrPauseArrivals);
+    setEmpire(prev=>prev.restaurants[prev.activeRestaurantId].phase==='planning'
+      ? startEmpireWeek(prev)
+      : updateRestaurant(prev,prev.activeRestaurantId,startOrPauseArrivals));
   };
 
   const cleanTable = (tableId: string) => {
@@ -928,7 +953,7 @@ export function useGameLoop() {
   const unlockApp = (appId: string) => {
     sounds.playUpgrade();
     setState(prev => {
-       if (prev.stats.customersServed < 24 || prev.unlockedApps.includes(appId)) return prev;
+       if ((!prev.testingUnlocked && prev.stats.customersServed < 24) || prev.unlockedApps.includes(appId)) return prev;
        const app = ONLINE_APPS[appId as keyof typeof ONLINE_APPS];
        if (app && prev.money >= app.cost) {
           return { ...prev, money: prev.money - app.cost, unlockedApps: [...prev.unlockedApps, appId], stats: { ...prev.stats, appCosts: (prev.stats.appCosts || 0) + app.cost, totalExpenses: prev.stats.totalExpenses + app.cost } };
@@ -967,7 +992,7 @@ export function useGameLoop() {
 
   const setGameSpeed = (speed: number) => {
     sounds.playClick();
-    setState(prev => ({ ...prev, gameSpeed: speed }));
+    setEmpire(prev => setEmpireSpeed(prev,speed));
   };
 
   const dismissWeekSummary = () => {
@@ -985,9 +1010,17 @@ export function useGameLoop() {
 
   return {
     state,
+    empire,
+    district:districtView(empire),
+    saveError,
     actions: {
+      updateDistrict:(update:(s:ExpansionState)=>ExpansionState)=>setEmpire(prev=>applyDistrictUpdate(prev,update,INITIAL_STATE)),
+      enterRestaurant:(id:string)=>setEmpire(prev=>prev.restaurants[id]?{...prev,activeRestaurantId:id}:prev),
+      startEmpireWeek:()=>setEmpire(startEmpireWeek),
+      unlockTestDistrict:()=>setEmpire(prev=>unlockTestDistrict(prev,INITIAL_STATE)),
       toggleActiveRecipe,
       updateManager,
+      setTableLayout:(tables:Table[])=>setState(prev=>applyTableLayout(prev,tables)),
       prioritizeTable,
       takeOrder,
       serveFood,

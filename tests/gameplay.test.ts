@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceGame, INITIAL_STATE, takeCustomerOrder, GameState, Customer, Order } from '../src/hooks/useGameLoop';
+import { advanceGame, INITIAL_STATE, takeCustomerOrder, mapPos, GameState, Customer, Order } from '../src/hooks/useGameLoop';
 import { activeRecipes, canHire, demandFor, hireStaff, payDueWages, purchasingPlan, serveReadyTable, startOrPauseArrivals, toggleMenuRecipe } from '../src/gameplay';
 
 const fresh = (): GameState => structuredClone(INITIAL_STATE);
@@ -88,6 +88,46 @@ test('manager obeys budget, cash reserve, menu and pause', () => {
   assert.deepEqual(purchasingPlan({ ...state, phase: 'planning' }), []);
 });
 
+test('adding a menu dish with a manager immediately buys its ingredients during planning', () => {
+  const state = fresh(); state.staff.hasManager = true;
+  state.recipes = state.recipes.map(r => r.id === 'sushi' ? {...r, unlocked:true} : r);
+  const next = toggleMenuRecipe(state, 'sushi');
+  assert.ok(next.activeMenu.includes('sushi'));
+  assert.ok(next.inventory.rice >= 1 && next.inventory.fish >= 1, 'both sushi ingredients are stocked');
+  assert.ok(next.money < state.money);
+  assert.ok(next.manager.spent <= next.manager.budget);
+  const spent = state.money - next.money;
+  assert.ok(Math.abs(next.stats.inventoryCosts - state.stats.inventoryCosts - spent) < 1e-8);
+  assert.ok(Math.abs(next.stats.totalExpenses - state.stats.totalExpenses - spent) < 1e-8);
+  assert.equal(state.inventory.rice, undefined);
+  assert.equal(state.manager.spent, 0);
+  for (const id of ['rice','fish']) assert.equal(next.inventoryBatches[id].reduce((n,b)=>n+b.qty,0),next.inventory[id]);
+  assert.equal(toggleMenuRecipe(next, 'sushi').money, next.money, 'removing a dish does not buy stock');
+});
+
+test('menu restocking requires enabled manager, available budget, cash and a free menu slot', () => {
+  const state = fresh(); state.staff.hasManager = true;
+  state.recipes = state.recipes.map(r => ({...r,unlocked:true}));
+  const cases = [
+    {...state,staff:{...state.staff,hasManager:false}},
+    {...state,manager:{...state.manager,enabled:false}},
+    {...state,manager:{...state.manager,budget:0}},
+    {...state,money:state.manager.reserve},
+  ];
+  for (const limited of cases) {
+    const next = toggleMenuRecipe(limited,'sushi');
+    assert.ok(next.activeMenu.includes('sushi'));
+    assert.equal(next.money,limited.money);
+    assert.equal(next.inventory.rice,undefined);
+  }
+  const full = {...state,activeMenu:state.recipes.filter(r=>r.id!=='sushi').slice(0,6).map(r=>r.id)};
+  assert.equal(toggleMenuRecipe(full,'sushi'),full);
+  const limitedCash={...state,money:state.manager.reserve+12};
+  const stocked=toggleMenuRecipe(limitedCash,'sushi');
+  assert.ok(stocked.inventory.rice>=1 && stocked.inventory.fish>=1);
+  assert.ok(stocked.money>=state.manager.reserve);
+});
+
 test('food walkouts cancel outstanding tickets and record the loss', () => {
   const state = fresh(); state.phase = 'service';
   state.customers = [customer({ patience: 0.05 })]; state.orders = [order()];
@@ -107,7 +147,24 @@ test('serving waits for the complete table and counts all dishes once', () => {
   assert.equal(served.orders.length, 0);
   assert.equal(served.weekStats.itemsSold.coffee_black, 2);
   assert.equal(served.customers[0].state, 'eating');
+  assert.deepEqual(served.customers[0].servedRecipeIds, ['coffee_black', 'coffee_black']);
   assert.equal(serveReadyTable(served, 'second'), served);
+});
+
+test('waiter delivery retains every dish for table visuals after tickets are removed', () => {
+  const state = fresh(); state.phase = 'service'; state.staff.waiters = 1;
+  state.customers = [customer()];
+  state.tables[0].customerId = 'guest';
+  state.orders = [order({state: 'ready'}), order({id: 'fries-ticket', state: 'ready', recipeId: 'fries'})];
+  state.waiterEntities = [{id: 'waiter', state: 'walking_to_serve', targetCustomerId: 'guest',
+    targetOrderId: 'order', targetTableId: 't1', x: mapPos(state.tables[0].x),
+    y: mapPos(state.tables[0].y) + 4.1, stamina: 100}];
+  const served = advanceGame(state, .1);
+  assert.equal(served.orders.length, 0);
+  assert.deepEqual(served.customers[0].servedRecipeIds, ['coffee_black', 'fries']);
+  assert.equal(served.weekStats.itemsSold.fries, 1);
+  assert.equal(state.customers[0].servedRecipeIds, undefined, 'previous state remains unchanged');
+  assert.deepEqual(advanceGame(served, .1).customers[0].servedRecipeIds, ['coffee_black', 'fries']);
 });
 
 test('kitchen prioritization changes which ticket receives limited cooking capacity', () => {

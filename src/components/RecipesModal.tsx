@@ -3,12 +3,15 @@ import { BookOpen, Search, DollarSign, Clock, Check, AlertCircle, Sparkles, Tren
 import { demandFor, MENU_LIMIT } from '../gameplay';
 import { Recipe, INGREDIENTS } from '../data/recipes';
 import { INGREDIENT_ICONS } from '../data/categories';
+import type { GameState } from '../hooks/useGameLoop';
 
 interface RecipesModalProps {
   recipes: Recipe[];
   inventory: Record<string, number>;
   money: number;
   activeMenu: string[];
+  hasManager: boolean;
+  manager: GameState['manager'];
   onToggleActive: (id: string) => void;
   onUnlockRecipe: (id: string) => void;
   onChangePrice: (id: string, newPrice: number) => void;
@@ -19,12 +22,15 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
   inventory,
   money,
   activeMenu,
+  hasManager,
+  manager,
   onToggleActive,
   onUnlockRecipe,
   onChangePrice,
 }) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom'>('active');
   const [search, setSearch] = useState('');
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
 
   const filteredRecipes = recipes.filter(r => {
     if (filter === 'active' && !activeMenu.includes(r.id)) return false;
@@ -253,11 +259,21 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                     </div>
                   </div>
 
-                  {recipe.unlocked && <button onClick={() => onToggleActive(recipe.id)}
+                  {recipe.unlocked && <button onClick={() => { setLastAdded(activeMenu.includes(recipe.id) ? null : recipe.id); onToggleActive(recipe.id); }}
                     disabled={activeMenu.includes(recipe.id) ? activeMenu.length === 1 : activeMenu.length >= MENU_LIMIT}
                     aria-pressed={activeMenu.includes(recipe.id)} className="mc-button px-3 py-2 mb-2 text-sm">
-                    {activeMenu.includes(recipe.id) ? 'Remove from menu' : 'Add to menu'} · {recipe.name}
+                    {activeMenu.includes(recipe.id) ? 'Remove from menu' : hasManager && manager.enabled ? 'Add to menu & auto-stock' : 'Add to menu'} · {recipe.name}
                   </button>}
+                  {recipe.unlocked && <p role={lastAdded === recipe.id ? 'status' : undefined} className="text-[10px] leading-relaxed text-stone-600 mb-3">
+                    {lastAdded === recipe.id && activeMenu.includes(recipe.id) ? 'Added to menu. ' : ''}
+                    {!hasManager ? 'Stock ingredients in Pantry. A hired purchasing manager can order them for you.'
+                      : !manager.enabled ? 'Manager purchasing is paused. Enable it in Staff & Shop to auto-stock.'
+                      : !activeMenu.includes(recipe.id) ? 'Your manager will order ingredients immediately, within the weekly budget and cash reserve—even during planning.'
+                      : !isMissingIngredients ? 'Ingredients ready. Automatic restocking stays within the purchasing budget and cash reserve.'
+                      : manager.spent >= manager.budget ? 'Stock still needed: the manager’s weekly budget is used up. Increase it in Staff & Shop or buy ingredients in Pantry.'
+                      : money <= manager.reserve ? 'Stock still needed: the manager is protecting your cash reserve. Adjust it in Staff & Shop or buy ingredients in Pantry.'
+                      : 'Stock still needed: the remaining purchasing budget or available cash cannot cover the missing ingredients. Check Staff & Shop or Pantry.'}
+                  </p>}
                   {/* Actions Row */}
                   {recipe.unlocked ? (
                     <div className="flex items-center justify-between bg-[#c6c6c6] p-2 border-2 border-[#8b8b8b] rounded">

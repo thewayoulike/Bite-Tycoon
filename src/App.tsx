@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useGameLoop } from './hooks/useGameLoop';
+import React, { useState, useEffect, useRef } from 'react';
+import { useGameLoop, GameOptions } from './hooks/useGameLoop';
 import {
   ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle,
   BookOpen, Package, PaintBucket, TrendingUp, Beaker, AlertTriangle,
-  Sparkles, Layers, CheckCircle2, UserCheck, Eraser, Info
+  Sparkles, Layers, CheckCircle2, UserCheck, Eraser, Info, Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Scene3D } from './components/Scene3D';
+import { GameWorld3D } from './components/GameWorld3D';
 import { ResearchLabModal } from './components/ResearchLabModal';
 import { InventoryModal } from './components/InventoryModal';
+import {BusinessInventory} from './empire/BusinessInventory';
+import {BusinessPurchasing} from './empire/BusinessPurchasing';
 import { RecipesModal } from './components/RecipesModal';
 import { StatsModal } from './components/StatsModal';
 import { AnalysisModal } from './components/AnalysisModal';
@@ -17,6 +19,14 @@ import { UpgradesModal } from './components/UpgradesModal';
 import { WeekSummaryModal } from './components/DaySummaryModal';
 import { activeRecipes, nextMilestone, shiftLabel } from './gameplay';
 import { soundEngine } from './utils/audio';
+import {changeBusiness,propertyById} from './prototype/expansionModel';
+import type {VenueInteraction} from './prototype/BusinessInterior';
+import {operateVenue} from './empire/venueSimulation';
+import {VenueHUD} from './empire/VenueHUD';
+import {worldTime} from './empire/worldTime';
+import {businessFinance} from './empire/empire';
+import {WorldPropertyPanel,WorldWeekReport} from './empire/WorldPropertyPanel';
+import type {ManagementTab,RestaurantSection} from './prototype/BusinessManagement';
 
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -24,25 +34,88 @@ console.warn = (...args) => {
   originalWarn(...args);
 };
 
-export default function App() {
-  const { state, actions } = useGameLoop();
-  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
+export default function App({gameOptions}:{gameOptions?:GameOptions}={}) {
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>('menu');
-  const [showWelcome, setShowWelcome] = useState(true);
+  const { state, actions, empire, district, saveError } = useGameLoop(gamePhase==='playing',gameOptions);
+  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
+  const [focusedProperty,setFocusedProperty]=useState<string|null>(empire.activeRestaurantId);
+  const [selectedProperty,setSelectedProperty]=useState<string|null>(null);
+  const [propertyTab,setPropertyTab]=useState<ManagementTab>('run');
+  const [selectedUnit,setSelectedUnit]=useState<number|undefined>();
+  const [showDistrictReport,setShowDistrictReport]=useState(false);
+  const [insideVenue,setInsideVenue]=useState<string|null>(null);
+  const [showWelcome, setShowWelcome] = useState(state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
   const [isMuted, setIsMuted] = useState(false);
+  const headerRef=useRef<HTMLElement|null>(null);
+  const [hudBottom,setHudBottom]=useState(96);
+
+  useEffect(()=>{
+    if(gamePhase!=='playing'||!headerRef.current)return;
+    const header=headerRef.current;
+    const observer=new ResizeObserver(()=>setHudBottom(header.getBoundingClientRect().bottom+10));
+    observer.observe(header);
+    return ()=>observer.disconnect();
+  },[gamePhase]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setActiveTab('restaurant');
+      if (event.key === 'Escape') {setActiveTab('restaurant');setSelectedProperty(null);setShowDistrictReport(false);}
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const currentWeek = state.week;
+  const currentWeek = district.week;
+  const worldProgress=Math.max(0,...Object.values(empire.restaurants).filter(r=>r.week===district.week).map(r=>r.time));
+  const clock=worldTime(worldProgress);
   const milestone = nextMilestone(state);
   const payroll = state.pendingPayroll[0];
-  const dayOfWeek = Math.min(7, Math.floor(state.time * 7 / 100) + 1);
+  const dayOfWeek = clock.day;
+  const allPlanning=Object.values(empire.restaurants).every(r=>r.phase==='planning');
+  const shownId=focusedProperty??empire.activeRestaurantId;
+  const shownProperty=propertyById(shownId)!;
+  const businessName=shownProperty.name;
+  const focusedRestaurant=!!focusedProperty&&!!empire.restaurants[focusedProperty];
+  const nonFood=!!focusedProperty&&!focusedRestaurant;
+  const overview=()=>{setFocusedProperty(null);setSelectedProperty(null);setActiveTab('restaurant');setInsideVenue(null);};
+  const selectBuilding=(id:string)=>{
+    setSelectedProperty(id);setPropertyTab('run');setActiveTab('restaurant');setInsideVenue(null);
+    setFocusedProperty(district.businesses[id]?id:null);
+    if(empire.restaurants[id])actions.enterRestaurant(id);
+  };
+  const enterBuilding=(id:string,section:RestaurantSection='restaurant')=>{
+    setFocusedProperty(id);
+    if(['restaurant','cafe'].includes(propertyById(id)!.kind)){
+      actions.enterRestaurant(id);setActiveTab(section);setSelectedProperty(null);
+    }else{setSelectedProperty(null);setPropertyTab('run');setInsideVenue(id);setActiveTab(section==='inventory'?'inventory':'restaurant');}
+  };
+  const interactWithVenue=(action:VenueInteraction,detail?:number)=>{
+    if(!focusedProperty)return;
+    setSelectedUnit(action==='prices'?detail:undefined);
+    if(action==='inventory'){enterBuilding(focusedProperty,'inventory');return;}
+    if(action==='serve'||action==='clean'){
+      actions.updateDistrict(s=>operateVenue(s,focusedProperty,action,detail));
+    }else if(action==='care'){
+      actions.updateDistrict(s=>changeBusiness(s,focusedProperty,action));
+    }else{
+      setInsideVenue(focusedProperty);setSelectedProperty(focusedProperty);setPropertyTab(action);
+    }
+  };
+  const navigate=(id:string)=>{
+    setSelectedUnit(undefined);
+    if(id==='district'){overview();return;}
+    if(id==='loans'){
+      setFocusedProperty(shownId);setActiveTab('restaurant');setSelectedProperty(shownId);setPropertyTab('finance');return;
+    }
+    if(nonFood){
+      if(id==='inventory'){enterBuilding(shownId,'inventory');return;}
+      setActiveTab('restaurant');
+      setInsideVenue(shownId);setSelectedProperty(shownId);setPropertyTab(id==='upgrades'?'staff':id==='bookings'?'bookings':id==='inventory'?'inventory':id==='stats'?'reports':id==='recipes'?'prices':id==='layouts'?'upgrades':id==='loans'?'finance':'run');
+      return;
+    }
+    setFocusedProperty(empire.activeRestaurantId);setSelectedProperty(null);
+    setActiveTab(activeTab===id?'restaurant':id as typeof activeTab);
+  };
 
   // Calculate table occupancy
   const occupiedTables = state.tables.filter(t => t.customerId !== null).length;
@@ -106,7 +179,7 @@ export default function App() {
             onClick={() => setGamePhase('playing')}
             className="mt-12 px-14 py-3.5 mc-button-green font-black text-2xl md:text-3xl z-10 transition-all font-mono tracking-widest shadow-2xl flex items-center gap-3"
           >
-            <span>ENTER DINER</span>
+            <span>{state.week>1||Object.keys(empire.district.businesses).length>1?'CONTINUE GAME':'ENTER DINER'}</span>
             <span>▶</span>
           </motion.button>
         </div>
@@ -115,16 +188,17 @@ export default function App() {
   }
 
   return (
-    <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900">
+    <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`} as React.CSSProperties}>
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
-        <Scene3D state={state} actions={actions} />
+        <GameWorld3D state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)}/>
       </div>
 
       {/* Retro HUD Overlay */}
       <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 md:p-3">
         {/* Top Header Bar */}
         <header
+          ref={headerRef}
           className="mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2"
           style={{ imageRendering: 'pixelated' }}
         >
@@ -135,15 +209,15 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-base md:text-lg font-black tracking-widest text-[#2b2b2b] uppercase leading-none">
-                Bite Tycoon
+                {businessName}
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
                   <Coffee size={10} className="text-[#3b82f6]" />
-                  Tables: {occupiedTables} / {state.tables.length}
+                  {nonFood?`${district.businesses[shownId].venue?.units.length || shownProperty.capacity} ${shownProperty.unit}`:`Tables: ${occupiedTables} / ${state.tables.length}`}
                 </span>
                 <span className="text-[9px] font-bold text-[#555555] uppercase hidden sm:inline">
-                  • {state.staff.chefs} Chefs • {state.staff.waiters} Waiters
+                  {nonFood?'Own staff · own inventory':`• ${state.staff.chefs} Chefs • ${state.staff.waiters} Waiters`}
                 </span>
               </div>
             </div>
@@ -152,8 +226,8 @@ export default function App() {
           {/* Center: Big Tactile Restaurant Status Button & Low Stock Alert */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => actions.toggleRestaurantState()}
-              disabled={state.phase === "closing"}
+              onClick={() => focusedRestaurant?actions.toggleRestaurantState():actions.startEmpireWeek()}
+              disabled={focusedRestaurant?(state.phase === "closing"||(state.phase==='planning'&&!allPlanning)):!allPlanning}
               className={`px-5 py-2 font-black text-xs md:text-sm tracking-widest transition-all active:scale-95 flex items-center gap-2 ${
                 state.isRestaurantOpen
                   ? 'mc-button-red animate-none'
@@ -161,12 +235,12 @@ export default function App() {
               }`}
             >
               <span className={`w-2.5 h-2.5 rounded-full ${state.isRestaurantOpen ? 'bg-white animate-ping' : 'bg-white'}`} />
-              <span>{state.phase === "planning" ? `START WEEK ${state.week}` : state.phase === "closing" ? "FINISHING SERVICE" : state.isRestaurantOpen ? "PAUSE ARRIVALS" : "RESUME ARRIVALS"}</span>
+              <span>{!focusedRestaurant?(allPlanning?`START WEEK ${district.week}`:'WEEK IN PROGRESS'):state.phase === "planning" ? (allPlanning?`START WEEK ${state.week}`:'OTHER KITCHENS FINISHING') : state.phase === "closing" ? "FINISHING SERVICE" : state.isRestaurantOpen ? "PAUSE ARRIVALS" : "RESUME ARRIVALS"}</span>
             </button>
 
-            {lowStockCount > 0 && (
+            {!nonFood && lowStockCount > 0 && (
               <button
-                onClick={() => setActiveTab('inventory')}
+                onClick={() => navigate('inventory')}
                 className="mc-button-gold px-2.5 py-2 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
                 title="Critical low stock in active recipes! Click to open Pantry."
               >
@@ -180,10 +254,10 @@ export default function App() {
           {/* Right: Cash Treasury, Calendar & Shift Clock */}
           <div className="flex items-center gap-2 md:gap-3">
             {/* Money Box */}
-            <div className="flex items-center gap-1.5 mc-slot text-[#2b2b2b] px-3 py-1.5 font-black bg-[#f1f5f9]">
+            <div title={`${businessName} cash only`} className="flex items-center gap-1.5 mc-slot text-[#2b2b2b] px-3 py-1.5 font-black bg-[#f1f5f9]">
               <DollarSign size={16} className="text-[#2e7d32]" />
               <span className="text-sm md:text-base tracking-wider font-black text-[#1b5e20]">
-                {state.money.toLocaleString()}
+                {(district.businesses[shownId]?.cash??state.money).toLocaleString(undefined,{maximumFractionDigits:0})}
               </span>
             </div>
 
@@ -192,12 +266,12 @@ export default function App() {
               <Clock size={15} className="text-[#c62828]" />
               <div className="flex flex-col">
                 <span className="tracking-wider uppercase text-[9px] font-black text-[#475569] leading-none">
-                  Wk {currentWeek}, Day {dayOfWeek}
+                  Wk {currentWeek}, Day {dayOfWeek} · {clock.label} {clock.isNight?'☾':'☀'}
                 </span>
                 <div className="w-16 sm:w-20 h-2 bg-[#94a3b8] overflow-hidden mt-1 rounded-sm border border-[#475569]">
                   <div
                     className="h-full bg-[#2e7d32] transition-all duration-100 ease-linear shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
-                    style={{ width: `${state.time}%` }}
+                    style={{ width: `${worldProgress}%` }}
                   />
                 </div>
               </div>
@@ -255,23 +329,36 @@ export default function App() {
             className="mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl"
             style={{ imageRendering: 'pixelated' }}
           >
-            {[
+            {(nonFood?[
+              {id:'district',label:'Neighborhood',icon:<Building2 size={18}/>,badge:null},
+              {id:'restaurant',label:'Operations',icon:<Building2 size={18}/>,badge:null},
+              {id:'recipes',label:shownProperty.kind==='shop'?'Products & Prices':shownProperty.kind==='hotel'?'Rooms & Rates':shownProperty.kind==='apartments'?'Homes & Rents':'Offers & Prices',icon:<BookOpen size={18}/>,badge:null},
+              ...(['hotel','apartments'].includes(shownProperty.kind)?[{id:'bookings',label:shownProperty.kind==='hotel'?'Bookings':'Applications & Leases',icon:<BookOpen size={18}/>,badge:null}]:[]),
+              {id:'upgrades',label:'Staff',icon:<Users size={18}/>,badge:null},
+              {id:'inventory',label:'Inventory',icon:<Package size={18}/>,badge:null},
+              {id:'layouts',label:'Upgrades',icon:<ArrowUpCircle size={18}/>,badge:null},
+              {id:'stats',label:'Financials',icon:<DollarSign size={18}/>,badge:null},
+              {id:'loans',label:'Loans',icon:<DollarSign size={18}/>,badge:null},
+            ]:[
+              { id: 'district', label: 'Neighborhood', icon: <Building2 size={18} />, badge: null },
               { id: 'upgrades', label: 'Staff & Shop', icon: <ArrowUpCircle size={18} />, badge: null },
               { id: 'recipes', label: 'Menu & Prices', icon: <BookOpen size={18} />, badge: null },
               { id: 'lab', label: 'Research Lab', icon: <Beaker size={18} />, badge: state.money >= 2500 ? '⭐' : null },
               { id: 'inventory', label: 'Pantry', icon: <Package size={18} />, badge: lowStockCount > 0 ? `${lowStockCount}!` : null },
               { id: 'layouts', label: 'Decor', icon: <PaintBucket size={18} />, badge: null },
               { id: 'stats', label: 'Financials', icon: <Users size={18} />, badge: null },
-              { id: 'analysis', label: 'Sales Mix', icon: <TrendingUp size={18} />, badge: null }
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
+              { id: 'analysis', label: 'Sales Mix', icon: <TrendingUp size={18} />, badge: null },
+              { id: 'loans', label: 'Loans', icon: <DollarSign size={18} />, badge: null }
+            ]).map((tab) => {
+              const panelNavId={run:'restaurant',prices:'recipes',bookings:'bookings',staff:'upgrades',inventory:'inventory',upgrades:'layouts',reports:'stats',finance:'loans'}[propertyTab];
+              const isActive = tab.id==='district'?!focusedProperty:selectedProperty===shownId?tab.id===panelNavId:activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   aria-label={tab.label}
                   aria-pressed={isActive}
                   title={tab.label}
-                  onClick={() => setActiveTab(isActive ? 'restaurant' : tab.id as any)}
+                  onClick={() => navigate(tab.id)}
                   className={`px-3 py-2 font-black flex items-center gap-1.5 transition-all outline-none whitespace-nowrap text-xs relative ${
                     isActive ? 'mc-button-selected scale-95' : 'mc-button'
                   }`}
@@ -293,14 +380,20 @@ export default function App() {
         </div>
       </div>
 
-      <div className="shift-dashboard absolute z-20 rounded-xl bg-[#faf7ef]/95 border border-stone-300 px-4 py-2 shadow-sm">
+      {focusedRestaurant&&!selectedProperty&&<div className="shift-dashboard absolute z-20 rounded-xl bg-[#faf7ef]/95 border border-stone-300 px-4 py-2 shadow-sm">
         <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm">
           <strong>{shiftLabel(state)}</strong>
           <span>{state.phase === 'planning' ? '3 minutes of service per week at 1×' : `Week ${state.week} · Day ${dayOfWeek}`}</span>
         </div>
         <button className="text-left text-sm mt-1 text-emerald-800 font-semibold" onClick={() => setActiveTab('upgrades')}>{milestone.text} · {milestone.current}/{milestone.target}</button>
         {payroll && <p className="text-xs text-stone-600 mt-1">Wages owed: ${payroll.amount.toFixed(2)} · paid after Day 3, Week {payroll.dueWeek}</p>}
-      </div>
+        <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {saveError?'saving unavailable':'autosaved'}</p>
+      </div>}
+
+      {!focusedRestaurant&&!selectedProperty&&!nonFood&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}
+      {nonFood&&!selectedProperty&&<VenueHUD p={shownProperty} b={district.businesses[shownId]} onAction={interactWithVenue}/>}
+      {selectedProperty&&<WorldPropertyPanel key={selectedProperty} id={selectedProperty} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setSelectedProperty(null)} initialTab={propertyTab} selectedUnit={selectedUnit} inside={insideVenue===selectedProperty}/>}
+      {showDistrictReport&&<WorldWeekReport state={district} onClose={()=>setShowDistrictReport(false)}/>}
 
       {/* Onboarding / Welcome Modal */}
       <AnimatePresence>
@@ -399,7 +492,7 @@ export default function App() {
                        activeTab === 'stats' ? 'Financial Reports' :
                        activeTab === 'layouts' ? 'Diner Architecture & Decor' :
                        activeTab === 'analysis' ? 'Sales Mix & Performance Analytics' :
-                       'Pantry'}
+                       nonFood?'Inventory':'Pantry'}
                     </h2>
                     <span className="text-[9px] font-bold text-[#555555] uppercase">
                       Bite Tycoon Management Console
@@ -428,7 +521,7 @@ export default function App() {
                   />
                 )}
 
-                {activeTab === 'inventory' && (
+                {activeTab === 'inventory' && !nonFood && (
                   <InventoryModal
                     inventory={state.inventory}
                     inventoryBatches={state.inventoryBatches}
@@ -436,6 +529,13 @@ export default function App() {
                     unlockedRecipes={activeRecipes(state)}
                     onBuyIngredient={actions.buyIngredient}
                   />
+                )}
+
+                {activeTab === 'inventory' && nonFood && (
+                  <>
+                    <BusinessInventory key={shownId} p={shownProperty} b={district.businesses[shownId]} onChange={actions.updateDistrict}/>
+                    <BusinessPurchasing p={shownProperty} b={district.businesses[shownId]} onChange={actions.updateDistrict}/>
+                  </>
                 )}
 
                 {activeTab === 'recipes' && (
@@ -446,6 +546,8 @@ export default function App() {
                     onUnlockRecipe={actions.unlockRecipe}
                     onChangePrice={actions.changeRecipePrice}
                     activeMenu={state.activeMenu}
+                      hasManager={state.staff.hasManager}
+                      manager={state.manager}
                     onToggleActive={actions.toggleActiveRecipe}
                   />
                 )}
@@ -453,6 +555,7 @@ export default function App() {
                 {activeTab === 'stats' && (
                   <StatsModal
                     state={state}
+                    account={businessFinance(empire,empire.activeRestaurantId)}
                   />
                 )}
 
@@ -514,7 +617,7 @@ export default function App() {
       </div>
 
       {/* End-of-Day Financial Summary & Ledger Modal */}
-      {state.weekSummary && (
+      {state.weekSummary && allPlanning && (
         <WeekSummaryModal summary={state.weekSummary} onClose={actions.dismissWeekSummary} />
       )}
     </div>

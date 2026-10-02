@@ -44,7 +44,7 @@ export function weeklyWages(staff: GameState['staff']) {
 
 export function canHire(state: GameState, type: keyof typeof STAFF_UNLOCKS) {
   const count = type === 'manager' ? Number(state.staff.hasManager) : state.staff[`${type}s`];
-  return state.stats.customersServed >= STAFF_UNLOCKS[type] && count < STAFF_LIMITS[type];
+  return (state.testingUnlocked || state.stats.customersServed >= STAFF_UNLOCKS[type]) && count < STAFF_LIMITS[type];
 }
 
 export function shiftLabel(state: Pick<GameState, 'phase' | 'time' | 'isRestaurantOpen'>) {
@@ -57,6 +57,7 @@ export function shiftLabel(state: Pick<GameState, 'phase' | 'time' | 'isRestaura
 }
 
 export function nextMilestone(state: GameState) {
+  if (state.testingUnlocked) return { text: 'Testing mode · all staff and recipes available', current: 1, target: 1 };
   const served = state.stats.customersServed;
   if (!state.staff.waiters) return { text: served < 6 ? 'Serve 6 guests to unlock a waiter' : 'First waiter unlocked — visit Staff & Shop', current: Math.min(served, 6), target: 6 };
   if (!state.staff.cleaners) return { text: served < 16 ? 'Serve 16 guests to unlock a cleaner' : 'Cleaner unlocked — visit Staff & Shop', current: Math.min(served, 16), target: 16 };
@@ -68,12 +69,35 @@ export function toggleMenuRecipe(state: GameState, id: string): GameState {
   const selected = state.activeMenu.includes(id);
   if (!state.recipes.some(r => r.id === id && r.unlocked)) return state;
   if (selected ? state.activeMenu.length <= 1 : state.activeMenu.length >= MENU_LIMIT) return state;
-  return { ...state, activeMenu: selected ? state.activeMenu.filter(item => item !== id) : [...state.activeMenu, id] };
+  const next = { ...state, activeMenu: selected ? state.activeMenu.filter(item => item !== id) : [...state.activeMenu, id] };
+  return selected ? next : applyManagerPurchases(next, id);
 }
 
-export function purchasingPlan(state: GameState) {
-  if (!state.staff.hasManager || !state.manager.enabled || state.phase === 'planning') return [];
+export function purchasingPlan(state: GameState, addedRecipeId?: string) {
+  if (!state.staff.hasManager || !state.manager.enabled || (!addedRecipeId && state.phase === 'planning')) return [];
   let budget = Math.max(0, Math.min(state.manager.budget - state.manager.spent, state.money - state.manager.reserve));
+  if (addedRecipeId) {
+    const recipe = activeRecipes(state).find(r => r.id === addedRecipeId);
+    if (!recipe) return [];
+    const purchases = Object.entries(recipe.ingredients).filter(([id]) => INGREDIENTS[id]).map(([id, required]) => ({
+      id, required, qty: 0, cost: 0, unitCost: INGREDIENTS[id].cost,
+      target: Math.max(state.manager.target, required), stock: state.inventory[id] || 0,
+    }));
+    // Make one complete serving possible first, then spread the remaining budget
+    // across ingredients. One expensive ingredient must not consume the entire budget.
+    for (const item of purchases) {
+      const qty = Math.min(Math.max(0, item.required - item.stock), Math.floor((budget + 1e-8) / item.unitCost));
+      item.qty += qty; item.cost += qty * item.unitCost; budget -= qty * item.unitCost;
+    }
+    let bought = true;
+    while (bought) {
+      bought = false;
+      for (const item of purchases) if (item.stock + item.qty < item.target && item.unitCost <= budget + 1e-8) {
+        item.qty++; item.cost += item.unitCost; budget -= item.unitCost; bought = true;
+      }
+    }
+    return purchases.filter(item => item.qty > 0).map(({id,qty,cost,unitCost}) => ({id,qty,cost,unitCost}));
+  }
   const needed = [...new Set(activeRecipes(state).flatMap(r => Object.keys(r.ingredients)))];
   // Most depleted ingredients get first access to a limited purchasing budget.
   return needed.sort((a, b) => (state.inventory[a] || 0) - (state.inventory[b] || 0)).flatMap(id => {
@@ -85,6 +109,23 @@ export function purchasingPlan(state: GameState) {
     budget -= qty * unitCost;
     return [{ id, qty, cost: qty * unitCost, unitCost }];
   });
+}
+
+/** Uses the same accounting for menu changes and ongoing manager replenishment. */
+export function applyManagerPurchases(state: GameState, addedRecipeId?: string): GameState {
+  const plan = purchasingPlan(state, addedRecipeId);
+  if (!plan.length) return state;
+  const next = { ...state, manager: { ...state.manager }, inventory: { ...state.inventory },
+    inventoryBatches: { ...state.inventoryBatches }, stats: { ...state.stats } };
+  for (const purchase of plan) {
+    next.money -= purchase.cost;
+    next.manager.spent += purchase.cost;
+    next.inventory[purchase.id] = (next.inventory[purchase.id] || 0) + purchase.qty;
+    next.inventoryBatches[purchase.id] = [...(next.inventoryBatches[purchase.id] || []), {qty: purchase.qty, costPerUnit: purchase.unitCost}];
+    next.stats.inventoryCosts += purchase.cost;
+    next.stats.totalExpenses += purchase.cost;
+  }
+  return next;
 }
 
 export function finishShift(state: GameState): GameState {
@@ -155,7 +196,7 @@ export function hireStaff(state: GameState, type: keyof typeof STAFF_UNLOCKS): G
   }
   if (type === 'cleaner') {
     next.staff.cleaners++;
-    next.cleanerEntities = [...state.cleanerEntities, { id, state: 'idle', targetTableId: null, x: -8, y: -2 + count * 2, stamina: 100 }];
+    next.cleanerEntities = [...state.cleanerEntities, { id, state: 'idle', targetTableId: null, x: -18 + count * 1.1, y: -7, stamina: 100 }];
   }
   return next;
 }
@@ -193,6 +234,6 @@ export function serveReadyTable(state: GameState, orderId: string): GameState {
     itemRevenues[item.recipeId] = (itemRevenues[item.recipeId] || 0) + item.price;
   }
   return { ...state, orders: state.orders.filter(o => o.tableId !== order.tableId),
-    customers: state.customers.map(c => c.id === customer.id ? { ...c, state: 'eating', patience: c.maxPatience, tipModifier: Math.max(0.25, c.patience / (c.maxPatience * 1.5)) } : c),
+    customers: state.customers.map(c => c.id === customer.id ? { ...c, state: 'eating', servedRecipeIds: tableOrders.map(item => item.recipeId), patience: c.maxPatience, tipModifier: Math.max(0.25, c.patience / (c.maxPatience * 1.5)) } : c),
     stats: { ...state.stats, itemsSold, itemRevenues }, weekStats: { ...state.weekStats, itemsSold: weeklyItems } };
 }

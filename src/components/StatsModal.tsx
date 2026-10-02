@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Users, DollarSign, TrendingUp, TrendingDown, PieChart, Landmark, FileText, Activity } from 'lucide-react';
 import { INITIAL_INVENTORY_VALUE, STARTING_MONEY } from '../gameplay';
 import { GameState } from '../hooks/useGameLoop';
+import type {businessFinance} from '../empire/empire';
 
 interface StatsModalProps {
   state: GameState;
+  account?:ReturnType<typeof businessFinance>;
 }
 
-export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
+export const StatsModal: React.FC<StatsModalProps> = ({ state,account={openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
   const [activeSubTab, setActiveSubTab] = useState<'statements' | 'kpis'>('statements');
 
   const formatMoney = (val: number) => {
@@ -27,15 +29,17 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
   const inHouseSales = state.stats.totalEarned - (state.stats.totalTips || 0) - (state.stats.onlineEarned || 0) - (state.stats.vipBonus || 0);
   const grossProfit = state.stats.totalEarned - cogs;
 
-  const totalOpex = state.weekStats.wages + state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0);
+  const totalOpex = state.weekStats.wages + state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0) + (state.stats.rentCosts || 0);
   const netProfit = grossProfit - totalOpex;
 
   const inventoryChange = currentInventoryValue - INITIAL_INVENTORY_VALUE;
   const netOperatingCash = netProfit - inventoryChange + unpaidWages;
 
-  const totalInvestments = state.stats.upgradeCosts + state.stats.recipeCosts + (state.stats.appCosts || 0);
-  const totalAssets = state.money + currentInventoryValue + totalInvestments;
-  const ownersEquity = STARTING_MONEY + INITIAL_INVENTORY_VALUE + netProfit;
+  const equipmentInvestments = state.stats.upgradeCosts + state.stats.recipeCosts + (state.stats.appCosts || 0);
+  const totalInvestments = equipmentInvestments + account.propertyCost;
+  const propertyAssets=account.propertyCost?Math.max(0,account.propertyCost-INITIAL_INVENTORY_VALUE):0;
+  const totalAssets = state.money + currentInventoryValue + equipmentInvestments + propertyAssets + account.loansReceivable;
+  const ownersEquity = account.initialContribution + netProfit;
 
   // Operational KPIs
   const totalCustomers = state.stats.customersServed + state.stats.customersLost;
@@ -204,6 +208,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     <span>Expired Food Spoilage</span>
                     <span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.spoilageCosts || 0))}</span>
                   </div>
+                  <div className="flex justify-between items-center text-[#2b2b2b]"><span>Property rent</span><span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.rentCosts||0))}</span></div>
                   <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
                     <span>Total Overhead</span>
                     <span className="text-[#c62828]">{formatMoney(-totalOpex)}</span>
@@ -231,7 +236,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between items-center text-[#2b2b2b] font-bold">
                   <span>Initial Seed Capital</span>
-                  <span className="text-[#2b2b2b]">$10,000</span>
+                  <span className="text-[#2b2b2b]">{formatMoney(account.openingCash)}</span>
                 </div>
 
                 {/* Operations */}
@@ -281,6 +286,11 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     <span className="text-[#c62828]">{formatMoney(-totalInvestments)}</span>
                   </div>
                 </div>
+                <div className="border-t border-[#8b8b8b] pt-1.5 space-y-1 text-[#2b2b2b]">
+                  <div className="flex justify-between"><span>Property purchase / setup paid</span><strong>{formatMoney(-account.propertyCost)}</strong></div>
+                  <div className="flex justify-between"><span>Business loans received, net of repayments</span><strong>{formatMoney(account.loansPayable)}</strong></div>
+                  <div className="flex justify-between"><span>Business loans issued, net of repayments</span><strong>{formatMoney(-account.loansReceivable)}</strong></div>
+                </div>
               </div>
             </div>
 
@@ -296,7 +306,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
           <div className="mc-inner-panel p-3.5 bg-[#f8fafc] flex flex-col justify-between">
             <div>
               <h4 className="text-xs font-black text-[#2b2b2b] mb-2.5 border-b-2 border-[#8b8b8b] pb-1 uppercase tracking-widest flex items-center justify-between">
-                <span>Consolidated Balance Sheet</span>
+                <span>This Business Balance Sheet</span>
                 <span className="text-[#2e7d32]">BALANCED</span>
               </h4>
 
@@ -304,7 +314,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                 {/* Assets */}
                 <div className="space-y-1">
                   <div className="text-[9px] font-black text-[#555555] uppercase tracking-wider">
-                    Total Enterprise Assets
+                    This Business Assets
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>Cash on Hand</span>
@@ -322,6 +332,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     <span>Intellectual Property (Recipes/Apps)</span>
                     <span className="text-[#2b2b2b] font-bold">{formatMoney(state.stats.recipeCosts + (state.stats.appCosts || 0))}</span>
                   </div>
+                  <div className="flex justify-between text-[#2b2b2b]"><span>Property / opening setup assets</span><strong>{formatMoney(propertyAssets)}</strong></div>
+                  <div className="flex justify-between text-[#2b2b2b]"><span>Loans receivable from other businesses</span><strong>{formatMoney(account.loansReceivable)}</strong></div>
                   <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
                     <span>Total Valuation Assets</span>
                     <span className="text-[#2e7d32]">{formatMoney(totalAssets)}</span>
@@ -339,7 +351,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>Initial Contributed Capital</span>
-                    <span className="text-[#2b2b2b] font-bold">{formatMoney(STARTING_MONEY + INITIAL_INVENTORY_VALUE)}</span>
+                    <span className="text-[#2b2b2b] font-bold">{formatMoney(account.initialContribution)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>Cumulative Retained Earnings</span>
@@ -351,6 +363,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
                     <span>Total Owner's Book Equity</span>
                     <span className="text-[#2b2b2b]">{formatMoney(ownersEquity)}</span>
                   </div>
+                  <div className="flex justify-between text-[#2b2b2b]"><span>Loans payable to other businesses</span><strong>{formatMoney(account.loansPayable)}</strong></div>
                 </div>
               </div>
             </div>
@@ -358,7 +371,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state }) => {
             <div className="flex justify-between items-center text-sm font-black border-t-2 border-[#373737] pt-2 mt-3 bg-[#e2e8f0] p-2 rounded">
               <span className="text-[#2b2b2b]">TOTAL LIAB. & EQUITY</span>
               <span className="text-[#2b2b2b]">
-                {formatMoney(ownersEquity + unpaidWages)}
+                {formatMoney(ownersEquity + unpaidWages + account.loansPayable)}
               </span>
             </div>
           </div>

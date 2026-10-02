@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { Package, Search, AlertTriangle, CheckCircle2, TrendingDown, Layers, DollarSign, ArrowDownRight } from 'lucide-react';
-import { INGREDIENTS, Ingredient } from '../data/recipes';
-import { INGREDIENT_ICONS, INGREDIENT_CATEGORIES, CATEGORY_LABELS, IngredientCategory } from '../data/categories';
+import { Package, Search, AlertTriangle, CheckCircle2, Layers, DollarSign } from 'lucide-react';
+import { INGREDIENTS } from '../data/recipes';
+import { INGREDIENT_ICONS, INGREDIENT_CATEGORIES, CATEGORY_LABELS } from '../data/categories';
 
+export type InventoryItem = {id:string;name:string;cost:number;category:string;icon?:string};
+export type InventoryCatalog = {
+  items: InventoryItem[]; title:string; subtitle:string; neededLabel:string; neededIds:string[];
+  capacity?:number; lowStock?:number; quote?:(item:InventoryItem,qty:number)=>number;
+  itemActions?:(id:string)=>React.ReactNode;
+};
 interface InventoryModalProps {
+  catalog?: InventoryCatalog;
   inventory: Record<string, number>;
   inventoryBatches: Record<string, { qty: number; costPerUnit: number }[]>;
   money: number;
@@ -12,6 +19,7 @@ interface InventoryModalProps {
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({
+  catalog,
   inventory,
   inventoryBatches,
   money,
@@ -19,55 +27,39 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   onBuyIngredient,
 }) => {
   const [filterTab, setFilterTab] = useState<'needed' | 'all'>('needed');
-  const [category, setCategory] = useState<IngredientCategory>('all');
+  const [category, setCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<string>('rice');
 
-  // Compute needed set from unlocked recipes
-  const neededSet = new Set<string>();
-  unlockedRecipes.forEach(r => {
-    Object.keys(r.ingredients || {}).forEach(ingId => neededSet.add(ingId));
-  });
-
-  // Calculate low stock items count
-  const neededList = Array.from(neededSet);
-  const lowStockCount = neededList.filter(id => (inventory[id] || 0) < 5).length;
-
-  const displayIds = Object.keys(INGREDIENTS).filter(id => {
-    const item = INGREDIENTS[id];
-    if (!item) return false;
-    if (filterTab === 'needed' && !neededSet.has(id)) return false;
-    if (category !== 'all' && INGREDIENT_CATEGORIES[id] !== category) return false;
-    if (search.trim() && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  const selectedItem: Ingredient | undefined = INGREDIENTS[selectedItemId] || INGREDIENTS[displayIds[0]] || INGREDIENTS['rice'];
-  const currentStock = selectedItem ? (inventory[selectedItem.id] || 0) : 0;
-  const batches = (selectedItem && inventoryBatches[selectedItem.id]) || [];
-
-  const nextUnitCost = batches.length > 0 ? batches[0].costPerUnit : (selectedItem?.cost || 1);
-  const totalBatchValue = batches.reduce((sum, b) => sum + (b.qty * b.costPerUnit), 0);
-  const blendedAvgCost = currentStock > 0 ? (totalBatchValue / currentStock) : (selectedItem?.cost || 1);
-
-  // Quick restock all needed ingredients with < 10 stock
-  const handleRestockAllLow = () => {
-    neededList.forEach(id => {
-      const stock = inventory[id] || 0;
-      if (stock < 10) {
-        const item = INGREDIENTS[id];
-        if (item) {
-          const cost = (item.cost * 50) * 0.9;
-          if (money >= cost) {
-            onBuyIngredient(id, 50, 0.1);
-          }
-        }
-      }
-    });
+  const items:Record<string,InventoryItem> = Object.fromEntries((catalog?.items ?? Object.values(INGREDIENTS).map(item=>({...item,category:INGREDIENT_CATEGORIES[item.id]||'General',icon:INGREDIENT_ICONS[item.id]}))).map(item=>[item.id,item]));
+  const neededSet = new Set(catalog?.neededIds ?? unlockedRecipes.flatMap(r=>Object.keys(r.ingredients||{})));
+  const neededList = [...neededSet];
+  const lowAt=catalog?.lowStock??5;
+  const lowStockCount = neededList.filter(id => (inventory[id] || 0) < lowAt).length;
+  const categories=catalog?[{id:'all',label:'All',icon:'📦'},...Array.from(new Set(catalog.items.map(i=>i.category))).map(id=>({id,label:id,icon:''}))]:CATEGORY_LABELS;
+  const displayIds=Object.keys(items).filter(id=>(filterTab==='all'||neededSet.has(id))&&(category==='all'||items[id].category===category)&&items[id].name.toLowerCase().includes(search.trim().toLowerCase()));
+  const selectedItem=items[displayIds.includes(selectedItemId)?selectedItemId:displayIds[0]];
+  const currentStock=selectedItem?(inventory[selectedItem.id]||0):0;
+  const batches=(selectedItem&&inventoryBatches[selectedItem.id])||[];
+  const nextUnitCost=batches.length?batches[0].costPerUnit:(selectedItem?.cost||0);
+  const totalBatchValue=catalog?currentStock*(selectedItem?.cost||0):batches.reduce((sum,b)=>sum+b.qty*b.costPerUnit,0);
+  const blendedAvgCost=currentStock>0?totalBatchValue/currentStock:(selectedItem?.cost||0);
+  const quote=(item:InventoryItem,qty:number,discount=0)=>catalog?.quote?.(item,qty)??item.cost*qty*(1-discount);
+  const tiers=catalog?[{qty:10,discount:0,label:'Order 10x',badge:'Standard',btnClass:'mc-button'},{qty:25,discount:0,label:'Order 25x',badge:'Stock up',btnClass:'mc-button-blue'},{qty:50,discount:0,label:'Order 50x',badge:'Large order',btnClass:'mc-button-green'}]:[
+    {qty:10,discount:0,label:'Retail 10x',badge:'Standard',btnClass:'mc-button'},
+    {qty:50,discount:.1,label:'Bulk 50x',badge:'-10%',btnClass:'mc-button-blue'},
+    {qty:100,discount:.2,label:'Wholesale 100x',badge:'-20%',btnClass:'mc-button-green'},
+    {qty:500,discount:.3,label:'Industrial 500x',badge:'-30%',btnClass:'mc-button-purple'}];
+  const handleRestockAllLow=()=>{
+    let remaining=money;
+    for(const id of neededList){const item=items[id],stock=inventory[id]||0;if(!item||stock>=lowAt)continue;
+      const qty=Math.max(0,Math.min(catalog?25:50,(catalog?.capacity??Infinity)-stock)),discount=catalog?0:.1,cost=quote(item,qty,discount);
+      if(qty&&remaining>=cost){onBuyIngredient(id,qty,discount);remaining-=cost;}
+    }
   };
 
   return (
-    <div className="flex flex-col h-full font-mono">
+    <div className="inventory-console flex flex-col h-full font-mono">
       {/* Top Header & Quick Restock Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
         <div className="flex items-center gap-2">
@@ -76,10 +68,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           </div>
           <div>
             <h3 className="font-black text-[#2b2b2b] text-base md:text-lg uppercase tracking-wider">
-              Pantry & FIFO Batch Inventory
+              {catalog?.title??'Pantry & FIFO Batch Inventory'}
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              First-In-First-Out (FIFO) consumption tracks exact purchase costs for every meal
+              {catalog?.subtitle??'First-In-First-Out (FIFO) consumption tracks exact purchase costs for every meal'}
             </p>
           </div>
         </div>
@@ -89,7 +81,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <button
               onClick={handleRestockAllLow}
               className="px-3 py-1.5 mc-button-gold text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-              title="Restock all active recipe ingredients with under 10 stock"
+              title={`Restock required items below ${lowAt} units using this business’s cash`}
             >
               <AlertTriangle size={14} className="animate-pulse" />
               Restock Low ({lowStockCount})
@@ -118,7 +110,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   }`}
                 >
                   <CheckCircle2 size={13} className="text-[#2e7d32]" />
-                  <span>Needed By Menu ({neededSet.size})</span>
+                  <span>{catalog?.neededLabel??'Needed By Menu'} ({neededSet.size})</span>
                 </button>
                 <button
                   onClick={() => setFilterTab('all')}
@@ -126,7 +118,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     filterTab === 'all' ? 'mc-button-selected' : 'mc-button'
                   }`}
                 >
-                  <span>All Items ({Object.keys(INGREDIENTS).length})</span>
+                  <span>All Items ({Object.keys(items).length})</span>
                 </button>
               </div>
 
@@ -134,7 +126,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                 <Search size={14} className="absolute left-2.5 top-2.5 text-[#666666]" />
                 <input
                   type="text"
-                  placeholder="SEARCH PANTRY..."
+                  aria-label="Search inventory" placeholder={catalog?'SEARCH INVENTORY...':'SEARCH PANTRY...'}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="w-full bg-[#f1f5f9] border-2 border-[#373737] pl-8 pr-3 py-1 text-xs font-bold uppercase text-[#2b2b2b] outline-none shadow-inner"
@@ -152,7 +144,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
             {/* Category Filter Chips */}
             <div className="flex flex-wrap gap-1">
-              {CATEGORY_LABELS.map(cat => (
+              {categories.map(cat => (
                 <button
                   key={cat.id}
                   onClick={() => setCategory(cat.id)}
@@ -171,15 +163,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 max-h-[350px]">
             {displayIds.length === 0 ? (
               <div className="text-center py-12 text-[#555555] font-black uppercase text-xs">
-                No ingredients found matching filters.
+                No items found matching filters.
               </div>
             ) : (
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 gap-1.5">
                 {displayIds.map(id => {
-                  const item = INGREDIENTS[id];
+                  const item = items[id];
                   const stock = inventory[id] || 0;
-                  const isSelected = selectedItemId === id;
-                  const isLow = stock < 5;
+                  const isSelected = selectedItem?.id === id;
+                  const isLow = stock < lowAt;
                   const isOut = stock === 0;
 
                   return (
@@ -211,7 +203,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
                       {/* Icon */}
                       <span className="text-2xl drop-shadow-sm leading-none -mt-1" style={{ imageRendering: 'pixelated' }}>
-                        {INGREDIENT_ICONS[id] || "📦"}
+                        {items[id]?.icon || "📦"}
                       </span>
 
                       {/* Label & Stock */}
@@ -224,7 +216,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                             isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-emerald-700'
                           }`}
                         >
-                          {stock}x
+                          {Number(stock.toFixed(1))}x
                         </span>
                       </div>
                     </button>
@@ -246,7 +238,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     className="w-14 h-14 mc-slot flex items-center justify-center text-3xl bg-white border-2 border-[#373737] shadow-inner"
                     style={{ imageRendering: 'pixelated' }}
                   >
-                    {INGREDIENT_ICONS[selectedItem.id] || "📦"}
+                    {selectedItem.icon || "📦"}
                   </div>
                   <div>
                     <h4 className="font-black text-sm uppercase tracking-wider text-[#2b2b2b]">
@@ -254,7 +246,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     </h4>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="mc-slot px-1.5 py-0.5 text-[8px] font-black uppercase bg-[#475569]">
-                        {INGREDIENT_CATEGORIES[selectedItem.id] || 'General'}
+                        {selectedItem.category}
                       </span>
                       <span className="text-[9px] font-bold text-[#555555]">
                         Base: ${selectedItem.cost.toFixed(2)}
@@ -270,10 +262,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </span>
                   <span
                     className={`text-xl font-black ${
-                      currentStock === 0 ? 'text-red-400' : currentStock < 5 ? 'text-amber-300' : 'text-green-300'
+                      currentStock === 0 ? 'text-red-400' : currentStock < lowAt ? 'text-amber-300' : 'text-green-300'
                     }`}
                   >
-                    {currentStock} units
+                    {Number(currentStock.toFixed(1))} units{catalog?.capacity?` / ${catalog.capacity}`:null}
                   </span>
                 </div>
 
@@ -281,7 +273,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div className="bg-[#f8fafc] border-2 border-[#94a3b8] p-2 rounded shadow-inner">
                     <span className="text-[8px] font-bold text-[#64748b] uppercase block">
-                      Next Unit Cost (FIFO)
+                      {catalog?'Unit purchase cost':'Next Unit Cost (FIFO)'}
                     </span>
                     <span className="text-sm font-black text-[#b91c1c] flex items-center gap-0.5">
                       <DollarSign size={12} /> {nextUnitCost.toFixed(2)}
@@ -290,16 +282,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
                   <div className="bg-[#f8fafc] border-2 border-[#94a3b8] p-2 rounded shadow-inner">
                     <span className="text-[8px] font-bold text-[#64748b] uppercase block">
-                      Blended Avg Cost
+                      {catalog?'Stock value':'Blended Avg Cost'}
                     </span>
                     <span className="text-sm font-black text-[#1565c0] flex items-center gap-0.5">
-                      <DollarSign size={12} /> {blendedAvgCost.toFixed(2)}
+                      <DollarSign size={12} /> {(catalog?totalBatchValue:blendedAvgCost).toFixed(2)}
                     </span>
                   </div>
                 </div>
 
                 {/* FIFO Active Batch Queue Breakdown */}
                 <div className="mb-3">
+                  {catalog?<div className="mc-slot p-3 text-xs"><strong>THIS PROPERTY’S STOCKROOM</strong><p className="mt-2">{catalog.capacity?`Up to ${catalog.capacity} units per item. `:""}Orders use this business’s cash. Supplies are used as this property serves customers.</p>{catalog.itemActions?.(selectedItem.id)}</div>:<>
                   <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-[#555555] mb-1">
                     <span className="flex items-center gap-1">
                       <Layers size={11} /> FIFO Queue ({batches.length} Batches)
@@ -329,6 +322,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                       ))
                     )}
                   </div>
+                </>}
                 </div>
               </div>
 
@@ -340,27 +334,23 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  {[
-                    { qty: 10, discount: 0, label: "Retail 10x", badge: "Standard", btnClass: "mc-button" },
-                    { qty: 50, discount: 0.1, label: "Bulk 50x", badge: "-10%", btnClass: "mc-button-blue" },
-                    { qty: 100, discount: 0.2, label: "Wholesale 100x", badge: "-20%", btnClass: "mc-button-green" },
-                    { qty: 500, discount: 0.3, label: "Industrial 500x", badge: "-30%", btnClass: "mc-button-purple" }
-                  ].map(tier => {
+                  {tiers.map(tier => {
                     const discountedUnitCost = selectedItem.cost * (1 - tier.discount);
-                    const totalPrice = (selectedItem.cost * tier.qty) * (1 - tier.discount);
-                    const canAfford = money >= totalPrice;
+                    const qty=Math.max(0,Math.min(tier.qty,(catalog?.capacity??Infinity)-currentStock));
+                    const totalPrice=quote(selectedItem,qty,tier.discount);
+                    const canAfford = qty>0 && money >= totalPrice;
 
                     return (
                       <button
                         key={tier.qty}
-                        onClick={() => onBuyIngredient(selectedItem.id, tier.qty, tier.discount)}
+                        onClick={() => onBuyIngredient(selectedItem.id, qty, tier.discount)}
                         disabled={!canAfford}
                         className={`w-full py-1.5 px-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-between rounded transition-all active:scale-[0.98] ${
                           canAfford ? tier.btnClass : 'mc-slot text-[#888888] opacity-60 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>{tier.label}</span>
+                          <span>{catalog?(qty?`Order ${Number(qty.toFixed(1))}x`:'Stockroom full'):tier.label}</span>
                           <span className="text-[8px] bg-black/30 px-1 rounded text-white font-mono">
                             {tier.badge}
                           </span>
@@ -382,7 +372,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center text-[#555555] font-black uppercase text-xs">
               <Package size={32} className="mb-2 opacity-50" />
-              Select an ingredient from the pantry grid.
+              Select an item from the inventory grid.
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
-import { Text } from '@react-three/drei';
+import { getSurfaceMaterial, getSignTexture } from '../graphics/surfaceMaterials';
 import * as THREE from 'three';
 import { StylizedTree3D } from './StreetAssets3D';
 import { PedestrianCrowd3D } from './PedestrianCrowd3D';
@@ -8,7 +8,7 @@ type Vec3 = [number, number, number];
 type Block = { position: Vec3; size: Vec3; color: string };
 
 // Repeated windows, pavers and trim share one geometry/material and draw call.
-const Blocks = memo(function Blocks({ items, glow = false }: { items: Block[]; glow?: boolean }) {
+const Blocks = memo(function Blocks({ items, glow = false, glazing = false }: { items: Block[]; glow?: boolean; glazing?: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const mesh = ref.current;
@@ -28,11 +28,11 @@ const Blocks = memo(function Blocks({ items, glow = false }: { items: Block[]; g
   }, [items]);
   return <instancedMesh ref={ref} args={[undefined, undefined, items.length]} receiveShadow>
     <boxGeometry />
-    <meshStandardMaterial roughness={glow ? 0.45 : 0.85} emissive={glow ? '#ffe0a3' : '#000000'} emissiveIntensity={glow ? 0.25 : 0} />
+    <meshStandardMaterial map={glazing ? undefined : getSurfaceMaterial('concrete', '#eeeae1').map} roughness={glazing ? 0.22 : 0.85} metalness={glazing ? 0.35 : 0} emissive={glow ? '#ffe0a3' : '#000000'} emissiveIntensity={glow ? 0.25 : 0} />
   </instancedMesh>;
 });
 
-const FACADES = ['#b8755b', '#d4bd94', '#819b98', '#cfac91', '#8e949f', '#a29b73'];
+const FACADES = ['#876452', '#b9b3a1', '#8e9a92', '#ae8772', '#8a8b85', '#a69f83'];
 const SHOP_COLORS = ['#355d51', '#8e4c49', '#354d65', '#a77943', '#526957', '#66586f'];
 const SHOP_NAMES = ['CORNER BOOKS', 'PETAL & STEM', 'DAILY MARKET', 'GOLDEN CRUST', 'RECORD ROOM', 'ATELIER', 'THE ROASTERY', 'CITY CYCLES'];
 
@@ -83,18 +83,26 @@ const ShopBuilding = memo(function ShopBuilding({ position, rotation, seed, isNi
     for (let x = -6.2; x < 6.5; x += 1.1) {
       trim.push({ position: [x, 3.65, 7.25], size: [0.55, 0.32, 0.06], color: '#efe4cb' });
     }
+    // Recess shadows, drainpipes and stone bases make the façades read at street level.
+    for (let floor=0;floor<floors;floor++) for (let column=0;column<4;column++) {
+      const x=-5.1+column*3.4,y=6.2+floor*3.5;
+      trim.push({position:[x,y,6.12],size:[1.96,2.48,.09],color:'#343f3d'});
+    }
+    for(const x of [-6.7,6.7])trim.push({position:[x,height/2,6.2],size:[.075,height,.075],color:'#59645d'});
+    trim.push({position:[0,.24,6.16],size:[14.2,.46,.3],color:'#b8b2a0'});
+    trim.push({position:[0,.11,6.42],size:[2.1,.22,.65],color:'#c0b9a8'});
     return { trim, windows };
   }, [floors, height, seed, isNight]);
   return <group position={position} rotation={[0, rotation, 0]}>
-    <mesh position={[0, height / 2, 0]} castShadow receiveShadow><boxGeometry args={[14, height, 12]} /><meshStandardMaterial color={facade} roughness={0.95} /></mesh>
+    <mesh position={[0, height / 2, 0]} material={getSurfaceMaterial(seed % 3 === 1 ? 'plaster' : 'brick', facade, 7, height / 1.6)} castShadow receiveShadow><boxGeometry args={[14, height, 12]} /></mesh>
     <mesh position={[0, 2, 6.04]}><boxGeometry args={[14.15, 4, 0.12]} /><meshStandardMaterial color={shop} roughness={0.8} /></mesh>
     <Blocks items={details.trim} />
-    <Blocks items={details.windows} glow={isNight} />
+    <Blocks items={details.windows} glow={isNight} glazing />
     <mesh position={[0, 1.55, 6.2]}><boxGeometry args={[1.65, 3.1, 0.18]} /><meshStandardMaterial color="#263b3d" /></mesh>
     <mesh position={[0.5, 1.4, 6.32]}><boxGeometry args={[0.07, 0.45, 0.05]} /><meshStandardMaterial color="#c6a86d" metalness={0.5} roughness={0.4} /></mesh>
     <mesh position={[0, 3.75, 6.5]} rotation={[0.15, 0, 0]} castShadow><boxGeometry args={[13.4, 0.18, 1.6]} /><meshStandardMaterial color={shop} roughness={0.9} /></mesh>
     <mesh position={[0, 4.25, 6.2]}><boxGeometry args={[11.8, 0.7, 0.25]} /><meshStandardMaterial color={shop} /></mesh>
-    <Text position={[0, 4.25, 6.35]} fontSize={0.4} letterSpacing={0.08} color="#fff1d4" maxWidth={11}>{SHOP_NAMES[seed % SHOP_NAMES.length]}</Text>
+<mesh position={[0,4.25,6.36]}><planeGeometry args={[10.8,.64]}/><meshBasicMaterial map={getSignTexture(SHOP_NAMES[seed % SHOP_NAMES.length])} transparent depthWrite={false}/></mesh>
     <mesh position={[0, height + 0.1, 0]} castShadow><boxGeometry args={[14.6, 0.4, 12.6]} /><meshStandardMaterial color="#e1d5bf" roughness={0.85} /></mesh>
     <mesh position={[0, height + 0.32, 0]}><boxGeometry args={[13.8, 0.06, 11.8]} /><meshStandardMaterial color="#536164" roughness={1} /></mesh>
     <mesh position={[-3, height + 0.75, -1]}><boxGeometry args={[2.4, 0.8, 1.7]} /><meshStandardMaterial color="#899493" roughness={0.65} /></mesh>
@@ -114,8 +122,8 @@ const StreetBench = memo(function StreetBench({ position, rotation = 0 }: { posi
   return <group position={position} rotation={[0, rotation, 0]}>
     {[-0.8, 0.8].map(x => <mesh key={x} position={[x, 0.32, 0]} castShadow><boxGeometry args={[0.1, 0.6, 0.65]} /><meshStandardMaterial color="#344541" /></mesh>)}
     {[0, 1, 2].map(i => <group key={i}>
-      <mesh position={[0, 0.64, -0.22 + i * 0.22]} castShadow><boxGeometry args={[2.2, 0.09, 0.18]} /><meshStandardMaterial color="#ae8056" roughness={0.9} /></mesh>
-      <mesh position={[0, 0.88 + i * 0.17, -0.32]} castShadow><boxGeometry args={[2.2, 0.12, 0.08]} /><meshStandardMaterial color="#ae8056" roughness={0.9} /></mesh>
+      <mesh position={[0, 0.64, -0.22 + i * 0.22]} castShadow><boxGeometry args={[2.2, 0.09, 0.18]} /><primitive object={getSurfaceMaterial('wood','#957657',2,1)} attach="material" /></mesh>
+      <mesh position={[0, 0.88 + i * 0.17, -0.32]} castShadow><boxGeometry args={[2.2, 0.12, 0.08]} /><primitive object={getSurfaceMaterial('wood','#957657',2,1)} attach="material" /></mesh>
     </group>)}
   </group>;
 });

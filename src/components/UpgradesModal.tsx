@@ -16,7 +16,7 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
   return <div className="space-y-5">
     <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4">
       <h3 className="font-bold text-lg">Grow your team as your restaurant grows</h3>
-      <p className="text-sm mt-1">Your starter chef handles cooking. Serve 6 guests to unlock a waiter, 16 for a cleaner, and 40 for a purchasing manager.</p>
+      <p className="text-sm mt-1">{state.testingUnlocked ? 'Testing mode: all staff and delivery partners are available to hire or connect.' : 'Your starter chef handles cooking. Serve 6 guests to unlock a waiter, 16 for a cleaner, and 40 for a purchasing manager.'}</p>
       <p className="text-sm mt-2 font-semibold">Current wages: ${weeklyWages(state.staff)} / full week · paid after Day 3 of the following week.</p>
       <p className="text-xs mt-1">Midweek hires earn prorated wages. Hiring fees are paid immediately.</p>
     </div>
@@ -24,7 +24,7 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
       {(['waiter', 'chef', 'cleaner', 'manager'] as const).map(type => {
         const count = type === 'manager' ? Number(state.staff.hasManager) : state.staff[`${type}s`];
         const cost = type === 'manager' ? MANAGER_COST : UPGRADE_COSTS[type](count);
-        const unlocked = served >= STAFF_UNLOCKS[type];
+        const unlocked = state.testingUnlocked || served >= STAFF_UNLOCKS[type];
         const title = { waiter: 'Floor waiter', chef: 'Line chef', cleaner: 'Table cleaner', manager: 'Purchasing manager' }[type];
         const description = {
           waiter: 'Takes orders and serves complete tables. You can still step in when a guest needs help.',
@@ -58,9 +58,9 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
         return <Card key={type} title={type === 'cookingSpeed' ? 'Faster kitchen' : 'Local marketing'} description={type === 'cookingSpeed' ? 'Increase cooking capacity by 50% of the base rate.' : 'Attract more guests. Make sure your team can handle them.'} detail={`Level ${level}`} label={`Upgrade · $${cost}`} disabled={state.money < cost} onClick={() => onBuyLevelUpgrade(type, level)} />;
       })}
     </div>
-    <h3 className="font-bold">Delivery partners · unlock after 24 guests served</h3>
+    <h3 className="font-bold">Delivery partners{!state.testingUnlocked && ' · unlock after 24 guests served'}</h3>
     <div className="grid md:grid-cols-3 gap-3">
-      {Object.entries(ONLINE_APPS).map(([id, app]) => <Card key={id} title={app.name} description={`Extra kitchen orders without using tables. ${Math.round(app.fee * 100)}% commission on sales.`} detail="Orders share capacity with your dining room." label={state.unlockedApps.includes(id) ? 'Connected' : served < 24 ? `Serve 24 guests (${served}/24)` : `Connect · $${app.cost}`} disabled={served < 24 || state.unlockedApps.includes(id) || state.money < app.cost} onClick={() => onUnlockApp(id)} />)}
+      {Object.entries(ONLINE_APPS).map(([id, app]) => <Card key={id} title={app.name} description={`Extra kitchen orders without using tables. ${Math.round(app.fee * 100)}% commission on sales.`} detail="Orders share capacity with your dining room." label={state.unlockedApps.includes(id) ? 'Connected' : !state.testingUnlocked && served < 24 ? `Serve 24 guests (${served}/24)` : `Connect · $${app.cost}`} disabled={(!state.testingUnlocked && served < 24) || state.unlockedApps.includes(id) || state.money < app.cost} onClick={() => onUnlockApp(id)} />)}
     </div>
   </div>;
 }

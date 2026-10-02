@@ -3,6 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { Box, Cylinder, Sphere, Plane, Cone, Text, Torus } from '@react-three/drei';
 import * as THREE from 'three';
 import { Neighborhood3D } from './Neighborhood3D';
+import { getSurfaceMaterial, getSignTexture } from '../graphics/surfaceMaterials';
+import { StreetDetails3D } from './StreetDetails3D';
+import { LandmarkDetails3D } from './LandmarkDetails3D';
 import { RoundedCarBody3D, StylizedTree3D } from './StreetAssets3D';
 
 // Victorian Cast-Iron Street Lamp with glowing globe and warm illumination
@@ -87,12 +90,12 @@ export const RooftopWaterTower3D = memo(({ position }: { position: [number, numb
     <Box args={[2.5, 0.08, 0.08]} position={[0, 1.8, 1.2]}><meshStandardMaterial color="#475569" /></Box>
     {/* Wooden Water Barrel */}
     <Cylinder args={[1.5, 1.5, 2.8, 24]} position={[0, 4.9, 0]} castShadow>
-      <meshStandardMaterial color="#78350f" roughness={0.85} />
+      <primitive object={getSurfaceMaterial('wood','#8d7152',3,2)} attach="material" />
     </Cylinder>
     {/* Metal Hoops / Straps around barrel */}
-    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 4.0, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Torus>
-    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 4.8, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Torus>
-    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 5.6, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Torus>
+    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 4.0, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Torus>
+    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 4.8, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Torus>
+    <Torus args={[1.52, 0.03, 8, 24]} position={[0, 5.6, 0]} rotation={[Math.PI / 2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Torus>
     {/* Conical Wooden Roof */}
     <Cone args={[1.7, 1.2, 24]} position={[0, 6.9, 0]} castShadow>
       <meshStandardMaterial color="#451a03" roughness={0.8} />
@@ -112,14 +115,14 @@ export const BrownstoneBuilding3D = memo(({
   name: string;
   isNight: boolean;
 }) => {
-  const winColor = isNight ? "#fde047" : "#bae6fd";
-  const winEmissive = isNight ? 1.0 : 0.05;
+  const winColor = isNight ? "#d4b483" : "#4d666b";
+  const winEmissive = isNight ? .3 : 0;
 
   return (
     <group position={position} rotation={rotation}>
       {/* Main Multi-Story Red Brick Mass */}
       <Box args={[18, 22, 14]} position={[0, 11, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#991b1b" roughness={0.85} />
+        <primitive object={getSurfaceMaterial('brick','#86604d',9,14)} attach="material" />
       </Box>
 
       {/* Decorative Roof Cornice Balustrade */}
@@ -127,7 +130,7 @@ export const BrownstoneBuilding3D = memo(({
         <meshStandardMaterial color="#f8fafc" roughness={0.5} />
       </Box>
       <Box args={[18.6, 0.6, 14.6]} position={[0, 23.3, 0]}>
-        <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+        <primitive object={getSurfaceMaterial('concrete','#c7bfae',3,2)} attach="material" />
       </Box>
 
       {/* Rooftop Water Tower */}
@@ -189,15 +192,15 @@ export const BrownstoneBuilding3D = memo(({
       {[5, 10, 15].map((levelY, lIdx) => (
         <group key={`fe-${lIdx}`} position={[-2, levelY, 7.6]}>
           {/* Iron Mesh Platform */}
-          <Box args={[4.2, 0.1, 1.2]} castShadow><meshStandardMaterial color="#1e293b" metalness={0.9} /></Box>
+          <Box args={[4.2, 0.1, 1.2]} castShadow><meshStandardMaterial color="#1e293b" metalness={0.5}/></Box>
           {/* Railings */}
-          <Box args={[4.2, 0.8, 0.05]} position={[0, 0.4, 0.55]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Box>
-          <Box args={[0.05, 0.8, 1.2]} position={[-2.1, 0.4, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Box>
+          <Box args={[4.2, 0.8, 0.05]} position={[0, 0.4, 0.55]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Box>
+          <Box args={[0.05, 0.8, 1.2]} position={[-2.1, 0.4, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Box>
           {/* Slanted Connecting Ladder */}
           {lIdx < 2 && (
             <group position={[1.2, 2.5, 0]} rotation={[0, 0, -Math.PI / 4]}>
-              <Box args={[0.05, 5, 0.05]} position={[-0.2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Box>
-              <Box args={[0.05, 5, 0.05]} position={[0.2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.9} /></Box>
+              <Box args={[0.05, 5, 0.05]} position={[-0.2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Box>
+              <Box args={[0.05, 5, 0.05]} position={[0.2, 0, 0]}><meshStandardMaterial color="#1e293b" metalness={0.5}/></Box>
             </group>
           )}
         </group>
@@ -223,16 +226,16 @@ export const ModernSkyscraper3D = memo(({
       {/* Main Glass Curtain Wall Monolith */}
       <Box args={[16, height, 16]} position={[0, height / 2, 0]} castShadow receiveShadow>
         <meshStandardMaterial 
-          color={isNight ? "#0f172a" : "#38bdf8"} 
-          metalness={0.9} 
+          color={isNight ? "#293f4a" : "#668990"}
+          metalness={0.5}
           roughness={0.15} 
         />
       </Box>
 
-      {/* Vertical Sleek Architectural Fins */}
+      <LandmarkDetails3D height={height} isNight={isNight} />
       {[-7, -3.5, 0, 3.5, 7].map((fx, i) => (
         <Box key={`fin-${i}`} args={[0.3, height + 1, 16.6]} position={[fx, height / 2, 0]}>
-          <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.5}roughness={0.1} />
         </Box>
       ))}
 
@@ -259,7 +262,7 @@ export const ModernSkyscraper3D = memo(({
           <meshStandardMaterial color="#0f172a" />
         </Cylinder>
         <Torus args={[4.2, 0.1, 8, 24]} position={[0, 3.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color="#facc15" />
+          <meshStandardMaterial color="#dac787" />
         </Torus>
         {/* Aviation Warning Beacon */}
         <Cylinder args={[0.15, 0.2, 4, 8]} position={[0, 5, 0]}>
@@ -287,9 +290,9 @@ export const GrandHotel3D = memo(({
     <group position={position} rotation={rotation}>
       {/* Lower Sandstone Grand Base */}
       <Box args={[24, 18, 16]} position={[0, 9, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#fef3c7" roughness={0.7} />
+        <primitive object={getSurfaceMaterial('plaster','#c2b59c',12,9)} attach="material" />
       </Box>
-      {/* Mansard Zinc Roof with Dormer Windows */}
+      <LandmarkDetails3D height={18} hotel isNight={isNight} />
       <group position={[0, 18, 0]}>
         <Cone args={[14, 6, 4]} position={[0, 3, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
           <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.6} />
@@ -305,7 +308,7 @@ export const GrandHotel3D = memo(({
         </Cylinder>
         {/* Warm Golden Hotel Doors */}
         <Box args={[3.2, 3.8, 0.2]} position={[0, -0.3, 0.1]}>
-          <meshStandardMaterial color={isNight ? "#fef08a" : "#bae6fd"} depthWrite={false} transparent opacity={0.7} />
+          <meshStandardMaterial color="#687f7b" metalness={.35} roughness={.24} />
         </Box>
         {/* Polished Brass Stanchions & Red Carpet leading to sidewalk */}
         <Plane args={[3, 4]} rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.45, 2]}>
@@ -316,9 +319,7 @@ export const GrandHotel3D = memo(({
       {/* Rooftop Glowing Neon Sign */}
       <group position={[0, 24.5, 3]}>
         <Box args={[14, 2.2, 0.4]} position={[0, 0, 0]}><meshStandardMaterial color="#0f172a" /></Box>
-        <Text position={[0, 0, 0.3]} fontSize={1.3} color={isNight ? "#fbbf24" : "#fef08a"} anchorX="center" anchorY="middle">
-          GRAND HOTEL
-        </Text>
+        <mesh position={[0,0,.3]}><planeGeometry args={[12.5,1.55]}/><meshBasicMaterial map={getSignTexture('GRAND HOTEL')} transparent depthWrite={false}/></mesh>
       </group>
     </group>
   );
@@ -367,29 +368,29 @@ export const ParkFountain3D = memo(({ position }: { position: [number, number, n
   <group position={position}>
     {/* Outer Basin */}
     <Cylinder args={[4.5, 4.8, 0.8, 32]} position={[0, 0.4, 0]} castShadow receiveShadow>
-      <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+      <primitive object={getSurfaceMaterial('concrete','#c7bfae',3,2)} attach="material" />
     </Cylinder>
     {/* Water Pool in basin */}
     <Cylinder args={[4.2, 4.2, 0.2, 32]} position={[0, 0.7, 0]}>
-      <meshStandardMaterial color="#38bdf8" roughness={0.1} metalness={0.3} transparent opacity={0.8} />
+      <meshStandardMaterial color="#769b93" roughness={.12} metalness={.35} transparent opacity={.87} />
     </Cylinder>
     {/* Middle Tier Pedestal */}
     <Cylinder args={[0.6, 0.8, 1.5, 16]} position={[0, 1.4, 0]} castShadow>
-      <meshStandardMaterial color="#cbd5e1" roughness={0.5} />
+      <primitive object={getSurfaceMaterial('concrete','#b9b29f',2,2)} attach="material" />
     </Cylinder>
     {/* Middle Tier Basin */}
     <Cylinder args={[2.2, 2.4, 0.4, 24]} position={[0, 2.2, 0]} castShadow>
-      <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+      <primitive object={getSurfaceMaterial('concrete','#c7bfae',3,2)} attach="material" />
     </Cylinder>
     <Cylinder args={[2.1, 2.1, 0.1, 24]} position={[0, 2.4, 0]}>
-      <meshStandardMaterial color="#38bdf8" roughness={0.1} metalness={0.3} transparent opacity={0.8} />
+      <meshStandardMaterial color="#769b93" roughness={.12} metalness={.35} transparent opacity={.87} />
     </Cylinder>
     {/* Top Spire & Water Plume */}
     <Cylinder args={[0.3, 0.4, 1.2, 12]} position={[0, 3.0, 0]}>
       <meshStandardMaterial color="#cbd5e1" />
     </Cylinder>
     <Sphere args={[0.5, 16, 16]} position={[0, 3.8, 0]} scale={[0.8, 1.8, 0.8]}>
-      <meshStandardMaterial color="#bae6fd" roughness={0.05} transparent opacity={0.85} />
+      <meshStandardMaterial color="#c7ded8" roughness={.1} metalness={.2} transparent opacity={.45} depthWrite={false} />
     </Sphere>
   </group>
 ));
@@ -400,25 +401,25 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
     <group>
       {/* Vast Ground Terrain */}
       <Plane args={[450, 450]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <meshStandardMaterial color="#718263" roughness={1} />
+        <primitive object={getSurfaceMaterial('grass','#7f866c',75,75)} attach="material" />
       </Plane>
 
       {/* ASPHALT CITY BOULEVARDS & AVENUES */}
       {/* West Road */}
       <Plane args={[12, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[-25, 0.02, 0]} receiveShadow>
-        <meshStandardMaterial color="#1e293b" roughness={0.85} />
+        <primitive object={getSurfaceMaterial('asphalt','#555954',3,100)} attach="material" />
       </Plane>
       {/* East Road */}
       <Plane args={[12, 400]} rotation={[-Math.PI / 2, 0, 0]} position={[25, 0.02, 0]} receiveShadow>
-        <meshStandardMaterial color="#1e293b" roughness={0.85} />
+        <primitive object={getSurfaceMaterial('asphalt','#555954',3,100)} attach="material" />
       </Plane>
       {/* North Road */}
       <Plane args={[400, 12]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -25]} receiveShadow>
-        <meshStandardMaterial color="#1e293b" roughness={0.85} />
+        <primitive object={getSurfaceMaterial('asphalt','#555954',3,100)} attach="material" />
       </Plane>
       {/* South Road (Restaurant Entrance Front) */}
       <Plane args={[400, 12]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 25]} receiveShadow>
-        <meshStandardMaterial color="#1e293b" roughness={0.85} />
+        <primitive object={getSurfaceMaterial('asphalt','#555954',3,100)} attach="material" />
       </Plane>
 
       {/* DASHED YELLOW ROAD DIVIDERS */}
@@ -428,10 +429,10 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
         return (
           <group key={`v-div-${i}`}>
             <Plane args={[0.4, 4.5]} rotation={[-Math.PI / 2, 0, 0]} position={[-25, 0.035, zPos]}>
-              <meshStandardMaterial color="#facc15" />
+              <meshStandardMaterial color="#dac787" />
             </Plane>
             <Plane args={[0.4, 4.5]} rotation={[-Math.PI / 2, 0, 0]} position={[25, 0.035, zPos]}>
-              <meshStandardMaterial color="#facc15" />
+              <meshStandardMaterial color="#dac787" />
             </Plane>
           </group>
         );
@@ -442,10 +443,10 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
         return (
           <group key={`h-div-${i}`}>
             <Plane args={[4.5, 0.4]} rotation={[-Math.PI / 2, 0, 0]} position={[xPos, 0.035, -25]}>
-              <meshStandardMaterial color="#facc15" />
+              <meshStandardMaterial color="#dac787" />
             </Plane>
             <Plane args={[4.5, 0.4]} rotation={[-Math.PI / 2, 0, 0]} position={[xPos, 0.035, 25]}>
-              <meshStandardMaterial color="#facc15" />
+              <meshStandardMaterial color="#dac787" />
             </Plane>
           </group>
         );
@@ -471,14 +472,14 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
       <group position={[-9, 0.1, 16.2]}>
         {/* Striped Patio Parasol Umbrella */}
         <Cylinder args={[0.04, 0.04, 3.2, 8]} position={[0, 1.6, 0]} castShadow><meshStandardMaterial color="#334155" metalness={0.8} /></Cylinder>
-        <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#e11d48" /></Cone>
+        <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#976555" /></Cone>
         {/* Table & 2 outdoor wire chairs */}
         <Cylinder args={[0.6, 0.6, 0.04, 16]} position={[0, 1.0, 0]}><meshStandardMaterial color="#f8fafc" /></Cylinder>
         <Cylinder args={[0.05, 0.05, 1.0, 8]} position={[0, 0.5, 0]}><meshStandardMaterial color="#1e293b" /></Cylinder>
       </group>
       <group position={[9, 0.1, 16.2]}>
         <Cylinder args={[0.04, 0.04, 3.2, 8]} position={[0, 1.6, 0]} castShadow><meshStandardMaterial color="#334155" metalness={0.8} /></Cylinder>
-        <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#0284c7" /></Cone>
+        <Cone args={[1.8, 0.8, 16]} position={[0, 3.2, 0]} castShadow><meshStandardMaterial color="#6a807d" /></Cone>
         <Cylinder args={[0.6, 0.6, 0.04, 16]} position={[0, 1.0, 0]}><meshStandardMaterial color="#f8fafc" /></Cylinder>
         <Cylinder args={[0.05, 0.05, 1.0, 8]} position={[0, 0.5, 0]}><meshStandardMaterial color="#1e293b" /></Cylinder>
       </group>
@@ -496,17 +497,18 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
       <RealisticCar3D initialZ={-20} speed={26} color="#10b981" direction={-1} xOffset={-22} isNight={isNight} gameSpeed={gameSpeed} />
 
       <RealisticCar3D initialZ={-80} speed={27} color="#eab308" direction={1} xOffset={22} isTaxi={true} isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={20} speed={24} color="#8b5cf6" direction={1} xOffset={22} isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={90} speed={31} color="#f43f5e" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={-40} speed={26} color="#06b6d4" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={20} speed={24} color="#757e83" direction={1} xOffset={22} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={90} speed={31} color="#a33f39" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={-40} speed={26} color="#e0e2d9" direction={-1} xOffset={28} isNight={isNight} gameSpeed={gameSpeed} />
 
       <RealisticCar3D initialZ={-50} speed={26} color="#eab308" direction={1} xOffset={28} isHorizontal isTaxi={true} isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={40} speed={29} color="#ec4899" direction={-1} xOffset={22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={-70} speed={25} color="#14b8a6" direction={1} xOffset={-22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
-      <RealisticCar3D initialZ={30} speed={28} color="#f97316" direction={-1} xOffset={-28} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={40} speed={29} color="#9c4947" direction={-1} xOffset={22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={-70} speed={25} color="#557a70" direction={1} xOffset={-22} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
+      <RealisticCar3D initialZ={30} speed={28} color="#b58b64" direction={-1} xOffset={-28} isHorizontal isNight={isNight} gameSpeed={gameSpeed} />
 
       {/* SURROUNDING ARCHITECTURAL BUILDINGS & CITY DISTRICT */}
       <Neighborhood3D isNight={isNight} gameSpeed={gameSpeed} />
+      <StreetDetails3D />
       <ModernSkyscraper3D position={[-60, 0, -74]} height={32} isNight={isNight} />
       <GrandHotel3D position={[0, 0, -70]} isNight={isNight} />
       <ModernSkyscraper3D position={[60, 0, -74]} height={38} isNight={isNight} />
@@ -517,18 +519,18 @@ export const AttractiveCityScenery3D = memo(({ isNight, gameSpeed = 1 }: { isNig
       <group position={[0, 0, 58]}>
         {/* Lush Green Lawn */}
         <Plane args={[36, 32]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
-          <meshStandardMaterial color="#7e9663" roughness={1} />
+          <primitive object={getSurfaceMaterial('grass','#819364',12,10)} attach="material" />
         </Plane>
         {/* Tiered Splashing Fountain */}
         <ParkFountain3D position={[0, 0, 0]} />
         {/* Park Cobblestone Ring Path */}
         <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <ringGeometry args={[6.8, 9.2, 48]} />
-          <meshStandardMaterial color="#c6bdab" roughness={0.95} />
+          <primitive object={getSurfaceMaterial('concrete','#c6bdab',10,6)} attach="material" />
         </mesh>
         <mesh position={[0, 0.06, -13.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[3.5, 13]} />
-          <meshStandardMaterial color="#c6bdab" roughness={0.95} />
+          <primitive object={getSurfaceMaterial('concrete','#c6bdab',10,6)} attach="material" />
         </mesh>
         {[-12, 12].map((x, i) => <StylizedTree3D key={x} position={[x, 0.04, 0]} seed={i + 2} blossom scale={1.4} gameSpeed={gameSpeed} />)}
       </group>

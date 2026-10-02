@@ -15,6 +15,7 @@ export function WeekSummaryModal({ summary, onClose }: { summary: WeekSummary; o
         <dt>Food used</dt><dd className="text-right">−{money(summary.foodCost)}</dd>
         <dt>Wages earned</dt><dd className="text-right">−{money(summary.wages)}</dd>
         <dt>Delivery fees</dt><dd className="text-right">−{money(summary.fees)}</dd>
+        {!!summary.propertyRent&&<><dt>Property rent</dt><dd className="text-right">−{money(summary.propertyRent)}</dd></>}
         <dt>Stock spoiled</dt><dd className="text-right">−{money(summary.spoilage)}</dd>
         <dt>Guests served / walked out</dt><dd className="text-right">{summary.served} / {summary.lost}</dd>
         <dt>Service rating</dt><dd className="text-right">{summary.served + summary.lost ? `${summary.starRating.toFixed(1)} / 5` : 'No guests yet'}</dd>

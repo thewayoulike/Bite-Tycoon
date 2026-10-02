@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
 import { Box, Cylinder, Sphere, Html, Torus } from '@react-three/drei';
 import * as THREE from 'three';
+import { FoodPlate3D } from './FoodPlate3D';
 
-const mapPos = (percent: number) => (percent / 100) * 20 - 10;
+import {mapPos} from '../restaurantLayout';
 
 // Upgraded High-End Dining Chair with plush cushion, curved backrest & brass-tipped legs
 export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColor = "#991b1b" }: {
@@ -99,25 +100,26 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
 });
 
 // Upgraded High-End Dining Table with Marble/Wood top, Cast-Iron base, and Centerpiece
-export const BistroTable3D = memo(({ table, index, isEating, actions }: {
+export const BistroTable3D = memo(({ table, index, isEating, actions, servedRecipeIds = [],identity='diner' }: {
   table: any;
   index: number;
-  isEating: boolean;
+  isEating: boolean; servedRecipeIds?: string[];
   actions: any;
+  identity?: 'diner'|'cafe'|'bistro';
 }) => {
   const x = mapPos(table.x);
   const z = mapPos(table.y);
 
   // Diverse cushion palette per table for a boutique bistro aesthetic
   const chairPalettes = ["#991b1b", "#1e3a8a", "#065f46", "#b45309", "#4c1d95", "#831843"];
-  const chairColor = chairPalettes[index % chairPalettes.length];
+  const chairColor = identity==='cafe'?'#668676':identity==='bistro'?'#526744':'#a14e45';
 
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} scale={2}>
       {/* Clean Table Action Banner */}
       {table.isDirty && (
         <Html position={[0, 2.7, 0]} center zIndexRange={[100, 0]}>
-          <button 
+          <button
             onClick={() => actions.cleanTable(table.id)}
             className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-stone-900 border-2 border-amber-800 font-black text-[11px] rounded-lg shadow-2xl animate-pulse whitespace-nowrap pointer-events-auto flex items-center gap-1.5 transform hover:scale-105 active:scale-95 transition-all"
           >
@@ -161,9 +163,9 @@ export const BistroTable3D = memo(({ table, index, isEating, actions }: {
         </Cylinder>
         {/* Polished Marble Surface */}
         <Cylinder args={[1.19, 1.19, 0.075, 48]} position={[0, 0.005, 0]} receiveShadow>
-          <meshStandardMaterial 
-            color={table.isDirty ? "#d6d3d1" : "#fafafa"} 
-            roughness={table.isDirty ? 0.6 : 0.1} 
+          <meshStandardMaterial
+            color={table.isDirty ? "#d6d3d1" : identity==='cafe'?'#bb9870':identity==='bistro'?'#eee4cb':'#fafafa'}
+            roughness={table.isDirty ? 0.6 : 0.1}
             metalness={0.1}
           />
         </Cylinder>
@@ -222,58 +224,13 @@ export const BistroTable3D = memo(({ table, index, isEating, actions }: {
         </group>
       )}
 
-      {/* ACTIVE DINING DISHES (When guests are eating) */}
-      {isEating && (
-        <group position={[0, 1.1, 0]}>
-          {/* Main Course Plate 1 */}
-          <group position={[-0.35, 0, 0]}>
-            <Cylinder args={[0.22, 0.16, 0.03, 24]} position={[0, 0.015, 0]} castShadow>
-              <meshStandardMaterial color="#ffffff" roughness={0.2} />
-            </Cylinder>
-            {/* Golden fries / pasta */}
-            <Box args={[0.12, 0.05, 0.12]} position={[0, 0.04, 0]}>
-              <meshStandardMaterial color="#f59e0b" roughness={0.8} />
-            </Box>
-            {/* Grilled steak / burger patty */}
-            <Cylinder args={[0.09, 0.09, 0.04, 16]} position={[0.02, 0.06, 0]}>
-              <meshStandardMaterial color="#78350f" roughness={0.7} />
-            </Cylinder>
-            {/* Fork & Knife */}
-            <Box args={[0.02, 0.008, 0.24]} position={[-0.2, 0.01, 0]}>
-              <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
-            </Box>
-            <Box args={[0.018, 0.008, 0.24]} position={[0.2, 0.01, 0]}>
-              <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
-            </Box>
-            {/* Glass with drink */}
-            <Cylinder args={[0.04, 0.035, 0.12, 16]} position={[0.18, 0.06, -0.2]}>
-              <meshStandardMaterial color="#93c5fd" transparent opacity={0.65} roughness={0.1} />
-            </Cylinder>
-          </group>
-
-          {/* Main Course Plate 2 */}
-          <group position={[0.35, 0, 0]}>
-            <Cylinder args={[0.22, 0.16, 0.03, 24]} position={[0, 0.015, 0]} castShadow>
-              <meshStandardMaterial color="#ffffff" roughness={0.2} />
-            </Cylinder>
-            <Sphere args={[0.08, 12, 12]} position={[0, 0.06, 0]} scale={[1, 0.5, 1]}>
-              <meshStandardMaterial color="#ef4444" roughness={0.7} />
-            </Sphere>
-            {/* Fork & Knife */}
-            <Box args={[0.02, 0.008, 0.24]} position={[-0.2, 0.01, 0]}>
-              <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
-            </Box>
-            <Box args={[0.018, 0.008, 0.24]} position={[0.2, 0.01, 0]}>
-              <meshStandardMaterial color="#e2e8f0" metalness={0.9} roughness={0.1} />
-            </Box>
-            {/* Glass with drink */}
-            <Cylinder args={[0.04, 0.035, 0.12, 16]} position={[-0.18, 0.06, -0.2]}>
-              <meshStandardMaterial color="#fbcfe8" transparent opacity={0.65} roughness={0.1} />
-            </Cylinder>
-          </group>
-        </group>
-      )}
-
+      {/* Served plates retain the actual order after tickets leave the queue. */}
+      {isEating && servedRecipeIds.slice(0, 6).map((recipeId, i, dishes) => {
+        const angle = i / dishes.length * Math.PI * 2;
+        return <group key={`${recipeId}-${i}`} position={[Math.cos(angle) * .69, 1.105, Math.sin(angle) * .69]} rotation={[0, -angle, 0]}>
+          <FoodPlate3D recipeId={recipeId} scale={.93} />
+        </group>;
+      })}
       {/* DIRTY TABLE DISHES & CRUMBS */}
       {table.isDirty && (
         <group position={[0, 1.1, 0]}>
@@ -323,7 +280,9 @@ export const BistroTable3D = memo(({ table, index, isEating, actions }: {
     </group>
   );
 }, (prev, next) => (
+  prev.identity === next.identity &&
   prev.isEating === next.isEating &&
+  (prev.servedRecipeIds ?? []).join() === (next.servedRecipeIds ?? []).join() &&
   prev.table.isDirty === next.table.isDirty &&
   prev.table.x === next.table.x &&
   prev.table.y === next.table.y
