@@ -6,10 +6,11 @@ import { INGREDIENT_ICONS, INGREDIENT_CATEGORIES, CATEGORY_LABELS } from '../dat
 export type InventoryItem = {id:string;name:string;cost:number;category:string;icon?:string};
 export type InventoryCatalog = {
   items: InventoryItem[]; title:string; subtitle:string; neededLabel:string; neededIds:string[];
-  capacity?:number; lowStock?:number; quote?:(item:InventoryItem,qty:number)=>number;
-  itemActions?:(id:string)=>React.ReactNode;
+  capacity?:number; lowStock?:number; lowStockAt?:(id:string)=>number; orderQuantities?:(id:string)=>number[]; orderBadge?:(id:string,qty:number)=>string; restockQuantity?:(id:string,stock:number)=>number; quote?:(item:InventoryItem,qty:number)=>number;
+  itemActions?:(id:string)=>React.ReactNode; selectionActions?:React.ReactNode;
 };
 interface InventoryModalProps {
+  restaurantPantry?:{name:string;ingredientIds:string[]};
   catalog?: InventoryCatalog;
   inventory: Record<string, number>;
   inventoryBatches: Record<string, { qty: number; costPerUnit: number }[]>;
@@ -19,6 +20,7 @@ interface InventoryModalProps {
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({
+  restaurantPantry,
   catalog,
   inventory,
   inventoryBatches,
@@ -31,18 +33,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   const [search, setSearch] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<string>('rice');
 
-  const items:Record<string,InventoryItem> = Object.fromEntries((catalog?.items ?? Object.values(INGREDIENTS).map(item=>({...item,category:INGREDIENT_CATEGORIES[item.id]||'General',icon:INGREDIENT_ICONS[item.id]}))).map(item=>[item.id,item]));
+  const items:Record<string,InventoryItem> = Object.fromEntries((catalog?.items ?? Object.values(INGREDIENTS).filter(item=>!restaurantPantry||restaurantPantry.ingredientIds.includes(item.id)).map(item=>({...item,category:INGREDIENT_CATEGORIES[item.id]||'General',icon:INGREDIENT_ICONS[item.id]}))).map(item=>[item.id,item]));
   const neededSet = new Set(catalog?.neededIds ?? unlockedRecipes.flatMap(r=>Object.keys(r.ingredients||{})));
   const neededList = [...neededSet];
   const lowAt=catalog?.lowStock??5;
-  const lowStockCount = neededList.filter(id => (inventory[id] || 0) < lowAt).length;
+  const itemLowAt=(id:string)=>catalog?.lowStockAt?.(id)??lowAt;
+  const lowStockCount = neededList.filter(id => (inventory[id] || 0) < itemLowAt(id)).length;
   const categories=catalog?[{id:'all',label:'All',icon:'📦'},...Array.from(new Set(catalog.items.map(i=>i.category))).map(id=>({id,label:id,icon:''}))]:CATEGORY_LABELS;
   const displayIds=Object.keys(items).filter(id=>(filterTab==='all'||neededSet.has(id))&&(category==='all'||items[id].category===category)&&items[id].name.toLowerCase().includes(search.trim().toLowerCase()));
   const selectedItem=items[displayIds.includes(selectedItemId)?selectedItemId:displayIds[0]];
   const currentStock=selectedItem?(inventory[selectedItem.id]||0):0;
   const batches=(selectedItem&&inventoryBatches[selectedItem.id])||[];
   const nextUnitCost=batches.length?batches[0].costPerUnit:(selectedItem?.cost||0);
-  const totalBatchValue=catalog?currentStock*(selectedItem?.cost||0):batches.reduce((sum,b)=>sum+b.qty*b.costPerUnit,0);
+  const totalBatchValue=catalog&&!batches.length?currentStock*(selectedItem?.cost||0):batches.reduce((sum,b)=>sum+b.qty*b.costPerUnit,0);
   const blendedAvgCost=currentStock>0?totalBatchValue/currentStock:(selectedItem?.cost||0);
   const quote=(item:InventoryItem,qty:number,discount=0)=>catalog?.quote?.(item,qty)??item.cost*qty*(1-discount);
   const tiers=catalog?[{qty:10,discount:0,label:'Order 10x',badge:'Standard',btnClass:'mc-button'},{qty:25,discount:0,label:'Order 25x',badge:'Stock up',btnClass:'mc-button-blue'},{qty:50,discount:0,label:'Order 50x',badge:'Large order',btnClass:'mc-button-green'}]:[
@@ -52,14 +55,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     {qty:500,discount:.3,label:'Industrial 500x',badge:'-30%',btnClass:'mc-button-purple'}];
   const handleRestockAllLow=()=>{
     let remaining=money;
-    for(const id of neededList){const item=items[id],stock=inventory[id]||0;if(!item||stock>=lowAt)continue;
-      const qty=Math.max(0,Math.min(catalog?25:50,(catalog?.capacity??Infinity)-stock)),discount=catalog?0:.1,cost=quote(item,qty,discount);
+    for(const id of neededList){const item=items[id],stock=inventory[id]||0;if(!item||stock>=itemLowAt(id))continue;
+      const qty=Math.max(0,Math.min(catalog?.restockQuantity?.(id,stock)??(catalog?25:50),(catalog?.capacity??Infinity)-stock)),discount=catalog?0:.1,cost=quote(item,qty,discount);
       if(qty&&remaining>=cost){onBuyIngredient(id,qty,discount);remaining-=cost;}
     }
   };
 
   return (
     <div className="inventory-console flex flex-col h-full font-mono">
+      {catalog?.selectionActions}
       {/* Top Header & Quick Restock Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
         <div className="flex items-center gap-2">
@@ -68,10 +72,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           </div>
           <div>
             <h3 className="font-black text-[#2b2b2b] text-base md:text-lg uppercase tracking-wider">
-              {catalog?.title??'Pantry & FIFO Batch Inventory'}
+              {catalog?.title??(restaurantPantry?`${restaurantPantry.name} · Pantry & ingredients`:'Pantry & FIFO Batch Inventory')}
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              {catalog?.subtitle??'First-In-First-Out (FIFO) consumption tracks exact purchase costs for every meal'}
+              {catalog?.subtitle??(restaurantPantry?'Ingredients for this restaurant’s recipe collection · FIFO purchase costs for every meal':'First-In-First-Out (FIFO) consumption tracks exact purchase costs for every meal')}
             </p>
           </div>
         </div>
@@ -81,7 +85,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <button
               onClick={handleRestockAllLow}
               className="px-3 py-1.5 mc-button-gold text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-              title={`Restock required items below ${lowAt} units using this business’s cash`}
+              title={catalog?.lowStockAt?'Restock required items below their stock targets using this business’s cash':`Restock required items below ${lowAt} units using this business’s cash`}
             >
               <AlertTriangle size={14} className="animate-pulse" />
               Restock Low ({lowStockCount})
@@ -171,7 +175,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   const item = items[id];
                   const stock = inventory[id] || 0;
                   const isSelected = selectedItem?.id === id;
-                  const isLow = stock < lowAt;
+                  const isLow = stock < itemLowAt(id);
                   const isOut = stock === 0;
 
                   return (
@@ -262,7 +266,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </span>
                   <span
                     className={`text-xl font-black ${
-                      currentStock === 0 ? 'text-red-400' : currentStock < lowAt ? 'text-amber-300' : 'text-green-300'
+                      currentStock === 0 ? 'text-red-400' : currentStock < itemLowAt(selectedItem.id) ? 'text-amber-300' : 'text-green-300'
                     }`}
                   >
                     {Number(currentStock.toFixed(1))} units{catalog?.capacity?` / ${catalog.capacity}`:null}
@@ -335,9 +339,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
                 <div className="flex flex-col gap-1.5">
                   {tiers.map(tier => {
-                    const discountedUnitCost = selectedItem.cost * (1 - tier.discount);
-                    const qty=Math.max(0,Math.min(tier.qty,(catalog?.capacity??Infinity)-currentStock));
+
+                    const orderQuantity=catalog?.orderQuantities?.(selectedItem.id)?.[tiers.indexOf(tier)]??tier.qty;
+                    const qty=Math.max(0,Math.min(orderQuantity,(catalog?.capacity??Infinity)-currentStock));
                     const totalPrice=quote(selectedItem,qty,tier.discount);
+                    const discountedUnitCost=qty?totalPrice/qty:selectedItem.cost;
                     const canAfford = qty>0 && money >= totalPrice;
 
                     return (
@@ -352,7 +358,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         <div className="flex items-center gap-1.5">
                           <span>{catalog?(qty?`Order ${Number(qty.toFixed(1))}x`:'Stockroom full'):tier.label}</span>
                           <span className="text-[8px] bg-black/30 px-1 rounded text-white font-mono">
-                            {tier.badge}
+                            {catalog?.orderBadge?.(selectedItem.id,qty)??tier.badge}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">

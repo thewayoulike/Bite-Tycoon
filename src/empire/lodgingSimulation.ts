@@ -1,5 +1,5 @@
 import {Business,businessSupplies,businessWages,Property} from '../prototype/expansionModel';
-import {absoluteTime,ensureLodging,isLodging,lodgingClock,lodgingEntry,LodgingBooking,manageLodging,roomTypes,shiftActive,staffCount,unitReady,useLodgingSupplies} from './lodging';
+import {absoluteTime,ensureLodging,isLodging,lodgingClock,lodgingEntry,LodgingBooking,manageLodging,roomNeedsRepair,roomTypes,shiftActive,staffCount,unitReady,useLodgingSupplies} from './lodging';
 import type {VenueVisitor} from './venueSimulation';
 const DAY=180/7;
 const bookingRoom=(b:Business,person:VenueVisitor)=>{const booking=b.lodging?.bookings.find(v=>v.id===person.bookingId);return b.venue!.units.findIndex((u,i)=>unitReady(u)&&(booking?.unit===undefined||i===booking.unit)&&(!person.offerId||u.type===person.offerId)&&!b.lodging?.bookings.some(other=>other.id!==booking?.id&&other.unit===i&&['reserved','waiting'].includes(other.status)));};
@@ -22,10 +22,10 @@ export function serveLodging(p:Property,b:Business,week:number,day:number,id?:nu
  const next={...supplied,lodging:{...l,nextBooking:reserved?l.nextBooking:l.nextBooking+1,bookings:[...l.bookings.filter(v=>v.id!==booking.id),{...booking,status:'staying' as const,unit:index,departure,leaseEnd:p.kind==='apartments'?week+6:undefined}],roomRevenue:l.roomRevenue+sale,roomNights:l.roomNights+(p.kind==='hotel'?nights:1)},venue:{...b.venue!,visitors:b.venue!.visitors.map(v=>v.id===person.id?{...v,state:'using' as const,unit:index,bookingId:booking.id,remaining:duration}:v),units:b.venue!.units.map((u,i)=>i===index?{...u,occupied:true,remaining:duration,seed:person.seed,rentWeek:week,rent:rate,bookingId:booking.id,checkoutAt:departure,leaseEnd:week+6}:u),week:{...b.venue!.week,served:b.venue!.week.served+1,revenue:b.venue!.week.revenue+sale},totalServed:b.venue!.totalServed+1,totalRevenue:b.venue!.totalRevenue+sale}};
  return lodgingEntry(next,{week,day},`${p.kind==='hotel'?'Check-in':'Lease signed'} · ${booking.name}`,sale);
 }
-export function advanceLodging(p:Property,b:Business,delta:number,week:number,day:number):Business{
+export function advanceLodging(p:Property,b:Business,delta:number,week:number,day:number,demand=1):Business{
  if(!b.venue?.running||delta<=0||!b.lodging)return b;
  const dt=Math.min(delta,180-b.venue.clock);if(dt<=0)return b;
- let v={...b.venue,clock:b.venue.clock+dt,serviceTimer:b.venue.serviceTimer+dt,careTimer:b.venue.careTimer+dt,arrivalTimer:b.venue.arrivalTimer-dt,units:b.venue.units.map(u=>({...u})),visitors:b.venue.visitors.map(v=>({...v})),week:{...b.venue.week,wages:b.venue.week.wages+businessWages(p,b)*dt/180}},l={...b.lodging,bookings:b.lodging.bookings.map(v=>({...v})),issues:b.lodging.issues.map(i=>({...i})),occupiedSeconds:b.lodging.occupiedSeconds+b.venue.units.filter(u=>u.occupied).length*dt,availableSeconds:b.lodging.availableSeconds+b.venue.units.length*dt};
+ let v={...b.venue,clock:b.venue.clock+dt,serviceTimer:b.venue.serviceTimer+dt,careTimer:b.venue.careTimer+dt,arrivalTimer:b.venue.arrivalTimer-dt*demand,units:b.venue.units.map(u=>({...u})),visitors:b.venue.visitors.map(v=>({...v})),week:{...b.venue.week,wages:b.venue.week.wages+businessWages(p,b)*dt/180}},l={...b.lodging,bookings:b.lodging.bookings.map(v=>({...v})),issues:b.lodging.issues.map(i=>({...i})),occupiedSeconds:b.lodging.occupiedSeconds+b.venue.units.filter(u=>u.occupied).length*dt,availableSeconds:b.lodging.availableSeconds+b.venue.units.length*dt};
  const now=absoluteTime(week,v.clock),clock=lodgingClock({...b,venue:v}),globalDay=Math.floor(now/DAY),isHotel=p.kind==='hotel';
  // Overnight stays finish in the morning; a checked-out unit is never immediately resold.
  v.units.forEach((u,i)=>{
@@ -56,7 +56,7 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
   l.lastBookingDay=globalDay;
   const candidates=v.units.map((u,i)=>({u,i})).filter(({u,i})=>unitReady(u)&&!l.bookings.some(v=>v.unit===i&&['reserved','waiting'].includes(v.status)));
   const selected=candidates[globalDay%Math.max(1,candidates.length)];
-  if(selected){const {u,i}=selected,base=roomTypes(p).find(t=>t.id===u.type)!;if((globalDay*37%100)/100<Math.exp(-2.5*Math.max(0,(u.rate??base.rate)/base.rate-1))){
+  if(selected){const {u,i}=selected,base=roomTypes(p).find(t=>t.id===u.type)!;if((globalDay*37%100)/100<Math.min(1,demand)*Math.exp(-2.5*Math.max(0,(u.rate??base.rate)/base.rate-1))){
    const kind=globalDay%4===0&&['double','family','suite','onebed','twobed','penthouse'].includes(u.type??'')?'family':globalDay%5===0?'group':'booking';
    const rate=Math.round((u.rate??base.rate)*(kind==='group'?.9:1));
    l.bookings.push({id:l.nextBooking++,name:`${isHotel?'Guest':'Applicant'} ${week}-${globalDay+1}`,type:u.type!,rate,nights:kind==='family'?2:1,arrival:now+(kind==='family'?1:(14-clock.hours)/24*DAY),unit:i,status:'reserved',kind});
@@ -84,11 +84,12 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
  if(shiftActive(next,'service')&&v.serviceTimer>=10/staffCount(p,next,'service')){const ready=next.venue!.visitors.find(person=>person.state==='waiting'&&!lodgingBlocker(p,next,person.id));if(ready)next=serveLodging(p,next,week,day,ready.id);next={...next,venue:{...next.venue!,serviceTimer:0}};}
  const action=(type:'clean'|'repair',unit:number)=>{const state={week,day,businesses:{[p.id]:next},loans:[],payroll:[],report:[],notice:''};next=manageLodging(state,p.id,{type,unit}).businesses[p.id];};
  if(shiftActive(next,'care')&&v.careTimer>=12/staffCount(p,next,'care')){
-  const index=next.venue!.units.findIndex(u=>isHotel?u.dirty&&!u.occupied:u.dirty||(u.condition??100)<65);if(index>=0)action(next.venue!.units[index].dirty?'clean':'repair',index);
+  const index=next.venue!.units.findIndex((u,i)=>isHotel?u.dirty&&!u.occupied:u.dirty||roomNeedsRepair(next,i));if(index>=0)action(next.venue!.units[index].dirty?'clean':'repair',index);
   next={...next,venue:{...next.venue!,careTimer:0}};
  }
- if(staffCount(p,next,'maintenance')&&shiftActive(next,'maintenance')&&Math.floor(b.venue.clock/10)!==Math.floor(v.clock/10)){
-  const index=next.venue!.units.findIndex(u=>(u.condition??100)<60);if(index>=0)action('repair',index);
+ const repairInterval=10/Math.max(1,staffCount(p,next,'maintenance'));
+ if(staffCount(p,next,'maintenance')&&shiftActive(next,'maintenance')&&Math.floor(b.venue.clock/repairInterval)!==Math.floor(v.clock/repairInterval)){
+  const index=next.venue!.units.findIndex((_,i)=>roomNeedsRepair(next,i));if(index>=0)action('repair',index);
  }
  if(l.facilities.includes('restaurant')&&clock.hours>=8&&clock.hours<10&&Math.floor(b.venue.clock/DAY)!==Math.floor(v.clock/DAY)){
   const supplied=useLodgingSupplies(p,next,{[isHotel?'stock-4':'stock-1']:next.venue!.units.filter(u=>u.occupied).length});if(supplied)next={...supplied,lodging:{...next.lodging!,reputation:Math.min(100,next.lodging!.reputation+1)}};

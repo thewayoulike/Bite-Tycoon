@@ -6,11 +6,18 @@ import { FoodPlate3D } from './FoodPlate3D';
 import {mapPos} from '../restaurantLayout';
 
 // Upgraded High-End Dining Chair with plush cushion, curved backrest & brass-tipped legs
-export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColor = "#991b1b" }: {
+export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColor = "#991b1b",style='classic' }: {
   position: [number, number, number];
   rotation?: [number, number, number];
   cushionColor?: string;
+  style?:'classic'|'diner'|'booth'|'fastfood';
 }) => {
+  if(style!=='classic')return <group position={position} rotation={rotation}>
+    {style==='booth'?<Box args={[.7,.49,.57]} position={[0,.245,0]} castShadow><meshStandardMaterial color="#653c30" roughness={.85}/></Box>:[-.23,.23].flatMap(x=>[-.22,.22].map(z=><Cylinder key={`${x}:${z}`} args={[.027,.027,.52,8]} position={[x,.26,z]} castShadow><meshStandardMaterial color={style==='diner'?'#aeb7b9':'#494b49'} metalness={style==='diner'?.8:.15} roughness={.35}/></Cylinder>))}
+    <Box args={[style==='booth'?.7:.6,.1,.57]} position={[0,.535,0]} castShadow><meshStandardMaterial color={cushionColor} roughness={.7}/></Box>
+    <Box args={[style==='booth'?.7:.58,style==='booth'?.72:.46,.12]} position={[0,style==='booth'?.87:.79,-.27]} castShadow><meshStandardMaterial color={cushionColor} roughness={.7}/></Box>
+    {style==='booth'&&[-.22,0,.22].map(x=><Box key={x} args={[.015,.59,.02]} position={[x,.87,-.2]}><meshStandardMaterial color="#c48f78"/></Box>)}
+  </group>;
   return (
     <group position={position} rotation={rotation}>
       {/* 4 Tapered Splayed Legs with Brass Ferrules */}
@@ -100,19 +107,21 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
 });
 
 // Upgraded High-End Dining Table with Marble/Wood top, Cast-Iron base, and Centerpiece
-export const BistroTable3D = memo(({ table, index, isEating, actions, servedRecipeIds = [],identity='diner' }: {
+export const BistroTable3D = memo(({ table, index, isEating, actions, servedRecipeIds = [],identity='diner',level=1 }: {
   table: any;
   index: number;
   isEating: boolean; servedRecipeIds?: string[];
   actions: any;
-  identity?: 'diner'|'cafe'|'bistro';
+  identity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood';
+  level?:number;
 }) => {
   const x = mapPos(table.x);
   const z = mapPos(table.y);
 
   // Diverse cushion palette per table for a boutique bistro aesthetic
   const chairPalettes = ["#991b1b", "#1e3a8a", "#065f46", "#b45309", "#4c1d95", "#831843"];
-  const chairColor = identity==='cafe'?'#668676':identity==='bistro'?'#526744':'#a14e45';
+  const chairColor = identity==='cafe'?'#668676':identity==='bistro'?'#526744':identity==='italian'?'#70523c':identity==='fastfood'?'#b88f46':'#a14e45';
+  const chairStyle=identity==='diner'?(level>=4&&Math.abs(x)>12?'booth':'diner'):identity==='fastfood'?'fastfood':'classic';
 
   return (
     <group position={[x, 0, z]} scale={2}>
@@ -159,12 +168,12 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
       <group position={[0, 0.76, 0]}>
         {/* Brass Beveled Edge Rim */}
         <Cylinder args={[1.22, 1.22, 0.07, 48]} castShadow receiveShadow>
-          <meshStandardMaterial color="#d97706" metalness={0.75} roughness={0.25} />
+          <meshStandardMaterial color={identity==='diner'?'#a8b2b8':identity==='fastfood'?'#5d5e5a':'#ab8953'} metalness={0.75} roughness={0.25} />
         </Cylinder>
         {/* Polished Marble Surface */}
         <Cylinder args={[1.19, 1.19, 0.075, 48]} position={[0, 0.005, 0]} receiveShadow>
           <meshStandardMaterial
-            color={table.isDirty ? "#d6d3d1" : identity==='cafe'?'#bb9870':identity==='bistro'?'#eee4cb':'#fafafa'}
+            color={table.isDirty ? "#d6d3d1" : identity==='cafe'?'#bb9870':identity==='bistro'?'#eee4cb':identity==='italian'?'#d5b28b':identity==='fastfood'?'#d9c8a8':'#fafafa'}
             roughness={table.isDirty ? 0.6 : 0.1}
             metalness={0.1}
           />
@@ -270,16 +279,17 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
 
       {/* 4 MATCHING BISTRO CHAIRS */}
       {/* West Chair (Facing East) */}
-      <BistroChair3D position={[-1.4, 0, 0]} rotation={[0, Math.PI / 2, 0]} cushionColor={chairColor} />
+      <BistroChair3D position={[-1.4, 0, 0]} rotation={[0, Math.PI / 2, 0]} cushionColor={chairColor} style={chairStyle}/>
       {/* East Chair (Facing West) */}
-      <BistroChair3D position={[1.4, 0, 0]} rotation={[0, -Math.PI / 2, 0]} cushionColor={chairColor} />
+      <BistroChair3D position={[1.4, 0, 0]} rotation={[0, -Math.PI / 2, 0]} cushionColor={chairColor} style={chairStyle}/>
       {/* North Chair (Facing South) */}
-      <BistroChair3D position={[0, 0, -1.4]} rotation={[0, 0, 0]} cushionColor={chairColor} />
+      <BistroChair3D position={[0, 0, -1.4]} rotation={[0, 0, 0]} cushionColor={chairColor} style={chairStyle}/>
       {/* South Chair (Facing North) */}
-      <BistroChair3D position={[0, 0, 1.4]} rotation={[0, Math.PI, 0]} cushionColor={chairColor} />
+      <BistroChair3D position={[0, 0, 1.4]} rotation={[0, Math.PI, 0]} cushionColor={chairColor} style={chairStyle}/>
     </group>
   );
 }, (prev, next) => (
+  prev.level === next.level &&
   prev.identity === next.identity &&
   prev.isEating === next.isEating &&
   (prev.servedRecipeIds ?? []).join() === (next.servedRecipeIds ?? []).join() &&

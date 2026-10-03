@@ -3,13 +3,16 @@ import { Users, DollarSign, TrendingUp, TrendingDown, PieChart, Landmark, FileTe
 import { INITIAL_INVENTORY_VALUE, STARTING_MONEY } from '../gameplay';
 import { GameState } from '../hooks/useGameLoop';
 import type {businessFinance} from '../empire/empire';
+import type {WeeklyProfitLoss} from '../empire/weeklyFinance';
+import {FinancialPeriodView} from '../empire/WeeklyProfitLoss';
 
 interface StatsModalProps {
   state: GameState;
   account?:ReturnType<typeof businessFinance>;
+  weeklyReport?:WeeklyProfitLoss;
 }
 
-export const StatsModal: React.FC<StatsModalProps> = ({ state,account={openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
+export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,account={openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
   const [activeSubTab, setActiveSubTab] = useState<'statements' | 'kpis'>('statements');
 
   const formatMoney = (val: number) => {
@@ -50,6 +53,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,account={openingCa
   const laborRatio = state.stats.totalEarned > 0 ? Math.round(((state.stats.salaryCosts + state.stats.managerCosts) / state.stats.totalEarned) * 100) : 0;
 
   return (
+    <FinancialPeriodView report={weeklyReport}>
     <div className="flex flex-col h-full font-mono">
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
@@ -485,5 +489,6 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,account={openingCa
         </div>
       )}
     </div>
+    </FinancialPeriodView>
   );
 };

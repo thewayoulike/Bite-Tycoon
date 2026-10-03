@@ -1,3 +1,10 @@
+import type {WeatherDemand} from '../empire/weather';
+import type {RestaurantType} from '../data/restaurantCatalogs';
+import {chooseRestaurantType} from '../restaurantTypes';
+import {restaurantLevel,restaurantMenuLimit,upgradeRestaurant} from '../restaurantProgression';
+import {buyDiningTable} from '../tablePurchases';
+import {restaurantRush,serviceProfile,preparationBoost} from '../restaurantPersonality';
+import {RestaurantServicePlan,BistroBooking,servicePlan,changeServicePlan,isPickup,isCoffee,preparationTime,freshnessModifier,chooseServiceRecipe,bookBistroTable,cancelBistroBooking,reservedTableIds,walkInCapacity,advanceBistroBookings} from '../restaurantOperations';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {TABLE_POSITIONS,mapPos,ROOM,nextTablePosition,applyTableLayout,normalizeTableLayout,servicePoint,walkStaff,customerTravelTime} from '../restaurantLayout';
 export {TABLE_POSITIONS,mapPos} from '../restaurantLayout';
@@ -5,7 +12,7 @@ import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
 import { sounds } from '../utils/audio';
 import {advanceEmpire, applyDistrictUpdate, createEmpire, districtView, EmpireState, parseEmpireSave, SAVE_KEY, setEmpireSpeed, startEmpireWeek, unlockTestDistrict, updateRestaurant} from '../empire/empire';
 import type {ExpansionState} from '../prototype/expansionModel';
-import { SHIFT_SECONDS, STARTING_MONEY, STARTING_INVENTORY, UPGRADE_COSTS, activeRecipes, chooseRecipe, menuDemand, weeklyWages, applyManagerPurchases, finishShift, toggleMenuRecipe, hireStaff, startOrPauseArrivals, changeManagerSettings, payDueWages, serveReadyTable } from '../gameplay';
+import { SHIFT_SECONDS, STARTING_MONEY, STARTING_INVENTORY, UPGRADE_COSTS, activeRecipes, menuDemand, weeklyWages, applyManagerPurchases, finishShift, toggleMenuRecipe, hireStaff, startOrPauseArrivals, changeManagerSettings, payDueWages, serveReadyTable } from '../gameplay';
 export { UPGRADE_COSTS, SALARIES } from '../gameplay';
 
 export type CustomerState = 'entering' | 'waiting_order' | 'waiting_food' | 'eating' | 'leaving';
@@ -40,6 +47,9 @@ export interface WeekSummary {
 }
 
 export interface Customer {
+  pickupElapsed?:number;
+  pickupSlot?:number;
+  bookingName?: string;
   id: string;
   state: CustomerState;
   patience: number;
@@ -69,6 +79,7 @@ export const ONLINE_APPS = {
 };
 
 export interface Order {
+  readyAt?: number;
   id: string;
   customerId: string;
   tableId: string;
@@ -108,6 +119,12 @@ export interface CleanerEntity {
 }
 
 export interface GameState {
+  servicePlan?: RestaurantServicePlan;
+  bookings?: BistroBooking[];
+  restaurantType?: RestaurantType;
+  restaurantLevel?: number;
+  legacyRecipeIds?: string[];
+  performance?: {bestServiceRate:number;profitableStreak:number;lastWeek:number};
   money: number;
   week: number;
   time: number;
@@ -116,7 +133,7 @@ export interface GameState {
   testingUnlocked?: boolean;
   identityVersion?: number;
   tableLayoutVersion?: number;
-  restaurantIdentity?: 'diner'|'cafe'|'bistro';
+  restaurantIdentity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood';
   priorityTableId: string | null;
   pendingPayroll: { amount: number; dueWeek: number }[];
   manager: { enabled: boolean; target: number; budget: number; reserve: number; spent: number };
@@ -250,7 +267,7 @@ export function consumeFIFO(batches: {qty: number, costPerUnit: number}[], amoun
   return { remainingBatches: newBatches, costConsumed };
 }
 
-export function advanceGame(prevState: GameState, delta: number): GameState {
+export function advanceGame(prevState: GameState, delta: number, weather:WeatherDemand={visits:1,delivery:1}): GameState {
   if (prevState.phase === 'planning' || prevState.weekSummary || delta <= 0) return prevState;
   let newState = {
     ...prevState,
@@ -277,15 +294,18 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
     if (newState.time >= 100) { newState.phase = 'closing'; newState.isRestaurantOpen = false; }
   }
   newState = payDueWages(newState);
+  newState = advanceBistroBookings({...newState,tables,customers,orders});
+  tables=newState.tables;customers=newState.customers;
 
   // --- SPAWN DINE-IN CUSTOMERS ---
-  const emptyTables = tables.filter((t) => t.customerId === null && !t.isDirty);
-  if (newState.isRestaurantOpen && emptyTables.length > 0) {
-    const rush = newState.time >= 40 && newState.time < 70 ? 2 : 1;
-    const spawnChance = (0.08 + upgrades.spawnRate * 0.02) * rush * menuDemand(newState) * delta;
+  const reserved=reservedTableIds(newState);
+  const emptyTables = tables.filter((t) => t.customerId === null && !t.isDirty&&!reserved.includes(t.id));
+  if (newState.isRestaurantOpen && emptyTables.length > 0&&tables.filter(t=>t.customerId).length<walkInCapacity(newState)) {
+    const rush = newState.restaurantType?restaurantRush(newState):(newState.time >= 40 && newState.time < 70 ? 2 : 1);
+    const spawnChance = (0.08 + upgrades.spawnRate * 0.02) * rush * menuDemand(newState) * weather.visits * delta;
     if (Math.random() < spawnChance || (newState.week === 1 && newState.time >= 2 && customers.length === 0 && newState.stats.customersServed + newState.stats.customersLost === 0)) {
       const table = emptyTables[Math.floor(Math.random() * emptyTables.length)];
-      const partySize = Math.floor(Math.random() * 4) + 1;
+      const partySize = newState.restaurantType==='cafe'?1+Math.floor(Math.random()*2):newState.restaurantType==='diner'?2+Math.floor(Math.random()*3):Math.floor(Math.random() * 4) + 1;
       const walkTime = customerTravelTime(table,partySize,tables);
       const isVIP = Math.random() < 0.10;
 
@@ -303,10 +323,12 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
   }
 
   // --- SPAWN ONLINE ORDERS ---
-  if (newState.isRestaurantOpen && unlockedApps.length > 0) {
-    const appToRoll = unlockedApps[Math.floor(Math.random() * unlockedApps.length)];
-    const appData = ONLINE_APPS[appToRoll as keyof typeof ONLINE_APPS];
-    if (Math.random() < (0.03 * appData.spawnMultiplier) * menuDemand(newState) * delta) {
+  const pickupEnabled=!!newState.restaurantType&&restaurantLevel(newState)>=2&&servicePlan(newState).pickup;
+  const channels=[...unlockedApps,...(pickupEnabled&&customers.filter(c=>isPickup(c.tableId)).length<3?['pickup']:[])];
+  if (newState.isRestaurantOpen && channels.length > 0) {
+    const appToRoll = channels[Math.floor(Math.random() * channels.length)];
+    const appData = appToRoll==='pickup'?{spawnMultiplier:restaurantRush(newState),fee:0}:ONLINE_APPS[appToRoll as keyof typeof ONLINE_APPS];
+    if (Math.random() < (0.03 * appData.spawnMultiplier) * menuDemand(newState) * weather.delivery * delta) {
       const pseudoTableId = `online_${appToRoll}_${Date.now()}`;
       const vcId = `vc_${Date.now()}`;
       const unlockedRecipes = activeRecipes(newState);
@@ -318,7 +340,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
          for (let j = 0; j < itemsToOrder; j++) {
             const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (newState.inventory[ing] || 0) >= qty));
             if (availableRecipes.length > 0) {
-              const randomRecipe = chooseRecipe(availableRecipes);
+              const randomRecipe = chooseServiceRecipe(newState,availableRecipes);
 
               // FIX: Online Orders use FIFO math to consume ingredients!
               Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
@@ -337,7 +359,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
               orderedCount++;
             }
          }
-         if (orderedCount > 0) customers.push({ id: vcId, state: 'waiting_food', patience: 9999, maxPatience: 9999, tableId: pseudoTableId, actionTimer: 0, currentBill: bill, isVIP: false, vipBonus: 0, partySize: 1 });
+         if (orderedCount > 0) customers.push({ id: vcId, state: 'waiting_food', patience: 9999, maxPatience: 9999, tableId: pseudoTableId, actionTimer: 0, currentBill: bill, isVIP: false, vipBonus: 0, partySize: 1,...(appToRoll==='pickup'?{pickupElapsed:0,pickupSlot:[0,1,2].find(slot=>!customers.some(c=>isPickup(c.tableId)&&c.pickupSlot===slot))??0}:{}) });
       }
     }
   }
@@ -347,6 +369,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
   // --- CUSTOMER LOGIC & EATING ---
   customers = customers.map((c) => {
     let newC = { ...c };
+    if(isPickup(newC.tableId))newC.pickupElapsed=(newC.pickupElapsed??0)+delta;
     if (newC.state === 'entering') {
       newC.actionTimer -= delta;
       if (newC.actionTimer <= 0) newC.state = 'waiting_order';
@@ -363,7 +386,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         tables = tables.map(t => t.id === newC.tableId ? { ...t, isDirty: true } : t);
       }
     } else if (newC.state === 'eating' && !newC.tableId.startsWith('online_')) {
-      newC.patience -= 15 * delta;
+      newC.patience -= (newState.restaurantType?serviceProfile(newState).eating:15) * delta;
       if (newC.patience <= 0) {
         newC.state = 'leaving';
         const table = tables.find(t => t.id === newC.tableId);
@@ -399,14 +422,16 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
     } else if (newC.state === 'eating' && newC.tableId.startsWith('online_')) {
       newC.actionTimer -= delta;
       if (newC.actionTimer <= 0) {
-         newC.state = 'leaving'; newC.actionTimer = 0;
+         newC.state = 'leaving'; newC.actionTimer = isPickup(newC.tableId)?(45+(newC.pickupSlot??0)*2.3)/4:0;
          const appName = newC.tableId.split('_')[1];
-         const feePercent = (ONLINE_APPS[appName as keyof typeof ONLINE_APPS] || ONLINE_APPS.bitedash).fee;
+         const feePercent = appName==='pickup'?0:(ONLINE_APPS[appName as keyof typeof ONLINE_APPS] || ONLINE_APPS.bitedash).fee;
          const gross = newC.currentBill || 0;
          const fee = gross * feePercent;
          earnedThisTick += gross; feesThisTick += fee;
-         newState.stats.onlineEarned = (newState.stats.onlineEarned || 0) + gross;
-         newState.stats.onlineFees = (newState.stats.onlineFees || 0) + fee;
+         if(appName!=='pickup'){
+           newState.stats.onlineEarned = (newState.stats.onlineEarned || 0) + gross;
+           newState.stats.onlineFees = (newState.stats.onlineFees || 0) + fee;
+         }else{servedThisTick++;}
 
          orders.filter(o => o.tableId === newC.tableId).forEach(o => {
             newState.stats.itemsSold[o.recipeId] = (newState.stats.itemsSold[o.recipeId] || 0) + 1;
@@ -431,7 +456,8 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
      if (orders.filter(o => o.tableId === tId).every(o => o.state === 'ready')) {
         const customerIndex = customers.findIndex(c => c.tableId === tId);
         if (customerIndex !== -1 && customers[customerIndex].state === 'waiting_food') {
-           customers[customerIndex] = { ...customers[customerIndex], state: 'eating', actionTimer: 2.5 };
+           const c=customers[customerIndex];
+           customers[customerIndex] = { ...c, state: 'eating', actionTimer: isPickup(tId)?Math.max(2.5,(45+(c.pickupSlot??0)*2.3)/4-(c.pickupElapsed??0)+1):2.5 };
         }
      }
   }
@@ -483,7 +509,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
                   let tipMod = 1;
                   if (cust.patience < -30) tipMod = 0;
                   else if (cust.patience <= 0) tipMod = 0.5;
-                  return { ...cust, state: 'eating', patience: cust.maxPatience, tipModifier: tipMod,
+                  return { ...cust, state: 'eating', patience: cust.maxPatience, tipModifier: tipMod*freshnessModifier(newState,orders.filter(o=>o.tableId===w.targetTableId)),
                     servedRecipeIds: [...(cust.servedRecipeIds ?? []), targetOrder.recipeId] };
                 }
                 return cust;
@@ -524,7 +550,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
           for (let j = 0; j < itemsToOrder; j++) {
             const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (newState.inventory[ing] || 0) >= qty));
             if (availableRecipes.length > 0) {
-              const randomRecipe = chooseRecipe(availableRecipes);
+              const randomRecipe = chooseServiceRecipe(newState,availableRecipes);
 
               // FIX: Waiters use FIFO math to consume ingredients!
               Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
@@ -620,6 +646,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
   }
 
   // --- CHEFS COOKING & STAMINA ---
+  if(newState.restaurantType==='cafe'&&servicePlan(newState).coffeeFirst)orders.sort((a,b)=>Number(isCoffee(b.recipeId))-Number(isCoffee(a.recipeId)));
   if (newState.priorityTableId) orders.sort((a, b) => Number(b.tableId === newState.priorityTableId) - Number(a.tableId === newState.priorityTableId));
   let availableChefPower = 0;
   let activelyCooking = orders.some(o => o.state === 'cooking' || o.state === 'pending');
@@ -631,7 +658,7 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         if (chef.stamina >= 100) chef.state = 'idle';
     } else {
         const power = chef.stamina <= 20 ? 0.4 : 1;
-        availableChefPower += power * upgrades.cookingSpeed * delta * 20;
+        availableChefPower += power * upgrades.cookingSpeed * preparationBoost(newState) * delta * 20;
         if (activelyCooking) chef.stamina = Math.max(0, chef.stamina - 0.4 * delta);
       else chef.stamina = Math.min(100, chef.stamina + 4 * delta);
     }
@@ -643,11 +670,12 @@ export function advanceGame(prevState: GameState, delta: number): GameState {
         if (o.isOnFire) return o;
 
         const recipe = recipes.find(r => r.id === o.recipeId) || recipes[0];
-        const progressToAdd = Math.min(100 - o.progress, availableChefPower / recipe.cookingTime);
-        availableChefPower -= progressToAdd * recipe.cookingTime;
+        const preparation=preparationTime(newState,recipe,orders);
+        const progressToAdd = Math.min(100 - o.progress, availableChefPower / preparation);
+        availableChefPower -= progressToAdd * preparation;
         const newProgress = o.progress + progressToAdd;
-        const newState: 'ready' | 'cooking' = newProgress >= 100 ? 'ready' : 'cooking';
-        return { ...o, progress: newProgress, state: newState };
+        const orderState: 'ready' | 'cooking' = newProgress >= 100 ? 'ready' : 'cooking';
+        return { ...o, progress: newProgress, state: orderState,readyAt:orderState==='ready'?newState.time:o.readyAt };
       }
       return o;
     });
@@ -707,7 +735,7 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
   for (let j = 0; j < itemsToOrder; j++) {
     const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (tempInv[ing] || 0) >= qty));
     if (availableRecipes.length > 0) {
-      const randomRecipe = chooseRecipe(availableRecipes);
+      const randomRecipe = chooseServiceRecipe(prev,availableRecipes);
 
       // FIX: Manual Orders use FIFO math!
       Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
@@ -744,12 +772,14 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
   };
 }
 
-export type GameOptions={saveKey?:string;startingState?:GameState};
+export type GameOptions={saveKey?:string;startingState?:GameState;startingEmpire?:EmpireState;persist?:boolean;menuLimit?:number};
 export function useGameLoop(enabled=true,options:GameOptions={}) {
   const saveKey=options.saveKey??SAVE_KEY;
   const [empire, setEmpire] = useState<EmpireState>(() => {
-    try { return parseEmpireSave(localStorage.getItem(saveKey)) ?? createEmpire(structuredClone(options.startingState??INITIAL_STATE)); }
-    catch { return createEmpire(structuredClone(options.startingState??INITIAL_STATE)); }
+    const fresh=()=>options.startingEmpire?structuredClone(options.startingEmpire):createEmpire(structuredClone(options.startingState??INITIAL_STATE));
+    if(options.persist===false)return fresh();
+    try { return parseEmpireSave(localStorage.getItem(saveKey)) ?? fresh(); }
+    catch { return fresh(); }
   });
   useEffect(()=>setEmpire(prev=>({...prev,restaurants:Object.fromEntries(Object.entries(prev.restaurants).map(([id,r])=>[id,normalizeTableLayout(r)]))})),[]);
   const [saveError,setSaveError]=useState(false);
@@ -764,6 +794,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   }, [empire]);
 
   useEffect(()=>{
+    // Review sessions must neither read, write nor subscribe to the player's save.
+    if(options.persist===false)return;
     const save=()=>{
       const value=JSON.stringify(stateRef.current);
       // An idle second tab must not overwrite progress made in the active game.
@@ -780,7 +812,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     window.addEventListener('storage',sync);
     document.addEventListener('visibilitychange',save);
     return()=>{clearInterval(timer);save();window.removeEventListener('pagehide',save);window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',save);};
-  },[saveKey]);
+  },[saveKey,options.persist]);
 
   const gameTick = useCallback(() => {
     const now = Date.now();
@@ -812,25 +844,19 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
       const order = prev.orders.find(o => o.id === orderId);
       if (!order || order.state === 'ready') return prev;
       const recipe = prev.recipes.find(r => r.id === order.recipeId) || prev.recipes[0];
-      const newProgress = Math.min(100, order.progress + (prev.upgrades.cookingSpeed * 15) / recipe.cookingTime);
+      const newProgress = Math.min(100, order.progress + (prev.upgrades.cookingSpeed * preparationBoost(prev) * 15) / recipe.cookingTime);
       if (newProgress >= 100) {
         sounds.playOrderReady();
       }
-      return { ...prev, orders: prev.orders.map(o => o.id === orderId ? { ...o, state: newProgress >= 100 ? 'ready' : 'cooking', progress: newProgress } : o) };
+      return { ...prev, orders: prev.orders.map(o => o.id === orderId ? { ...o, state: newProgress >= 100 ? 'ready' : 'cooking', progress: newProgress,readyAt:newProgress>=100?prev.time:o.readyAt } : o) };
     });
   };
 
-  const buyUpgrade = (type: 'table' | 'waiter' | 'chef' | 'cleaner') => {
+  const buyUpgrade = (type: 'table' | 'waiter' | 'chef' | 'cleaner',rearrange=false) => {
     sounds.playUpgrade();
     setState(prev => {
       if (type !== 'table') return hireStaff(prev, type);
-      const cost = UPGRADE_COSTS.table(prev.tables.length);
-      if (prev.money < cost || prev.tables.length >= TABLE_POSITIONS.length) return prev;
-      const position = nextTablePosition(prev.tables);
-      if (!position) return prev;
-      return { ...prev, money: prev.money - cost,
-        stats: { ...prev.stats, upgradeCosts: prev.stats.upgradeCosts + cost, totalExpenses: prev.stats.totalExpenses + cost },
-        tables: [...prev.tables, { id: `t_${Date.now()}`, customerId: null, x: position.x, y: position.y, isDirty: false }] };
+      return buyDiningTable(prev,rearrange);
     });
   };
 
@@ -907,7 +933,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     sounds.playUpgrade();
     setState(prev => {
       const recipe = prev.recipes.find(r => r.id === recipeId);
-      if (!recipe || recipe.unlocked || prev.money < recipe.unlockCost) return prev;
+      if (!recipe || recipe.unlocked || prev.money < recipe.unlockCost || (recipe.requiredLevel??1)>restaurantLevel(prev)) return prev;
       return { ...prev, money: prev.money - recipe.unlockCost, stats: { ...prev.stats, recipeCosts: prev.stats.recipeCosts + recipe.unlockCost, totalExpenses: prev.stats.totalExpenses + recipe.unlockCost }, recipes: prev.recipes.map(r => r.id === recipeId ? { ...r, unlocked: true } : r) };
     });
   };
@@ -1000,7 +1026,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     setState(prev => ({ ...prev, weekSummary: null }));
   };
 
-  const toggleActiveRecipe = (id: string) => setState(prev => toggleMenuRecipe(prev, id));
+  const toggleActiveRecipe = (id: string) => setState(prev => toggleMenuRecipe(prev, id, options.menuLimit??restaurantMenuLimit(prev)));
   const updateManager = (changes: Partial<GameState['manager']>) => setState(prev => changeManagerSettings(prev, changes));
   const prioritizeTable = (id: string) => setState(prev => prev.orders.some(o => o.tableId === id) ? { ...prev, priorityTableId: prev.priorityTableId === id ? null : id } : prev);
 
@@ -1014,6 +1040,11 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     district:districtView(empire),
     saveError,
     actions: {
+      changeServicePlan:(changes:Partial<RestaurantServicePlan>)=>setState(prev=>changeServicePlan(prev,changes)),
+      bookBistroTable:(id:string)=>setState(prev=>bookBistroTable(prev,id)),
+      cancelBistroBooking:(id:string)=>setState(prev=>cancelBistroBooking(prev,id)),
+      chooseRestaurantType:(type:RestaurantType)=>setState(prev=>chooseRestaurantType(prev,type)),
+      upgradeRestaurant:()=>setState(upgradeRestaurant),
       updateDistrict:(update:(s:ExpansionState)=>ExpansionState)=>setEmpire(prev=>applyDistrictUpdate(prev,update,INITIAL_STATE)),
       enterRestaurant:(id:string)=>setEmpire(prev=>prev.restaurants[id]?{...prev,activeRestaurantId:id}:prev),
       startEmpireWeek:()=>setEmpire(startEmpireWeek),

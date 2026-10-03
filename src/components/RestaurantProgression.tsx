@@ -1,0 +1,17 @@
+import {useState} from 'react';
+import type {GameState} from '../hooks/useGameLoop';
+import {RestaurantType,restaurantCatalog} from '../data/restaurantCatalogs';
+import {defaultRestaurantType} from '../restaurantTypes';
+import {RESTAURANT_LEVELS,restaurantLevel,restaurantMenuLimit,restaurantUnlockBlocker} from '../restaurantProgression';
+import {RestaurantTypePicker} from './RestaurantTypePicker';
+import {UnlockDetails} from './UnlockDetails';
+import {restaurantVisibleReward} from '../restaurantPersonality';
+export function RestaurantProgression({state,id,onChoose,onUpgrade}:{state:GameState;id:string;onChoose:(type:RestaurantType)=>void;onUpgrade:()=>void}){
+ const [type,setType]=useState(defaultRestaurantType(id)),level=restaurantLevel(state),next=RESTAURANT_LEVELS[level],blocked=restaurantUnlockBlocker(state);
+ return <section className="mc-inner-panel restaurant-progress" aria-label="Restaurant levels and type"><h3>{state.restaurantType?restaurantCatalog(state.restaurantType).name:'Choose your restaurant’s specialty'} · Level {level}</h3>
+ {!state.restaurantType&&<><RestaurantTypePicker value={type} onChange={setType} id="existing-restaurant-type" legacy/><button className="mc-button-green" disabled={state.phase!=='planning'} onClick={()=>onChoose(type)}>Set restaurant type</button>{state.phase!=='planning'&&<p>Finish this week to select a type safely.</p>}</>}
+ <p>{restaurantMenuLimit(state)} menu slots · up to {level*2} tables · +{(level-1)*12}% preparation capacity{state.testingUnlocked?' · testing allows all 12 tables':''}</p>
+ <div className="restaurant-level-steps">{RESTAURANT_LEVELS.map(l=><span className={l.level<=level?'is-open':''} key={l.level}>L{l.level} · {l.slots} dishes · {l.guests.toLocaleString()} guests</span>)}</div>
+ {next?<><h3>Next: Level {next.level} · {next.name}</h3><UnlockDetails visible={`${next.slots} active dishes, ${next.level*2} table positions and ${restaurantVisibleReward(state.restaurantType??type,next.level).toLowerCase()}. Tables and recipes are purchased separately.`} milestone={`${state.stats.customersServed.toLocaleString()} / ${next.guests.toLocaleString()} guests served${next.level>=3?`; 80% served in a completed week (best ${Math.round(state.performance?.bestServiceRate??0)}%)`:''}${next.level>=4?`; 2 profitable weeks in a row (${state.performance?.profitableStreak??0}/2)`:''}.`} cost={`$${next.cost.toLocaleString()} once from this restaurant.`} recurring="No automatic new wages. Additional hires, ingredient consumption and existing lease payments remain separate." needs={`${next.slots} dishes may need more stock. Review your kitchen, waiter and cleaner workload before filling the new seats.`} next={next.level===6?'Learn flagship recipes and improve service quality.':`Level ${next.level+1}: ${RESTAURANT_LEVELS[next.level].guests.toLocaleString()} guests and ${RESTAURANT_LEVELS[next.level].slots} menu slots.`}/><p className="progress-status" role="status">{state.testingUnlocked?'Testing: service and profit targets are bypassed. ':''}{blocked??'Ready to expand. Existing tables, recipes and stock are kept.'}</p><button className="mc-button-green" disabled={!!blocked} onClick={onUpgrade}>Unlock Level {next.level} · ${next.cost.toLocaleString()}</button></>:<p className="progress-status">Flagship reached · 24 menu slots and all 12 table positions available.</p>}
+ </section>;
+}

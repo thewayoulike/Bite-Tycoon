@@ -60,6 +60,7 @@ test('every lodging type has a reachable daytime seat and nighttime bed without 
         const activity = lodgingActivity(layout, room, night);
         assert.ok(activity, `${kind} ${type} room ${room.index} ${night ? 'bed' : 'seat'} must be accessible`);
         assert.equal(activity.pose, night ? 'sleep' : 'sit');
+        if (kind === 'apartments' && !night) assert.equal(layout.items.find(item => item.id === activity.furnitureId)!.kind, 'sofa', 'Residents can reach their living room sofa');
         const route = lodgingWalkingPath(layout, room.destination, activity.approach);
         assert.ok(route.length > 1);
         for (let i = 1; i < route.length; i++) assert.ok(clearWalkingSegment(layout, route[i - 1], route[i]));

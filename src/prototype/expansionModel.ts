@@ -1,8 +1,13 @@
+import {newWeatherSeed} from '../empire/weather';
+import {validRestaurantType} from '../restaurantTypes';
+import type {RestaurantType} from '../data/restaurantCatalogs';
 import type {VenueState} from '../empire/venueSimulation';
 import type {BusinessBooks,BookCategory} from '../empire/venueFinance';
-import {autoRetailStock,RetailState,retailProduct} from '../empire/retail';
+import type {WeeklyBooks,WeeklyProfitLoss} from '../empire/weeklyFinance';
+import {autoRetailStock,RetailState,retailProduct,recommendedRetailBudget,SUPERMARKET_MAX_BUDGET} from '../empire/retail';
 import type {LodgingState} from '../empire/lodging';
-export type BusinessKind = 'restaurant' | 'cafe' | 'hotel' | 'apartments' | 'shop' | 'park';
+import type {PlazaState} from '../empire/plaza';
+export type BusinessKind = 'restaurant' | 'cafe' | 'hotel' | 'apartments' | 'shop' | 'park' | 'plaza';
 export type Property = {
   id: string; name: string; kind: BusinessKind; address: string; description: string;
   buy: number; deposit: number; rent: number; revenue: number; wages: number;
@@ -13,48 +18,93 @@ export const PROPERTIES: Property[] = [
   {id:'diner',name:'Your first diner',kind:'restaurant',address:'01 · Market Street',description:'Where it all begins. Keep the original diner healthy while you grow the neighborhood.',buy:0,deposit:0,rent:0,revenue:680,wages:59,capacity:12,unit:'seats',supplyCost:110,position:[0,0,25],accent:'#b46840',task:'Serve the lunch rush',care:'Clean the dining room'},
   {id:'cafe',name:'Corner café',kind:'cafe',address:'03 · Market Street',description:'A small coffee spot with a modest entry cost. Set drink prices, stock the counter, and keep regulars coming back.',buy:6500,deposit:1800,rent:140,revenue:540,wages:75,capacity:10,unit:'seats',supplyCost:80,position:[-25,0,25],accent:'#53776b',task:'Serve the morning queue',care:'Prepare tables & equipment'},
   {id:'bistro',name:'Garden bistro',kind:'restaurant',address:'02 · Garden Lane',description:'Your second restaurant. Its own menu, team, supplies, dining room, and cash account.',buy:9800,deposit:2600,rent:210,revenue:810,wages:115,capacity:18,unit:'seats',supplyCost:145,position:[-25,0,0],accent:'#a47945',task:'Host the dinner service',care:'Clean the dining room'},
-  {id:'shop',name:'Market & Co.',kind:'shop',address:'04 · Garden Lane',description:'A neighborhood store. Balance shelf prices and stock, serve shoppers, and improve the sales floor.',buy:7200,deposit:2100,rent:155,revenue:700,wages:85,capacity:16,unit:'shelves',supplyCost:190,position:[25,0,25],accent:'#6f7398',task:'Run the checkout',care:'Tidy the shop floor'},
+  {id:'shop',name:'Garden Lane Supermarket',kind:'shop',address:'04 · Garden Lane',description:'Run a neighborhood supermarket with fresh produce, a bakery, chilled groceries and household essentials. Choose your range, set prices, order stock and serve shoppers at the checkout.',buy:7200,deposit:2100,rent:155,revenue:700,wages:85,capacity:16,unit:'shelves',supplyCost:190,position:[25,0,25],accent:'#315e59',task:'Run the supermarket checkout',care:'Keep aisles clean and shelves stocked'},
   {id:'hotel',name:'The Marlow Hotel',kind:'hotel',address:'06 · Park Avenue',description:'A bigger investment with more to manage: room rates, arrivals, housekeeping, and guest satisfaction.',buy:18500,deposit:4800,rent:390,revenue:1320,wages:210,capacity:8,unit:'rooms',supplyCost:100,position:[25,0,0],accent:'#7c6686',task:'Check in arriving guests',care:'Prepare the guest rooms'},
   {id:'apartments',name:'Parkside apartments',kind:'apartments',address:'05 · Park Avenue',description:'Find tenants, set rents, handle repairs, and improve the building. Tenant satisfaction affects occupancy.',buy:24000,deposit:6200,rent:460,revenue:1510,wages:95,capacity:6,unit:'homes',supplyCost:65,position:[-25,0,-25],accent:'#687e94',task:'Arrange tenant viewings',care:'Resolve maintenance requests'},
-  {id:'park',name:'Willow Gardens',kind:'park',address:'07 · Riverside Walk',description:'A green escape for the whole neighborhood. Maintain the grounds, stock the refreshment kiosk, and host park events.',buy:14500,deposit:3800,rent:240,revenue:790,wages:95,capacity:40,unit:'visitors',supplyCost:60,position:[0,0,0],accent:'#6f874c',task:'Host a community event',care:'Tend paths & gardens'},
+  {id:'park',name:'Willow Galleria Mall',kind:'plaza',address:'07 · Garden Square',description:'A five-floor glass shopping mall beside Willow Gardens. Start with four shops, then unlock family shopping, a food court, leisure and sky dining. Choose tenants, set rents and build visitor facilities.',buy:14500,deposit:3800,rent:240,revenue:790,wages:95,capacity:4,unit:'starting shops · up to 20',supplyCost:60,position:[0,0,-28],accent:'#617b89',task:'Review shop applications',care:'Maintain shops & shared spaces'},
 ];
+export const PUBLIC_GARDEN:Property={...PROPERTIES[6],id:'public-garden',name:'Willow Gardens',kind:'park',position:[0,0,0],description:'Public gardens · open to everyone',unit:'visitors'};
 export type LedgerEntry = {week:number; day:number; label:string; amount:number};
 export type Business = {
+  restaurantType?:RestaurantType;
   tenure:'owned'|'leased'; cash:number; price:'value'|'standard'|'premium'; stock:number; condition:number;
   upgrade:number; helped:boolean; spending:number; inventory?:Record<string,number>; hires?:Record<string,number>;
   manager?:{enabled:boolean;budget:number;spent:number;reserve:number}; ledger:LedgerEntry[];
   venue?:VenueState;
   lodging?:LodgingState;
+  plaza?:PlazaState;
   books?:BusinessBooks;
+  weeklyBooks?:WeeklyBooks;
   menu?:Record<string,{price:number;enabled:boolean}>;
   retail?:RetailState;
+  leasePaidWeek?:number;
 };
-export type Loan={id:string;from:string;to:string;principal:number;outstanding:number;week:number};
+export type LoanRepayment={weeklyAmount:number;startWeek:number;lastScheduledWeek:number;due:number;lastAttemptDay:number};
+export type Loan={id:string;from:string;to:string;principal:number;outstanding:number;week:number;repayment?:LoanRepayment};
 export type Result={id:string;revenue:number;rent:number;wages:number;supplies:number;profit:number;cash:number};
-export type ExpansionState={week:number;day:number;businesses:Record<string,Business>;loans:Loan[];payroll:{businessId:string;amount:number;week:number}[];report:Result[];notice:string};
+export type ExpansionState={week:number;day:number;weatherSeed?:number;businesses:Record<string,Business>;loans:Loan[];payroll:{businessId:string;amount:number;week:number}[];report:Result[];closedWeek?:{week:number;reports:WeeklyProfitLoss[]};notice:string};
 export const OPENING_CASH=300;
 export const propertyById=(id:string)=>PROPERTIES.find(p=>p.id===id);
-export const BUSINESS_TEAMS:Record<BusinessKind,[string,string]>={restaurant:['Waiter','Cleaner'],cafe:['Barista','Counter assistant'],hotel:['Receptionist','Housekeeper'],apartments:['Leasing assistant','Maintenance worker'],shop:['Cashier','Stock assistant'],park:['Kiosk attendant','Groundskeeper']};
-const supplyNames:Record<BusinessKind,string[]>={restaurant:['Fresh ingredients','Drinks','Kitchen supplies'],cafe:['Coffee beans','Milk & pastries','Cups & napkins'],hotel:['Fresh linen','Guest toiletries','Cleaning supplies','Fresh towels','Refreshments','Repair supplies'],apartments:['Repair materials','Cleaning supplies','Safety supplies'],shop:['Fresh produce','Packaged goods','Household goods'],park:['Kiosk refreshments','Garden supplies','Cleaning supplies']};
+export const BUSINESS_TEAMS:Record<BusinessKind,[string,string]>={restaurant:['Waiter','Cleaner'],cafe:['Barista','Counter assistant'],hotel:['Receptionist','Housekeeper'],apartments:['Leasing assistant','Maintenance worker'],shop:['Cashier','Stock assistant'],park:['Kiosk attendant','Groundskeeper'],plaza:['Leasing assistant','Building caretaker']};
+const supplyNames:Record<BusinessKind,string[]>={restaurant:['Fresh ingredients','Drinks','Kitchen supplies'],cafe:['Coffee beans','Milk & pastries','Cups & napkins'],hotel:['Fresh linen','Guest toiletries','Cleaning supplies','Fresh towels','Refreshments','Repair supplies'],apartments:['Repair materials','Cleaning supplies','Safety supplies'],shop:['Fresh produce','Packaged goods','Household goods'],park:['Kiosk refreshments','Garden supplies','Cleaning supplies'],plaza:['Cleaning supplies','Repair materials','Safety supplies']};
 export function createBusiness(tenure:Business['tenure'],cash=0):Business{return{tenure,cash,price:'standard',stock:100,condition:100,upgrade:0,helped:false,spending:0,ledger:[]};}
-export function initialExpansion(cash=8500):ExpansionState{return{week:3,day:1,businesses:{diner:{...createBusiness('owned',cash),condition:92,ledger:[{week:3,day:1,label:'Sample savings from diner trading',amount:cash}]}},loans:[],payroll:[],report:[],notice:'Your diner has sample savings. Each property keeps its own cash; lending between businesses is tracked and repayable.'};}
+export function initialExpansion(cash=8500):ExpansionState{return{week:3,day:1,weatherSeed:newWeatherSeed(),businesses:{diner:{...createBusiness('owned',cash),condition:92,ledger:[{week:3,day:1,label:'Sample savings from diner trading',amount:cash}]}},loans:[],payroll:[],report:[],notice:'Your diner has sample savings. Each property keeps its own cash; lending between businesses is tracked and repayable.'};}
 function record(b:Business,state:Pick<ExpansionState,'week'|'day'>,label:string,amount:number,category?:BookCategory):Business{return{...b,cash:b.cash+amount,...(b.books?{books:category?{...b.books,[category]:b.books[category]-amount}:b.books}:{}),ledger:[...b.ledger,{week:state.week,day:state.day,label,amount}].slice(-60)};}
 function changed(state:ExpansionState,id:string,b:Business,notice=state.notice):ExpansionState{return{...state,businesses:{...state.businesses,[id]:b},notice};}
 export function lendCash(state:ExpansionState,from:string,to:string,amount:number):ExpansionState{
   const lender=state.businesses[from],borrower=state.businesses[to];
   if(!lender||!borrower||from===to||!Number.isFinite(amount)||amount<=0||amount>lender.cash)return{...state,notice:'Choose two different businesses and an amount the lender can afford.'};
-  const loan:Loan={id:`loan-${state.loans.length+1}`,from,to,principal:amount,outstanding:amount,week:state.week};
-  return{...state,businesses:{...state.businesses,[from]:record(lender,state,`Loan to ${propertyById(to)!.name}`,-amount),[to]:record(borrower,state,`Loan from ${propertyById(from)!.name}`,amount)},loans:[...state.loans,loan],notice:`${propertyById(from)!.name} lent $${amount.toLocaleString()} to ${propertyById(to)!.name}. Repayment is tracked in Finance.`};
+  amount=Math.round(amount*100)/100;if(amount<=0||amount>lender.cash)return state;
+  let loan:Loan={id:`loan-${state.loans.length+1}`,from,to,principal:amount,outstanding:amount,week:state.week};
+  loan={...loan,repayment:loanRepayment(loan,state.week)};
+  return{...state,businesses:{...state.businesses,[from]:record(lender,state,`Loan to ${propertyById(to)!.name}`,-amount),[to]:record(borrower,state,`Loan from ${propertyById(from)!.name}`,amount)},loans:[...state.loans,loan],notice:`${propertyById(from)!.name} lent $${amount.toLocaleString()} to ${propertyById(to)!.name}. Repayments are automatic from Week ${state.week+1}, Day 4; see Loans for the schedule.`};
 }
-export function repayLoan(state:ExpansionState,loanId:string,amount:number):ExpansionState{
-  const loan=state.loans.find(l=>l.id===loanId);if(!loan||!Number.isFinite(amount)||amount<=0||amount>loan.outstanding||state.businesses[loan.to].cash<amount)return state;
-  return{...state,businesses:{...state.businesses,[loan.to]:record(state.businesses[loan.to],state,`Repayment to ${propertyById(loan.from)!.name}`,-amount),[loan.from]:record(state.businesses[loan.from],state,`Repayment from ${propertyById(loan.to)!.name}`,amount)},loans:state.loans.map(l=>l.id===loanId?{...l,outstanding:l.outstanding-amount}:l),notice:`Loan repayment of $${amount.toLocaleString()} completed. Business accounts remain separate.`};
+export function repayLoan(state:ExpansionState,loanId:string,amount:number,automatic=false):ExpansionState{
+  const loan=state.loans.find(l=>l.id===loanId);if(!loan||!state.businesses[loan.to]||!state.businesses[loan.from]||!Number.isFinite(amount)||amount<=0||amount>loan.outstanding||state.businesses[loan.to].cash<amount)return state;
+  amount=Math.round(amount*100)/100;if(!amount||amount>loan.outstanding||amount>state.businesses[loan.to].cash)return state;
+  const schedule=loanRepayment(loan,state.week),outstanding=Math.round((loan.outstanding-amount)*100)/100,prefix=automatic?'Automatic loan repayment':'Repayment';
+  return{...state,businesses:{...state.businesses,[loan.to]:record(state.businesses[loan.to],state,`${prefix} to ${propertyById(loan.from)!.name}`,-amount),[loan.from]:record(state.businesses[loan.from],state,`${prefix} from ${propertyById(loan.to)!.name}`,amount)},loans:state.loans.map(l=>l.id===loanId?{...l,outstanding,repayment:{...schedule,due:Math.min(outstanding,Math.max(0,Math.round((schedule.due-amount)*100)/100))}}:l),notice:`${automatic?'Automatic loan':'Loan'} repayment of $${amount.toLocaleString()} completed. Business accounts remain separate.`};
 }
-export function acquire(state:ExpansionState,id:string,tenure:Business['tenure'],fundingId='diner'):ExpansionState{
+
+/** Legacy balances get a forward-only schedule; loading a save never debits cash. */
+export function loanRepayment(loan:Loan,currentWeek:number):LoanRepayment{
+  return loan.repayment??{weeklyAmount:Math.ceil(loan.principal*10)/100,startWeek:currentWeek+1,lastScheduledWeek:currentWeek,due:0,lastAttemptDay:-1};
+}
+export function ensureLoanRepayments(state:ExpansionState):ExpansionState{
+  if(state.loans.every(l=>l.repayment||l.outstanding<=0))return state;
+  return {...state,loans:state.loans.map(l=>l.outstanding>0&&!l.repayment?{...l,repayment:loanRepayment(l,state.week)}:l)};
+}
+export function automaticLoanPayments(state:ExpansionState):ExpansionState{
+  let next=ensureLoanRepayments(state);
+  const dueWeek=state.week-(state.day<4?1:0),absoluteDay=(state.week-1)*7+state.day;
+  // Oldest loan first. Rent stays reserved in its own business account.
+  for(const original of next.loans){
+    if(original.outstanding<=0||!next.businesses[original.from]||!next.businesses[original.to])continue;
+    let schedule=loanRepayment(original,state.week);
+    const first=Math.max(schedule.startWeek,schedule.lastScheduledWeek+1);
+    if(dueWeek>=first)schedule={...schedule,lastScheduledWeek:dueWeek,due:Math.min(original.outstanding,Math.round((schedule.due+(dueWeek-first+1)*schedule.weeklyAmount)*100)/100)};
+    if(schedule.due<=0||schedule.lastAttemptDay===absoluteDay)continue;
+    schedule={...schedule,lastAttemptDay:absoluteDay};
+    next={...next,loans:next.loans.map(l=>l.id===original.id?{...l,repayment:schedule}:l)};
+    const borrower=next.businesses[original.to],p=propertyById(original.to)!;
+    const rentReserve=borrower.tenure==='leased'&&(borrower.leasePaidWeek??0)<state.week?p.rent:0;
+    const available=Math.max(0,Math.floor((borrower.cash-rentReserve+1e-8)*100)/100);
+    const payment=Math.min(schedule.due,original.outstanding,available);
+    if(payment>0)next=repayLoan(next,original.id,payment,true);
+  }
+  return next;
+}
+/** Scheduled lease expense, charged once for a particular closing week. */
+export function payWeeklyLease(p:Property,b:Business,state:Pick<ExpansionState,'week'|'day'>):Business{
+  if(b.tenure!=='leased'||!p.rent||(b.leasePaidWeek??0)>=state.week)return b;
+  return {...record(b,{...state,day:7},'Automatic weekly lease payment',-p.rent,'rent'),leasePaidWeek:state.week};
+}
+export function acquire(state:ExpansionState,id:string,tenure:Business['tenure'],fundingId='diner',restaurantType?:RestaurantType):ExpansionState{
   const p=propertyById(id),source=state.businesses[fundingId];if(!p||state.businesses[id]||!source)return state;
   const cost=tenure==='owned'?p.buy:p.deposit,total=cost+OPENING_CASH;
   if(cost<=0||source.cash<total)return{...state,notice:`The funding business needs $${total.toLocaleString()}, including $${OPENING_CASH} opening cash.`};
-  const funded=lendCash({...state,businesses:{...state.businesses,[id]:createBusiness(tenure)}},fundingId,id,total);
+  if(restaurantType!==undefined&&(!['restaurant','cafe'].includes(p.kind)||!validRestaurantType(restaurantType)))return state;
+  const funded=lendCash({...state,businesses:{...state.businesses,[id]:{...createBusiness(tenure),...(restaurantType?{restaurantType}:{})}}},fundingId,id,total);
   return changed({...funded,report:[]},id,record(funded.businesses[id],state,tenure==='owned'?'Building purchase & setup':'Lease deposit & setup',-cost),`${p.name} opened with its own $${OPENING_CASH} cash. ${propertyById(fundingId)!.name} lent $${total.toLocaleString()} for acquisition and setup.`);
 }
 export function businessSupplies(p:Property,b:Business){
@@ -85,7 +135,7 @@ export function hireBusinessStaff(state:ExpansionState,id:string,role:'service'|
   const p=propertyById(id),b=state.businesses[id];if(!p||!b)return state;
   if(role==='manager'?!!b.manager:(b.hires?.[role]??0)>=(b.lodging?8:2))return state;
   const cost=role==='manager'?250:120;if(b.cash<cost)return{...state,notice:`${p.name} needs $${cost} to hire. Arrange a loan in Finance if needed.`};
-  const next=role==='manager'?{...b,manager:{enabled:true,budget:80,spent:0,reserve:150}}:{...b,hires:{...b.hires,[role]:(b.hires?.[role]??0)+1}};
+  const next=role==='manager'?{...b,manager:{enabled:true,budget:b.retail?recommendedRetailBudget(b):80,spent:0,reserve:150}}:{...b,hires:{...b.hires,[role]:(b.hires?.[role]??0)+1}};
   const result=changed(state,id,record(next,state,`${role==='manager'?'Purchasing manager':role==='maintenance'?'Maintenance worker':BUSINESS_TEAMS[p.kind][role==='service'?0:1]} hiring fee`,-cost,'hiring'),`Staff hired at ${p.name}. Wages are charged only to this business.`);
   return role==='manager'?autoStockBusiness(result,id):result;
 }
@@ -99,7 +149,8 @@ export function restockBusinessItem(state:ExpansionState,id:string,itemId:string
 }
 export function setBusinessManager(state:ExpansionState,id:string,changes:Partial<NonNullable<Business['manager']>>):ExpansionState{
   const b=state.businesses[id];if(!b?.manager)return state;
-  const manager={...b.manager,...changes,budget:Math.max(0,Math.min(300,changes.budget??b.manager.budget)),reserve:Math.max(0,changes.reserve??b.manager.reserve),spent:b.manager.spent};
+  if(changes.budget!==undefined&&!Number.isFinite(changes.budget)||changes.reserve!==undefined&&!Number.isFinite(changes.reserve))return state;
+  const manager={...b.manager,...changes,budget:Math.max(0,Math.min(b.retail?SUPERMARKET_MAX_BUDGET:300,changes.budget??b.manager.budget)),reserve:Math.max(0,changes.reserve??b.manager.reserve),spent:b.manager.spent};
   return autoStockBusiness(changed(state,id,{...b,manager}),id);
 }
 export function autoStockBusiness(state:ExpansionState,id:string):ExpansionState{
@@ -116,15 +167,15 @@ function settlePayroll(state:ExpansionState):ExpansionState{
   const businesses={...state.businesses};for(const pay of due)businesses[pay.businessId]=record(businesses[pay.businessId],state,'Weekly wages',-pay.amount,'wagesPaid');
   return{...state,businesses,payroll:state.payroll.filter(p=>!due.includes(p)),notice:'Due wages paid from each business’s own account.'};
 }
-export function finishWeek(state:ExpansionState):ExpansionState{
-  const settled=settlePayroll(state),report=Object.entries(settled.businesses).map(([id,b])=>project(propertyById(id)!,b));
+export function finishWeek(state:ExpansionState,autoLoans=true):ExpansionState{
+  const payroll=settlePayroll(state),settled=autoLoans?automaticLoanPayments({...payroll,day:7}):payroll,report=Object.entries(settled.businesses).map(([id,b])=>project(propertyById(id)!,b));
   const businesses=Object.fromEntries(Object.entries(settled.businesses).map(([id,b])=>{
     const result=report.find(r=>r.id===id)!;
     if(b.venue){
-      let next=b;if(result.rent)next=record(next,state,'Weekly lease payment',-result.rent,'rent');
+      let next=payWeeklyLease(propertyById(id)!,b,state);
       return[id,{...next,spending:0,helped:false,...(b.lodging?{lodging:{...b.lodging,bookings:b.lodging.bookings.map(booking=>booking.status==='waiting'?{...booking,status:'cancelled' as const}:booking),lastReport:{week:state.week,occupancy:b.lodging.availableSeconds?b.lodging.occupiedSeconds/b.lodging.availableSeconds*100:0,averageRate:b.lodging.roomNights?b.lodging.roomRevenue/b.lodging.roomNights:0,reputation:b.lodging.reputation,served:b.venue.week.served,lost:b.venue.week.lost,revenue:b.venue.week.revenue}}}:{}),venue:{...b.venue,running:false,visitors:b.venue.visitors.filter(v=>v.state==='using'),week:{...b.venue.week,lost:b.venue.week.lost+b.venue.visitors.filter(v=>v.state==='waiting').length}},manager:b.manager?{...b.manager,spent:0}:undefined}];
     }
-    let next=record(b,state,'Weekly sales collected',result.revenue);if(result.rent)next=record(next,state,'Weekly lease payment',-result.rent);
+    let next=payWeeklyLease(propertyById(id)!,record(b,state,'Weekly sales collected',result.revenue),state);
     return[id,{...next,inventory:Object.fromEntries(businessSupplies(propertyById(id)!,b).map(i=>[i.id,Math.max(0,i.quantity-35)])),stock:Math.max(0,b.stock-35),condition:Math.max(0,b.condition-Math.max(2,12-(b.hires?.care??0)*4)),helped:false,spending:0,manager:b.manager?{...b.manager,spent:0}:undefined}];
   }));
   let next:ExpansionState={...settled,week:state.week+1,day:1,businesses,report,payroll:[...settled.payroll,...report.map(r=>({businessId:r.id,amount:r.wages,week:state.week+1}))],notice:`Week ${state.week} closed. Sales and rent settled separately for each business. Wages are due after Day 3 of Week ${state.week+1}.`};
@@ -132,8 +183,9 @@ export function finishWeek(state:ExpansionState):ExpansionState{
   next.report=next.report.map(r=>({...r,cash:next.businesses[r.id].cash}));
   return next;
 }
-export function nextDay(state:ExpansionState):ExpansionState{
-  if(state.day===7)return finishWeek(state);
+export function nextDay(state:ExpansionState,autoLoans=true):ExpansionState{
+  if(state.day===7)return finishWeek(state,autoLoans);
   const next={...state,day:state.day+1,report:[],notice:`Week ${state.week}, Day ${state.day+1}. Manage each business or finish the week to collect its sales.`};
-  return next.day>=4?settlePayroll(next):next;
+  const paid=next.day>=4?settlePayroll(next):next;
+  return autoLoans?automaticLoanPayments(paid):paid;
 }

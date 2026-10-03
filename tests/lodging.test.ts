@@ -3,11 +3,85 @@ import assert from 'node:assert/strict';
 import {INITIAL_STATE} from '../src/hooks/useGameLoop';
 import {createEmpire,unlockTestDistrict,startEmpireWeek,parseEmpireSave} from '../src/empire/empire';
 import {advanceVenue,operateVenue,startVenueWeek} from '../src/empire/venueSimulation';
-import {absoluteTime,ensureLodging,manageLodging,maxFloors,newLodgingUnit,nextFloorCost,unitReady} from '../src/empire/lodging';
-import {autoStockBusiness,propertyById} from '../src/prototype/expansionModel';
+import {absoluteTime,ensureLodging,manageLodging,maxFloors,newLodgingUnit,nextFloorCost,unitReady,roomNeedsRepair,roomRepairBlocker,lodgingRepairStatus} from '../src/empire/lodging';
+import {autoStockBusiness,propertyById,hireBusinessStaff,restockBusinessItem} from '../src/prototype/expansionModel';
 import {venueFinancials} from '../src/empire/venueFinance';
 const fresh=()=>unlockTestDistrict(createEmpire(structuredClone(INITIAL_STATE)),INITIAL_STATE);
 const close=(a:number,b:number)=>assert.ok(Math.abs(a-b)<.001,`${a} != ${b}`);
+
+test('hired maintenance staff repair the same faults shown in the queue, including occupied rooms',()=>{
+ for(const id of ['hotel','apartments'])for(const fault of [false,true]){
+  let s=startEmpireWeek(fresh()).district;s=hireBusinessStaff(s,id,'maintenance');const p=propertyById(id)!;
+  const hired=s.businesses[id],repairStock=id==='hotel'?'stock-5':'stock-0';
+  const b={...hired,lodging:{...hired.lodging!,lastBookingDay:0,lastIssueDay:0,shifts:{service:'evening' as const,care:'evening' as const,maintenance:'all' as const},issues:fault?[{id:400,unit:0,kind:'repair' as const,description:'Fault',deadline:100}]:[]},venue:{...hired.venue!,clock:0,arrivalTimer:100,units:hired.venue!.units.map((u,i)=>i?u:{...u,condition:fault?85:64,occupied:true,checkoutAt:100})}};
+  assert.equal(roomNeedsRepair(b,0),true);assert.match(lodgingRepairStatus(p,b),/1 repair queued/);
+  const after=advanceVenue(p,b,10,s.week,s.day);assert.equal(after.venue!.units[0].condition,100);assert.equal(after.venue!.units[0].occupied,true);
+  close(after.cash,b.cash-15);assert.equal(after.inventory![repairStock],b.inventory![repairStock]-2);
+  if(fault)assert.equal(after.lodging!.issues[0].resolved,'Repaired');
+  const f=venueFinancials(p,after,s);close(f.assets,f.liabilities+f.equity);
+ }
+});
+
+test('repair blockers explain shifts, unopened weeks and missing supplies; restocking resumes staff work',()=>{
+ for(const id of ['hotel','apartments']){
+  let s=startEmpireWeek(fresh()).district;s=hireBusinessStaff(s,id,'maintenance');const p=propertyById(id)!,key=id==='hotel'?'stock-5':'stock-0',hired=s.businesses[id];
+  const damaged={...hired,lodging:{...hired.lodging!,lastBookingDay:0,lastIssueDay:0,shifts:{service:'evening' as const,care:'evening' as const,maintenance:'all' as const}},venue:{...hired.venue!,clock:0,arrivalTimer:100,units:hired.venue!.units.map((u,i)=>i?u:{...u,condition:40})}};
+  const closed={...damaged,venue:{...damaged.venue,running:false}};
+  assert.match(lodgingRepairStatus(p,closed),/start the week/);assert.equal(advanceVenue(p,closed,10,1,1),closed);
+  const off={...damaged,lodging:{...damaged.lodging,shifts:{...damaged.lodging.shifts,maintenance:'evening' as const}}};
+  assert.match(lodgingRepairStatus(p,off),/off shift/);assert.equal(advanceVenue(p,off,10,1,1).venue!.units[0].condition,40);
+  const dry={...damaged,inventory:{...damaged.inventory,[key]:0}};
+  assert.match(roomRepairBlocker(p,dry,0)!,/Order more in Inventory/);assert.match(lodgingRepairStatus(p,dry),/Staff waiting/);
+  let b=advanceVenue(p,dry,10,1,1);assert.equal(b.venue!.units[0].condition,40);assert.equal(b.cash,dry.cash);
+  s={...s,businesses:{...s.businesses,[id]:b}};s=restockBusinessItem(s,id,key,10);b=s.businesses[id];
+  const repaired=advanceVenue(p,b,10,1,1);assert.equal(repaired.venue!.units[0].condition,100);close(repaired.cash,b.cash-15);
+  const poor={...damaged,cash:14};assert.match(roomRepairBlocker(p,poor,0)!,/Needs \$15/);assert.equal(advanceVenue(p,poor,10,1,1).venue!.units[0].condition,40);
+ }
+});
+
+test('manual repair works with hired staff before opening, charges once, and apartment cleaning uses cleaning supplies',()=>{
+ for(const id of ['hotel','apartments']){
+  let s=fresh().district;s=hireBusinessStaff(s,id,'maintenance');const p=propertyById(id)!,old=s.businesses[id];
+  const b={...old,venue:{...old.venue!,units:old.venue!.units.map((u,i)=>i?u:{...u,condition:80,dirty:true,cleanliness:20})}};
+  s={...s,businesses:{...s.businesses,[id]:b}};assert.equal(roomRepairBlocker(p,b,0),null);
+  s=manageLodging(s,id,{type:'repair',unit:0});const repaired=s.businesses[id];assert.equal(repaired.venue!.units[0].condition,100);assert.equal(repaired.venue!.units[0].dirty,true);close(repaired.cash,b.cash-15);
+  assert.equal(manageLodging(s,id,{type:'repair',unit:0}).businesses[id],repaired);
+  if(id==='apartments'){
+   s=operateVenue(s,id,'clean',0);const clean=s.businesses[id];assert.equal(clean.venue!.units[0].dirty,false);assert.equal(clean.inventory!['stock-1'],repaired.inventory!['stock-1']-2);assert.equal(clean.inventory!['stock-0'],repaired.inventory!['stock-0']);assert.equal(clean.cash,repaired.cash);
+  }
+ }
+});
+
+test('additional maintenance workers increase repair throughput without double-charging completed jobs',()=>{
+ let s=startEmpireWeek(fresh()).district;s=hireBusinessStaff(s,'hotel','maintenance');s=hireBusinessStaff(s,'hotel','maintenance');const b=s.businesses.hotel;
+ const damaged={...b,lodging:{...b.lodging!,lastBookingDay:0,lastIssueDay:0},venue:{...b.venue!,clock:0,arrivalTimer:100,units:b.venue!.units.map((u,i)=>i<2?{...u,condition:40}:u)}};
+ const first=advanceVenue(propertyById('hotel')!,damaged,5,1,1);assert.equal(first.venue!.units[0].condition,100);assert.equal(first.venue!.units[1].condition,40);
+ const second=advanceVenue(propertyById('hotel')!,first,5,1,1);assert.equal(second.venue!.units[1].condition,100);close(second.cash,damaged.cash-30);
+});
+test('renovations change one unit once, with no duplicate charge, rate reset or free repair',()=>{
+ for(const id of ['hotel','apartments']){
+  let s=fresh().district;const before=s.businesses[id],type=id==='hotel'?'suite':'twobed';
+  assert.equal(manageLodging(s,id,{type:'renovate',unit:0,roomType:before.venue!.units[0].type!}).businesses[id],before);
+  s=manageLodging(s,id,{type:'renovate',unit:0,roomType:type});const renovated=s.businesses[id];
+  assert.equal(renovated.venue!.units[0].type,type);close(renovated.cash,before.cash-(id==='hotel'?1400:1000));
+  assert.deepEqual(renovated.venue!.units.slice(1),before.venue!.units.slice(1));
+  for(let n=0;n<5;n++){s=manageLodging(s,id,{type:'renovate',unit:0,roomType:type});assert.equal(s.businesses[id],renovated);}
+  s=manageLodging(s,id,{type:'rate',unit:0,rate:400});
+  const custom={...s.businesses[id],venue:{...s.businesses[id].venue!,units:s.businesses[id].venue!.units.map((u,i)=>i?u:{...u,condition:70,dirty:true})}};
+  s={...s,businesses:{...s.businesses,[id]:custom}};
+  assert.equal(manageLodging(s,id,{type:'renovate',unit:0,roomType:type}).businesses[id],custom);
+  const statements=venueFinancials(propertyById(id)!,custom,s);close(statements.assets,statements.liabilities+statements.equity);
+ }
+});
+
+test('occupied and reserved units cannot be converted or charged',()=>{
+ for(const id of ['hotel','apartments'])for(const reserved of [false,true]){
+  let s=fresh().district;const before=s.businesses[id];
+  const b={...before,venue:{...before.venue!,units:before.venue!.units.map((u,i)=>i?u:{...u,occupied:!reserved})},lodging:{...before.lodging!,bookings:reserved?[{id:200,name:'Existing reservation',type:before.venue!.units[0].type!,unit:0,rate:85,nights:1,arrival:100,status:'reserved' as const,kind:'booking' as const}]:[]}};
+  s={...s,businesses:{...s.businesses,[id]:b}};
+  assert.equal(manageLodging(s,id,{type:'renovate',unit:0,roomType:id==='hotel'?'family':'onebed'}).businesses[id],b);
+ }
+});
 test('three starter leases unlock apartment expansion without waiting six weeks for turnover',()=>{
  let s=fresh().district,b=s.businesses.apartments;s={...s,businesses:{...s.businesses,apartments:{...b,venue:{...b.venue!,totalServed:3,units:b.venue!.units.map(u=>({...u,occupied:true}))}}}};
  s=manageLodging(s,'apartments',{type:'floor'});assert.equal(s.businesses.apartments.lodging!.openFloors,2);assert.equal(s.businesses.apartments.venue!.units.length,6);assert.equal(s.businesses.apartments.venue!.units.filter(u=>u.occupied).length,3);

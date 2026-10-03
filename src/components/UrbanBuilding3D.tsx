@@ -109,7 +109,7 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
   <mesh geometry={model.rooms}><meshStandardMaterial vertexColors roughness={.87}/></mesh>
   <mesh geometry={model.glass}><meshStandardMaterial vertexColors roughness={.24} metalness={.35} envMapIntensity={.65}/></mesh>
   <mesh geometry={model.lit}><meshStandardMaterial vertexColors roughness={.8} emissive={isNight?'#efc28b':'#000000'} emissiveIntensity={isNight?.65:0}/></mesh>
-  <mesh position={[0,groundHeight-.27,hotel?8.22:6.24]}><boxGeometry args={[hotel?6:12.6,.48,.12]}/><meshStandardMaterial color={modern?'#353b40':hotel?'#554c43':'#383f3d'} roughness={.75}/></mesh>
+  <mesh position={[0,groundHeight-.27,hotel?8.22:6.24]}><boxGeometry args={[hotel?6:12.6,.48,.12]}/><meshStandardMaterial color={p.id==='shop'?p.accent:modern?'#353b40':hotel?'#554c43':'#383f3d'} roughness={.75}/></mesh>
   <mesh position={[0,groundHeight-.26,hotel?8.288:6.308]}><planeGeometry args={[hotel?5.5:11.8,.4]}/><meshBasicMaterial map={getSignTexture(p.name.toUpperCase())} transparent depthWrite={false}/></mesh>
   {selected&&<mesh position={[0,.11,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[14.5,14]}/><meshBasicMaterial color="#c4ac72" transparent opacity={.2} depthWrite={false}/></mesh>}
   {interactive&&labels&&<Html position={[0,height+1.4,0]} center zIndexRange={[4,0]}><button className={`map-pin ${selected?'selected':''}`} onClick={e=>{e.stopPropagation();onSelect();}} aria-label={`Select ${p.name}`}><span className={owned?'owned-dot':'available-dot'}/>{p.name}<small>{owned?'Your business':'Available'}</small></button></Html>}

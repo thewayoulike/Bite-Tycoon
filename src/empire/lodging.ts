@@ -4,6 +4,7 @@ import type {VenueUnit} from './venueSimulation';
 import {worldTime} from './worldTime';
 
 export type RoomType='standard'|'double'|'family'|'suite'|'studio'|'onebed'|'twobed'|'penthouse';
+export const roomLayoutDescription:Record<RoomType,string>={standard:'Single bed, work desk and private bathroom.',double:'Double bed, bedside tables, work desk and a compact sofa.',family:'Two beds, extra seating, family storage and private bathroom.',suite:'King bed with a bedroom divider, separate lounge and side table.',studio:'Open-plan sleeping and living area with a kitchenette and bathroom.',onebed:'Separate bedroom, kitchen, dining nook and living room.',twobed:'Two enclosed bedrooms, kitchen, breakfast nook and living room.',penthouse:'Large bedroom, full kitchen, formal dining area and a larger lounge.'};
 export type LodgingBooking={id:number;name:string;type:RoomType;rate:number;nights:number;arrival:number;departure?:number;unit?:number;status:'reserved'|'waiting'|'staying'|'completed'|'cancelled';kind:'booking'|'walk-in'|'family'|'group';review?:number;leaseEnd?:number};
 export type LodgingIssue={id:number;unit:number;kind:'noise'|'service'|'repair';description:string;deadline:number;resolved?:string};
 export type StaffShift='all'|'morning'|'afternoon'|'evening';
@@ -26,6 +27,27 @@ export const absoluteTime=(week:number,clock:number)=>(week-1)*180+clock;
 export const lodgingClock=(b:Business)=>worldTime((b.venue?.clock??0)/1.8);
 export function shiftActive(b:Business,role:string){const h=lodgingClock(b).hours,shift=b.lodging?.shifts[role]??'all';return shift==='all'||(shift==='morning'?h>=6&&h<14:shift==='afternoon'?h>=14&&h<22:h>=22||h<6);}
 export const staffCount=(p:Property,b:Business,role:string)=>(role==='maintenance'?0:1)+(b.hires?.[role]??0);
+export const ROOM_REPAIR_COST=15;
+export const ROOM_REPAIR_SUPPLIES=2;
+export const roomNeedsRepair=(b:Business,index:number)=>(b.venue?.units[index]?.condition??100)<65||!!b.lodging?.issues.some(i=>i.unit===index&&i.kind==='repair'&&!i.resolved);
+export const repairSupply=(p:Property,b:Business)=>businessSupplies(p,b).find(i=>i.id===(p.kind==='hotel'?'stock-5':'stock-0'))!;
+export function roomRepairBlocker(p:Property,b:Business,index:number):string|null{
+ const unit=b.venue?.units[index];if(!unit)return 'Room unavailable.';
+ if((unit.condition??100)>=100&&!roomNeedsRepair(b,index))return 'No repairs needed.';
+ if(b.cash<ROOM_REPAIR_COST)return `Needs $${ROOM_REPAIR_COST} in this business’s account.`;
+ const supply=repairSupply(p,b);if(supply.quantity<ROOM_REPAIR_SUPPLIES)return `Needs ${ROOM_REPAIR_SUPPLIES} ${supply.name.toLowerCase()} · ${supply.quantity} in stock. Order more in Inventory.`;
+ return null;
+}
+export function lodgingRepairStatus(p:Property,b:Business):string{
+ const jobs=b.venue?.units.map((_,i)=>i).filter(i=>roomNeedsRepair(b,i))??[];
+ if(!jobs.length)return 'No urgent repairs. Staff repair reported faults or rooms below 65% condition; you can repair wear manually at any time.';
+ const roles=p.kind==='apartments'?['care','maintenance']:['maintenance'];
+ if(!roles.some(role=>staffCount(p,b,role)>0))return 'Hire a maintenance worker for automatic repairs. Housekeepers clean rooms; you can still repair manually.';
+ if(!b.venue?.running)return 'Staff repairs resume when you start the week. You can repair manually before opening.';
+ if(!roles.some(role=>staffCount(p,b,role)>0&&shiftActive(b,role)))return 'Repair staff are off shift. Change their shift in Staff, or repair manually.';
+ const blocked=roomRepairBlocker(p,b,jobs[0]);if(blocked)return `Staff waiting: ${blocked}`;
+ return `${jobs.length} repair${jobs.length===1?'':'s'} queued · staff work while the game is running. Each job uses $${ROOM_REPAIR_COST} and ${ROOM_REPAIR_SUPPLIES} ${repairSupply(p,b).name.toLowerCase()}.`;
+}
 export const unitReady=(u:VenueUnit)=>!u.occupied&&!u.dirty&&(u.condition??100)>=35;
 export const roomLabel=(p:Property,i:number)=>`${p.kind==='hotel'?'Room':'Home'} ${Math.floor(i/roomsPerFloor(p))+1}${String(i%roomsPerFloor(p)+1).padStart(2,'0')}`;
 export const nextFloorCost=(p:Property,b:Business)=>(p.kind==='hotel'?3000:2400)*((b.lodging?.openFloors??1)+1);
@@ -79,14 +101,16 @@ export function manageLodging(state:ExpansionState,id:string,action:LodgingActio
    const type=roomTypes(p).find(t=>t.id===u.type)??roomTypes(p)[0];if(!Number.isFinite(action.rate)||action.rate<type.rate*.5||action.rate>type.rate*3)return refuse('Rate must be between 50% and 300% of the room’s base rate.');
    units[action.unit]={...u,rate:action.rate};label='Rate updated for new bookings; agreed rates stay fixed';
   }else if(action.type==='renovate'){
-   if(u.occupied||l.bookings.some(v=>v.unit===action.unit&&['reserved','waiting'].includes(v.status)))return refuse('Wait until this room and its reservations are clear.');
    const type=roomTypes(p).find(t=>t.id===action.roomType);if(!type)return state;
+   if((u.type??roomTypes(p)[0].id)===type.id)return refuse(`${type.name} is already installed. No charge was made.`);
+   if(u.occupied||l.bookings.some(v=>v.unit===action.unit&&['reserved','waiting'].includes(v.status)))return refuse('Wait until this room and its reservations are clear.');
    cost=type.renovation;category='upgrades';units[action.unit]={...u,type:type.id,rate:type.rate,condition:100,cleanliness:100,dirty:false,level:Math.min(5,(u.level??1)+1)};label=`${roomLabel(p,action.unit)} renovated to ${type.name}`;
   }else if(action.type==='clean'){
    if(p.kind==='hotel'&&u.occupied)return refuse('The guest is still in this room.');
    const supplied=useLodgingSupplies(p,b,p.kind==='hotel'?{'stock-0':1,'stock-3':1,'stock-2':2}:{'stock-1':2});if(!supplied)return refuse('Need linen, towels and cleaning products.');b=supplied;units[action.unit]={...u,dirty:false,cleanliness:100};label=`${roomLabel(p,action.unit)} cleaned`;
   }else{
-   const supplied=useLodgingSupplies(p,b,{[p.kind==='hotel'?'stock-5':'stock-0']:2});if(!supplied)return refuse('Need repair supplies.');b=supplied;cost=15;units[action.unit]={...u,condition:100};l.issues=l.issues.map(i=>i.unit===action.unit&&i.kind==='repair'&&!i.resolved?{...i,resolved:'Repaired'}:i);label=`${roomLabel(p,action.unit)} repaired`;
+   const blocked=roomRepairBlocker(p,b,action.unit);if(blocked)return refuse(blocked);
+   const supplied=useLodgingSupplies(p,b,{[repairSupply(p,b).id]:ROOM_REPAIR_SUPPLIES});if(!supplied)return refuse('Need repair supplies.');b=supplied;cost=ROOM_REPAIR_COST;units[action.unit]={...u,condition:100};l.issues=l.issues.map(i=>i.unit===action.unit&&i.kind==='repair'&&!i.resolved?{...i,resolved:'Repaired'}:i);label=`${roomLabel(p,action.unit)} repaired`;
   }
  }
  if(b.cash<cost)return refuse(`Needs $${cost}; earn more or arrange a business loan.`);

@@ -4,6 +4,7 @@ import { demandFor, MENU_LIMIT } from '../gameplay';
 import { Recipe, INGREDIENTS } from '../data/recipes';
 import { INGREDIENT_ICONS } from '../data/categories';
 import type { GameState } from '../hooks/useGameLoop';
+import {UnlockDetails} from './UnlockDetails';
 
 interface RecipesModalProps {
   recipes: Recipe[];
@@ -12,6 +13,11 @@ interface RecipesModalProps {
   activeMenu: string[];
   hasManager: boolean;
   manager: GameState['manager'];
+  menuLimit?: number;
+  recommendations?: {name:string;ids:string[]};
+  catalogName?:string;
+  restaurantLevel?:number;
+  legacyRecipeIds?:string[];
   onToggleActive: (id: string) => void;
   onUnlockRecipe: (id: string) => void;
   onChangePrice: (id: string, newPrice: number) => void;
@@ -24,15 +30,24 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
   activeMenu,
   hasManager,
   manager,
+  menuLimit=MENU_LIMIT,
+  recommendations,
+  catalogName,
+  restaurantLevel=6,
+  legacyRecipeIds=[],
   onToggleActive,
   onUnlockRecipe,
   onChangePrice,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom'>('active');
+  const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom' | 'recommended' | 'legacy'>('active');
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
 
+  const collection=recipes.filter(r=>!legacyRecipeIds.includes(r.id));
   const filteredRecipes = recipes.filter(r => {
+    if(filter==='legacy')return legacyRecipeIds.includes(r.id)&&r.unlocked&&(!search.trim()||r.name.toLowerCase().includes(search.toLowerCase()));
+    if(filter!=='active'&&legacyRecipeIds.includes(r.id))return false;
+    if (filter === 'recommended' && !recommendations?.ids.includes(r.id)) return false;
     if (filter === 'active' && !activeMenu.includes(r.id)) return false;
     if (filter === 'unlocked' && !r.unlocked) return false;
     if (filter === 'locked' && r.unlocked) return false;
@@ -55,10 +70,10 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
           </div>
           <div>
             <h3 className="font-black text-[#2b2b2b] text-base md:text-lg uppercase tracking-wider">
-              Choose your weekly menu
+              {catalogName?`${catalogName} · Menu & recipes`:'Choose your weekly menu'}
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              Choose 1–6 dishes. Higher prices reduce demand; new recipes go into your collection.
+              Choose 1–{menuLimit} dishes. Higher prices reduce demand; new recipes go into your collection.
             </p>
           </div>
         </div>
@@ -67,7 +82,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
           <div className="mc-slot px-3 py-1.5 flex items-center gap-1.5 text-xs font-black">
             <span className="text-[#555555] text-[9px] uppercase">Menu Offerings:</span>
             <span className="text-[#388e3c] font-black">
-              {recipes.filter(r => r.unlocked).length} / {recipes.length} Unlocked
+              {collection.filter(r => r.unlocked).length} / {collection.length} Unlocked
             </span>
           </div>
         </div>
@@ -77,10 +92,12 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex gap-1">
           {[
-            { id: 'active', label: `On menu (${activeMenu.length}/${MENU_LIMIT})` },
-            { id: 'all', label: `All (${recipes.length})` },
-            { id: 'unlocked', label: `Collection (${recipes.filter(r => r.unlocked).length})` },
-            { id: 'locked', label: `Locked (${recipes.filter(r => !r.unlocked).length})` },
+            { id: 'active', label: `On menu (${activeMenu.length}/${menuLimit})` },
+            ...(recommendations ? [{id:'recommended',label:recommendations.name}] : []),
+            { id: 'all', label: `All (${collection.length})` },
+            { id: 'unlocked', label: `Collection (${collection.filter(r => r.unlocked).length})` },
+            { id: 'locked', label: `Locked (${collection.filter(r => !r.unlocked).length})` },
+            ...(legacyRecipeIds.length?[{id:'legacy',label:`Legacy (${recipes.filter(r=>legacyRecipeIds.includes(r.id)&&r.unlocked).length})`}]:[]),
             { id: 'custom', label: `⭐ Lab (${recipes.filter(r => r.id.startsWith('custom_')).length})` }
           ].map(tab => (
             <button
@@ -260,7 +277,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                   </div>
 
                   {recipe.unlocked && <button onClick={() => { setLastAdded(activeMenu.includes(recipe.id) ? null : recipe.id); onToggleActive(recipe.id); }}
-                    disabled={activeMenu.includes(recipe.id) ? activeMenu.length === 1 : activeMenu.length >= MENU_LIMIT}
+                    disabled={activeMenu.includes(recipe.id) ? activeMenu.length === 1 : activeMenu.length >= menuLimit}
                     aria-pressed={activeMenu.includes(recipe.id)} className="mc-button px-3 py-2 mb-2 text-sm">
                     {activeMenu.includes(recipe.id) ? 'Remove from menu' : hasManager && manager.enabled ? 'Add to menu & auto-stock' : 'Add to menu'} · {recipe.name}
                   </button>}
@@ -311,18 +328,21 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                       </div>
                     </div>
                   ) : (
+                    <>
+                    <UnlockDetails visible={`${recipe.name} joins the recipe collection; add it to your active menu when a slot is free.`} milestone={recipe.requiredLevel?`Restaurant Level ${recipe.requiredLevel} · current ${restaurantLevel}`:'No additional level required.'} cost={`$${recipe.unlockCost.toLocaleString()} recipe training.`} recurring="Ingredients are consumed per order; wages follow your current team." needs={Object.entries(recipe.ingredients).map(([id,qty])=>`${qty}× ${INGREDIENTS[id]?.name??id}`).join(', ')} next="Learn the recipe, activate it, then stock its ingredients or assign the purchasing manager."/>
                     <button
                       onClick={() => onUnlockRecipe(recipe.id)}
-                      disabled={money < recipe.unlockCost}
+                      disabled={money < recipe.unlockCost || (recipe.requiredLevel??1)>restaurantLevel}
                       className={`w-full py-2.5 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow transition-all ${
                         money >= recipe.unlockCost ? 'mc-button-green' : 'mc-slot text-[#888888] cursor-not-allowed opacity-75'
                       }`}
                     >
                       <DollarSign size={14} />
-                      {money >= recipe.unlockCost
+                      {(recipe.requiredLevel??1)>restaurantLevel?`Reach restaurant Level ${recipe.requiredLevel}`:money >= recipe.unlockCost
                         ? `Unlock Recipe ($${recipe.unlockCost.toLocaleString()})`
                         : `Need $${recipe.unlockCost.toLocaleString()} (Short $${(recipe.unlockCost - money).toLocaleString()})`}
                     </button>
+                    </>
                   )}
                 </div>
               );

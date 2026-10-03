@@ -1,3 +1,5 @@
+import {useContext} from 'react';
+import {WeatherMotionContext} from './Weather3D';
 import { memo, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -12,13 +14,15 @@ const glassMaterial = new THREE.MeshStandardMaterial({ color: '#294b5b', roughne
 export const StylizedTree3D = memo(function StylizedTree3D({ position, seed = 0, blossom = false, scale = 1, gameSpeed = 1 }: {
   position: Vec3; seed?: number; blossom?: boolean; scale?: number; gameSpeed?: number;
 }) {
+  const weather=useContext(WeatherMotionContext);
+  const wind=weather?weather.wind/8:1,animationSpeed=weather?.speed??gameSpeed;
   const crown = useRef<THREE.Group>(null), elapsed = useRef(seed * 1.8);
   const model = useMemo(() => getTreeModel(seed, blossom), [seed, blossom]);
   useFrame((_, delta) => {
-    if (!crown.current || gameSpeed === 0) return;
-    elapsed.current += Math.min(delta, .06) * gameSpeed;
-    crown.current.rotation.z = Math.sin(elapsed.current * .75) * .008;
-    crown.current.rotation.x = Math.cos(elapsed.current * .6) * .006;
+    if (!crown.current || animationSpeed === 0) return;
+    elapsed.current += Math.min(delta, .06) * animationSpeed;
+    crown.current.rotation.z = Math.sin(elapsed.current * .75) * .008*wind;
+    crown.current.rotation.x = Math.cos(elapsed.current * .6) * .006*wind;
   });
   return <group position={position} scale={[scale, scale * (.95 + seed % 3 * .05), scale]} rotation={[0,seed*.63,0]} name="street-tree" dispose={null}>
     <mesh geometry={model.bark} material={barkMaterial} castShadow receiveShadow />

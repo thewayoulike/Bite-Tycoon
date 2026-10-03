@@ -2,10 +2,12 @@ import {normalizeTableLayout} from '../restaurantLayout';
 import type {GameState} from '../hooks/useGameLoop';
 import {INGREDIENTS} from '../data/recipes';
 import {INITIAL_INVENTORY_VALUE,STARTING_INVENTORY} from '../gameplay';
-export type RestaurantIdentity='diner'|'cafe'|'bistro';
+export type RestaurantIdentity='diner'|'cafe'|'bistro'|'italian'|'fastfood';
 export const RESTAURANT_IDENTITIES={
+  fastfood:{name:'Quick Bite',tagline:'Burgers · crispy chicken · wraps',wall:'#eee5d5',frame:'#a44232',menu:['coffee_black','fries','juice_fruit']},
+  italian:{name:'Trattoria Locale',tagline:'Pizza · pasta · homemade favorites',wall:'#e6d6c0',frame:'#51634c',menu:['coffee_black','fries','juice_fruit']},
   diner:{name:'Your first diner',tagline:'Classic comfort food',wall:'#ece4d7',frame:'#913f38',menu:['coffee_black','fries','juice_fruit']},
-  cafe:{name:'Corner café',tagline:'Coffee · sandwiches · fresh juice',wall:'#dce4d1',frame:'#486c57',menu:['coffee_black','recipe_65','juice_fruit']},
+  cafe:{name:'Corner café',tagline:'Espresso · bakery · light lunches',wall:'#eee4d6',frame:'#486c57',menu:['coffee_black','recipe_65','juice_fruit']},
   bistro:{name:'Garden bistro',tagline:'Seasonal plates · garden dining',wall:'#e1d3bd',frame:'#556747',menu:['recipe_11','recipe_91','recipe_92']},
 };
 /** Migrate untouched opening packages once; never replace an established menu or pantry. */

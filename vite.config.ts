@@ -17,7 +17,7 @@ export default defineConfig(({mode}) => {
     },
     build: {
       rollupOptions: {
-        input: { main: path.resolve(__dirname, 'index.html'), expansion: path.resolve(__dirname, 'expansion.html'), propertyPreview: path.resolve(__dirname, 'property-preview.html'), cityModelPreview: path.resolve(__dirname, 'city-model-preview.html'), cityGamePrototype: path.resolve(__dirname, 'city-game-prototype.html'), cozyPrototype: path.resolve(__dirname, 'cozy-prototype.html'), characterPreview: path.resolve(__dirname, 'character-preview.html'), castPreview: path.resolve(__dirname, 'cast-preview.html') },
+        input: { main: path.resolve(__dirname, 'index.html'), gameProposal: path.resolve(__dirname, 'game-proposal.html'), expansion: path.resolve(__dirname, 'expansion.html'), propertyPreview: path.resolve(__dirname, 'property-preview.html'), cityModelPreview: path.resolve(__dirname, 'city-model-preview.html'), cityGamePrototype: path.resolve(__dirname, 'city-game-prototype.html'), cozyPrototype: path.resolve(__dirname, 'cozy-prototype.html'), characterPreview: path.resolve(__dirname, 'character-preview.html'), castPreview: path.resolve(__dirname, 'cast-preview.html') },
       },
     },
     server: {

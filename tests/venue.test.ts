@@ -7,13 +7,15 @@ import {PROPERTIES,propertyById,hireBusinessStaff,lendCash,finishWeek,nextDay} f
 import {venueFinancials} from '../src/empire/venueFinance';
 import {setShelfProduct,orderRetailStock} from '../src/empire/retail';
 import {worldTime} from '../src/empire/worldTime';
+import {managePlaza} from '../src/empire/plaza';
 const close=(a:number,b:number)=>assert.ok(Math.abs(a-b)<.02,`${a} != ${b}`);
 test('all non-food businesses run live services, consume stock and reconcile their own books',()=>{
  let e=unlockTestDistrict(createEmpire(structuredClone(INITIAL_STATE)),INITIAL_STATE);e=startEmpireWeek(e);let s=e.district;
+ s=managePlaza(s,'park',{type:'auto',enabled:true});
  s=hireBusinessStaff(s,'shop','manager');s=setShelfProduct(s,'shop','coffee');s=orderRetailStock(s,'shop','coffee',10);s=lendCash(s,'hotel','shop',500);
  for(let second=0;second<180;second++)s=advanceVenues(s,1);
  for(const id of ['hotel','apartments','shop','park']){const b=s.businesses[id],f=venueFinancials(propertyById(id)!,b,s);assert.ok(b.venue!.totalServed>0,id+' serves real visitors');assert.ok(b.venue!.week.wages>0);close(f.assets,f.liabilities+f.equity);close(f.closingCash,b.cash);assert.ok(f.costOfSupplies>0);}
- const cash=s.businesses.hotel.cash;s=finishWeek(s);close(s.businesses.hotel.cash,cash);assert.ok(!s.businesses.hotel.venue!.running);s=nextDay(nextDay(nextDay(s)));close(s.businesses.hotel.cash,cash-210);assert.equal(s.day,4);
+ const cash=s.businesses.hotel.cash;s=finishWeek(s);close(s.businesses.hotel.cash,cash);assert.ok(!s.businesses.hotel.venue!.running);s=nextDay(nextDay(nextDay(s)));close(s.businesses.hotel.cash,cash-210+50);assert.equal(s.day,4);assert.equal(s.loans[0].outstanding,450);
  const b=s.businesses.hotel,f=venueFinancials(propertyById('hotel')!,b,s);close(f.assets,f.liabilities+f.equity);close(f.closingCash,b.cash);
 });
 test('hotel check-in honors room type and exact posted price; exhausted suites cannot use a standard room',()=>{

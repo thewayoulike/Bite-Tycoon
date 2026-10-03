@@ -24,7 +24,14 @@ import type {VenueInteraction} from './prototype/BusinessInterior';
 import {operateVenue} from './empire/venueSimulation';
 import {VenueHUD} from './empire/VenueHUD';
 import {worldTime} from './empire/worldTime';
+import {RestaurantTypePicker} from './components/RestaurantTypePicker';
+import {RestaurantProgression} from './components/RestaurantProgression';
+import {RestaurantServiceControls} from './components/RestaurantServiceControls';
+import {restaurantCatalog,RestaurantType} from './data/restaurantCatalogs';
+import {isOpeningRestaurant,restaurantPantryIds} from './restaurantTypes';
+import {restaurantLevel,restaurantMenuLimit} from './restaurantProgression';
 import {businessFinance} from './empire/empire';
+import {weeklyProfitLoss} from './empire/weeklyFinance';
 import {WorldPropertyPanel,WorldWeekReport} from './empire/WorldPropertyPanel';
 import type {ManagementTab,RestaurantSection} from './prototype/BusinessManagement';
 
@@ -34,7 +41,8 @@ console.warn = (...args) => {
   originalWarn(...args);
 };
 
-export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean}={}) {
+export type ProposalNavigation={propertyId:string;screen:string;request:number;floor:number;restaurantProfiles?:Record<string,{name:string;ingredientIds:string[];signatureIds:string[]}>};
+export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false,proposal}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean;proposal?:ProposalNavigation}={}) {
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>(prototype?'playing':'menu');
   const { state, actions, empire, district, saveError } = useGameLoop(gamePhase==='playing',gameOptions);
   const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
@@ -48,11 +56,12 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const [isMuted, setIsMuted] = useState(false);
   const headerRef=useRef<HTMLElement|null>(null);
   const [hudBottom,setHudBottom]=useState(96);
+  const [openingType,setOpeningType]=useState<RestaurantType>('diner');
 
   useEffect(()=>{
     if(gamePhase!=='playing'||!headerRef.current)return;
     const header=headerRef.current;
-    const observer=new ResizeObserver(()=>setHudBottom(header.getBoundingClientRect().bottom+10));
+    const observer=new ResizeObserver(()=>setHudBottom(header.getBoundingClientRect().bottom-(header.closest('.game-ui')?.getBoundingClientRect().top??0)+10));
     observer.observe(header);
     return ()=>observer.disconnect();
   },[gamePhase]);
@@ -75,6 +84,8 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const shownId=focusedProperty??empire.activeRestaurantId;
   const shownProperty=propertyById(shownId)!;
   const businessName=shownProperty.name;
+  const proposedRestaurant=(prototype?proposal?.restaurantProfiles?.[empire.activeRestaurantId]:undefined)??(state.restaurantType?restaurantCatalog(state.restaurantType):undefined);
+  const needsOpeningType=!prototype&&isOpeningRestaurant(state);
   const focusedRestaurant=!!focusedProperty&&!!empire.restaurants[focusedProperty];
   const nonFood=!!focusedProperty&&!focusedRestaurant;
   const overview=()=>{setFocusedProperty(null);setSelectedProperty(null);setActiveTab('restaurant');setInsideVenue(null);};
@@ -116,6 +127,25 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
     setFocusedProperty(empire.activeRestaurantId);setSelectedProperty(null);
     setActiveTab(activeTab===id?'restaurant':id as typeof activeTab);
   };
+
+  // The isolated proposal can jump to real screens without duplicating their UI.
+  useEffect(()=>{
+    if(!prototype||!proposal)return;
+    const {propertyId:id,screen}=proposal;
+    if(screen==='district'){overview();return;}
+    if(!district.businesses[id])return;
+    setFocusedProperty(id);setSelectedUnit(undefined);setShowDistrictReport(false);
+    const inside=screen==='inside'||screen==='exterior';
+    if(empire.restaurants[id]){
+      actions.enterRestaurant(id);setSelectedProperty(screen==='loans'?id:null);
+      setPropertyTab('finance');setInsideVenue(null);
+      setActiveTab(inside||screen==='loans'?'restaurant':screen as RestaurantSection);
+    }else{
+      setInsideVenue(id);setActiveTab(screen==='inventory'?'inventory':'restaurant');
+      setSelectedProperty(inside||screen==='inventory'?null:id);
+      setPropertyTab(({recipes:'prices',upgrades:'staff',layouts:'upgrades',stats:'reports',bookings:'bookings',loans:'finance'} as Record<string,ManagementTab>)[screen]??'run');
+    }
+  },[prototype,proposal?.request,proposal?.propertyId,proposal?.screen]);
 
   // Calculate table occupancy
   const occupiedTables = state.tables.filter(t => t.customerId !== null).length;
@@ -170,16 +200,17 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
             </p>
           </motion.div>
 
+          {needsOpeningType&&<div className="restaurant-start-picker"><RestaurantTypePicker value={openingType} onChange={setOpeningType} id="starting-restaurant-type"/></div>}
           <motion.button
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.3, type: 'spring' }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setGamePhase('playing')}
-            className="mt-12 px-14 py-3.5 mc-button-green font-black text-2xl md:text-3xl z-10 transition-all font-mono tracking-widest shadow-2xl flex items-center gap-3"
+            onClick={() => {if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}
+            className="mt-4 px-14 py-3.5 mc-button-green font-black text-2xl md:text-3xl z-10 transition-all font-mono tracking-widest shadow-2xl flex items-center gap-3"
           >
-            <span>{state.week>1||Object.keys(empire.district.businesses).length>1?'CONTINUE GAME':'ENTER DINER'}</span>
+            <span>{needsOpeningType?'OPEN RESTAURANT':'CONTINUE GAME'}</span>
             <span>▶</span>
           </motion.button>
         </div>
@@ -191,7 +222,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
     <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`} as React.CSSProperties}>
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
-        <WorldComponent state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)}/>
+        <WorldComponent state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)} viewRequest={prototype&&proposal?{request:proposal.request,floor:proposal.floor,detail:proposal.screen==='exterior'?'exterior':'room'}:undefined}/>
       </div>
 
       {/* Retro HUD Overlay */}
@@ -214,7 +245,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
                   <Coffee size={10} className="text-[#3b82f6]" />
-                  {nonFood?`${district.businesses[shownId].venue?.units.length || shownProperty.capacity} ${shownProperty.unit}`:`Tables: ${occupiedTables} / ${state.tables.length}`}
+                  {nonFood?(shownProperty.kind==='shop'?`${district.businesses[shownId].retail?.electronicsUnlocked?'2 floors · 36':'Ground floor · 24'} product displays`:`${district.businesses[shownId].venue?.units.length || shownProperty.capacity} ${shownProperty.kind==='plaza'?'shops':shownProperty.unit}`):`Tables: ${occupiedTables} / ${state.tables.length}`}
                 </span>
                 <span className="text-[9px] font-bold text-[#555555] uppercase hidden sm:inline">
                   {nonFood?'Own staff · own inventory':`• ${state.staff.chefs} Chefs • ${state.staff.waiters} Waiters`}
@@ -332,8 +363,8 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
             {(nonFood?[
               {id:'district',label:'Neighborhood',icon:<Building2 size={18}/>,badge:null},
               {id:'restaurant',label:'Operations',icon:<Building2 size={18}/>,badge:null},
-              {id:'recipes',label:shownProperty.kind==='shop'?'Products & Prices':shownProperty.kind==='hotel'?'Rooms & Rates':shownProperty.kind==='apartments'?'Homes & Rents':'Offers & Prices',icon:<BookOpen size={18}/>,badge:null},
-              ...(['hotel','apartments'].includes(shownProperty.kind)?[{id:'bookings',label:shownProperty.kind==='hotel'?'Bookings':'Applications & Leases',icon:<BookOpen size={18}/>,badge:null}]:[]),
+              {id:'recipes',label:shownProperty.kind==='shop'?'Products & Prices':shownProperty.kind==='hotel'?'Rooms & Rates':shownProperty.kind==='apartments'?'Homes & Rents':shownProperty.kind==='plaza'?'Shops & Rents':'Offers & Prices',icon:<BookOpen size={18}/>,badge:null},
+              ...(['hotel','apartments','plaza'].includes(shownProperty.kind)?[{id:'bookings',label:shownProperty.kind==='hotel'?'Bookings':shownProperty.kind==='plaza'?'Tenants & Leases':'Applications & Leases',icon:<BookOpen size={18}/>,badge:null}]:[]),
               {id:'upgrades',label:'Staff',icon:<Users size={18}/>,badge:null},
               {id:'inventory',label:'Inventory',icon:<Package size={18}/>,badge:null},
               {id:'layouts',label:'Upgrades',icon:<ArrowUpCircle size={18}/>,badge:null},
@@ -387,13 +418,13 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </div>
         <button className="text-left text-sm mt-1 text-emerald-800 font-semibold" onClick={() => setActiveTab('upgrades')}>{milestone.text} · {milestone.current}/{milestone.target}</button>
         {payroll && <p className="text-xs text-stone-600 mt-1">Wages owed: ${payroll.amount.toFixed(2)} · paid after Day 3, Week {payroll.dueWeek}</p>}
-        <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {saveError?'saving unavailable':'autosaved'}</p>
+        <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {gameOptions?.persist===false?'sample session · not saved':saveError?'saving unavailable':'autosaved'}</p>
       </div>}
 
       {!focusedRestaurant&&!selectedProperty&&!nonFood&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}
       {nonFood&&!selectedProperty&&<VenueHUD p={shownProperty} b={district.businesses[shownId]} onAction={interactWithVenue}/>}
       {selectedProperty&&<WorldPropertyPanel key={selectedProperty} id={selectedProperty} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setSelectedProperty(null)} initialTab={propertyTab} selectedUnit={selectedUnit} inside={insideVenue===selectedProperty}/>}
-      {showDistrictReport&&<WorldWeekReport state={district} onClose={()=>setShowDistrictReport(false)}/>}
+      {showDistrictReport&&<WorldWeekReport state={district} restaurants={empire.restaurants} onClose={()=>setShowDistrictReport(false)}/>}
 
       {/* Onboarding / Welcome Modal */}
       <AnimatePresence>
@@ -427,7 +458,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                 <div className="space-y-1.5 text-[11px] text-[#475569]">
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">1</span>
-                    <span><strong>Your chef is ready:</strong> You have two tables and three active dishes. Start Week 1 when ready.</span>
+                    <span><strong>Your kitchen is ready:</strong> You have {state.tables.length} tables and {state.activeMenu.length} active dishes. Start Week 1 when ready.</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">2</span>
@@ -435,7 +466,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 mc-slot bg-[#334155] text-white flex items-center justify-center text-[10px] font-black">3</span>
-                    <span><strong>Earn your first helper:</strong> Serve 6 guests to unlock a waiter. Watch for the lunch rush at 40% of the week.</span>
+                    <span><strong>Earn your first helper:</strong> Serve 6 guests to unlock a waiter. Your specialty sets the busy hours; check Staff &amp; Shop to plan service.</span>
                   </div>
                 </div>
               </div>
@@ -448,7 +479,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                 onClick={() => setShowWelcome(false)}
                 className="mt-1 px-8 py-3 mc-button-green font-black text-lg w-full tracking-wider shadow"
               >
-                LET’S OPEN THE DINER
+                PLAN MY RESTAURANT
               </button>
             </motion.div>
           </motion.div>
@@ -523,6 +554,8 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
 
                 {activeTab === 'inventory' && !nonFood && (
                   <InventoryModal
+                    key={empire.activeRestaurantId}
+                    restaurantPantry={proposedRestaurant?{name:proposedRestaurant.name,ingredientIds:restaurantPantryIds(state)??[...new Set([...proposedRestaurant.ingredientIds,...state.recipes.flatMap(recipe=>Object.keys(recipe.ingredients))])]}:undefined}
                     inventory={state.inventory}
                     inventoryBatches={state.inventoryBatches}
                     money={state.money}
@@ -539,23 +572,33 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                 )}
 
                 {activeTab === 'recipes' && (
+                  <>
+                  {!prototype&&<div className="flex flex-wrap items-center justify-between gap-2 mb-3"><span>{state.restaurantType?`Level ${restaurantLevel(state)} · ${restaurantMenuLimit(state)} menu slots`:'Choose a restaurant type to start its level progression'}</span><button className="mc-button px-3 py-2" onClick={()=>setActiveTab('upgrades')}>Restaurant type & levels</button></div>}
                   <RecipesModal
+                    key={`${empire.activeRestaurantId}-${proposedRestaurant?.name??'original'}`}
                     recipes={state.recipes}
                     inventory={state.inventory}
                     money={state.money}
                     onUnlockRecipe={actions.unlockRecipe}
                     onChangePrice={actions.changeRecipePrice}
                     activeMenu={state.activeMenu}
+                    menuLimit={gameOptions?.menuLimit??restaurantMenuLimit(state)}
+                    restaurantLevel={restaurantLevel(state)}
+                    legacyRecipeIds={state.legacyRecipeIds}
+                    recommendations={proposedRestaurant?{name:'Signature dishes',ids:proposedRestaurant.signatureIds}:undefined}
+                    catalogName={proposedRestaurant?.name}
                       hasManager={state.staff.hasManager}
                       manager={state.manager}
                     onToggleActive={actions.toggleActiveRecipe}
                   />
+                  </>
                 )}
 
                 {activeTab === 'stats' && (
                   <StatsModal
                     state={state}
                     account={businessFinance(empire,empire.activeRestaurantId)}
+                    weeklyReport={weeklyProfitLoss(propertyById(empire.activeRestaurantId)!,district.businesses[empire.activeRestaurantId],district,state)}
                   />
                 )}
 
@@ -579,6 +622,9 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                 )}
 
                 {activeTab === 'upgrades' && (
+                  <>
+                  {!prototype&&<RestaurantProgression key={empire.activeRestaurantId} id={empire.activeRestaurantId} state={state} onChoose={actions.chooseRestaurantType} onUpgrade={actions.upgradeRestaurant}/>}
+                  {!prototype&&<RestaurantServiceControls state={state} onChange={actions.changeServicePlan} onBook={actions.bookBistroTable} onCancel={actions.cancelBistroBooking}/>}
                   <UpgradesModal
                     state={state}
                     onBuyUpgrade={actions.buyUpgrade}
@@ -587,6 +633,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                     onUnlockApp={actions.unlockApp}
                     onUpdateManager={actions.updateManager}
                   />
+                  </>
                 )}
               </div>
             </motion.div>

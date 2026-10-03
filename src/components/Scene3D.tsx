@@ -7,6 +7,9 @@ import { diningCastId } from '../characters/gameCast';
 import { FoodIllustration } from './FoodIllustration';
 import { OutdoorReflections3D } from './OutdoorReflections3D';
 import { BistroTable3D } from './BistroFurniture3D';
+import {restaurantLevel} from '../restaurantProgression';
+import {isPickup,isPastry} from '../restaurantOperations';
+import {PickupGuest3D} from './PickupGuest3D';
 import {RestaurantIdentity3D} from './RestaurantIdentity3D';
 import {RestaurantShell3D} from './RestaurantShell3D';
 import {restaurantAppearance} from '../graphics/propertyArchitecture';
@@ -162,7 +165,7 @@ const CustomerMember3D = ({ index, customer, table, tables, color, seed, castId,
     const difference=Math.atan2(Math.sin(angle-ref.current.rotation.y),Math.cos(angle-ref.current.rotation.y));
     ref.current.rotation.y+=difference*Math.min(1,delta*12*gameSpeed);
   });
-  return <group ref={ref} name={'dining-guest-'+customer.id+'-'+index} position={[initial.current.x,0,initial.current.z]}>
+  return <group ref={ref} name={'dining-guest-'+customer.id+'-'+index} position={[initial.current.x,0,initial.current.z]} rotation={[0,seatedOnMount.current&&!leaving?DINING_SEATS[index%4].rotation:0,0]}>
     {customer.isVIP&&index===0&&<VIPCrown3D position={[0,4.5,0]}/>}
     <RealCharacter3D size={2} role="customer" castId={castId} gameSpeed={gameSpeed} color={color} seed={seed} isWalking={isWalking} isSitting={isSitting}
       isWaitingOrder={isSitting&&customer.state==='waiting_order'} isWaitingFood={isSitting&&customer.state==='waiting_food'} isEating={isSitting&&customer.state==='eating'} isVIP={customer.isVIP}/>
@@ -207,6 +210,7 @@ const Customer3D = ({ customer, table, tables, actions, staff, gameSpeed }: any)
       {customer.state !== 'entering' && customer.state !== 'leaving' && (
         <Html position={[mapPos(table.x), 4.5, mapPos(table.y)]} center>
           <div className="flex flex-col items-center pointer-events-none">
+            {customer.bookingName&&<span className="rounded bg-[#e8dfce] px-2 text-[10px] font-bold">Reserved · {customer.bookingName}</span>}
             {customer.isVIP && (
               <div className="bg-yellow-400 border-2 border-yellow-600 text-yellow-900 font-black text-[10px] px-2 py-0.5 rounded-full mb-1 shadow-md animate-bounce">
                 ⭐ VIP
@@ -642,7 +646,7 @@ return <>
               <div className="flex justify-between items-center border-b-2 border-stone-300 pb-1 mb-2">
                 {isOnline ? (
                   <span className="font-black text-[10px] text-blue-700 uppercase drop-shadow-sm flex items-center gap-1">
-                    📱 {appName}
+                    {appName==='pickup'?'🥡 Counter pickup':`📱 ${appName}`}
                   </span>
                 ) : (
                   <span className="font-black text-xs text-stone-800 uppercase">Table {tableIndex}</span>
@@ -663,6 +667,7 @@ return <>
                   </div>
                 ))}
               </div>
+              {state.restaurantType==='cafe'&&tableOrders.some(o=>o.state==='ready'&&isPastry(o.recipeId))&&<span className="text-[10px] font-bold text-center">{tableOrders.some(o=>isPastry(o.recipeId)&&o.readyAt!==undefined&&(state.time-o.readyAt)*1.8>10)?'Pastries cooling · serve now':'Fresh from the bakery'}</span>}
 
               {!allReady && <button className="w-full mb-2 rounded border border-amber-500 bg-amber-50 text-amber-900 text-[10px] font-bold py-1" aria-pressed={state.priorityTableId === tableId} onClick={() => actions.prioritizeTable(tableId)}>{state.priorityTableId === tableId ? '★ Kitchen priority' : 'Prioritize this table'}</button>}
 
@@ -686,7 +691,7 @@ return <>
                   )}
                   {allReady && isOnline && (
                     <span className="w-full py-1.5 bg-blue-500 text-white rounded text-[10px] font-black border-2 border-stone-800 text-center animate-pulse shadow-sm">
-                      DRIVER ARRIVING...
+                      {appName==='pickup'?'READY TO COLLECT':'DRIVER ARRIVING...'}
                     </span>
                   )}
                 </>
@@ -703,7 +708,7 @@ export function RestaurantContents3D({state,actions,cutaway=true,isNight=false}:
 const isNearDoor=state.customers.some(c=>c.state==='entering'||c.state==='leaving');
 const identity=state.restaurantIdentity??'diner';
 return <>
-        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} isNight={isNight}/>
+        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} isNight={isNight} level={state.restaurantType?restaurantLevel(state):1}/>
 
         {/* Ambient warm dining area pendant lights */}
         <PendantLamp3D position={[-7, 9.8, -2]} isNight={isNight} />
@@ -748,13 +753,14 @@ return <>
         {state.tables.map((table, i) => {
           const isEating = state.customers.some(c => c.tableId === table.id && c.state === 'eating');
           const servedRecipeIds = state.customers.find(c => c.tableId === table.id && c.state === 'eating')?.servedRecipeIds;
-          return <BistroTable3D key={table.id} table={table} index={i} identity={identity} isEating={isEating} servedRecipeIds={servedRecipeIds} actions={actions} />
+          return <BistroTable3D key={table.id} table={table} index={i} identity={identity} level={restaurantLevel(state)} isEating={isEating} servedRecipeIds={servedRecipeIds} actions={actions} />
         })}
 
         <Suspense fallback={null}>
           {state.customers.filter(customer=>state.tables.some(table=>table.id===customer.tableId)).map(customer => (
             <Customer3D key={customer.id} customer={customer} tables={state.tables} table={state.tables.find(t => t.id === customer.tableId)} actions={actions} staff={state.staff} gameSpeed={state.gameSpeed}/>
           ))}
+          {state.customers.filter(customer=>isPickup(customer.tableId)).map(customer=><PickupGuest3D key={customer.id} customer={customer} gameSpeed={state.gameSpeed}/>)}
           {Array.from({ length: state.staff.chefs }).map((_, i) => (
             <Chef3D key={`chef-${i}`} index={i} state={state} actions={actions} />
           ))}

@@ -1,11 +1,12 @@
 import type {Property} from '../prototype/expansionModel';
 import type {GameState} from '../hooks/useGameLoop';
 import {RESTAURANT_IDENTITIES,RestaurantIdentity} from '../empire/restaurantIdentity';
+import {MALL_FLOOR_HEIGHT} from '../empire/plaza';
 
 export const RESTAURANT_SHELL={width:40,depth:38,back:-15,front:23,height:10,scale:.38};
 export const LODGING_STOREY_HEIGHT=2.7;
 export function propertyInteriorPlacement(p:Property,floor=0){
-  return {position:[p.position[0],p.position[1]+.13+floor*LODGING_STOREY_HEIGHT,p.position[2]] as [number,number,number],scale:p.kind==='restaurant'||p.kind==='cafe'?RESTAURANT_SHELL.scale:.75};
+  return {position:[p.position[0],p.position[1]+.13+floor*(p.kind==='plaza'?MALL_FLOOR_HEIGHT*.75:LODGING_STOREY_HEIGHT),p.position[2]] as [number,number,number],scale:p.kind==='restaurant'||p.kind==='cafe'?RESTAURANT_SHELL.scale:.75};
 }
 export function restaurantAppearance(id:string,state?:Partial<Pick<GameState,'restaurantIdentity'|'wallColor'|'frameColor'|'restaurantLayout'>>){
   const identity=state?.restaurantIdentity??(id in RESTAURANT_IDENTITIES?id:'diner') as RestaurantIdentity,theme=RESTAURANT_IDENTITIES[identity];

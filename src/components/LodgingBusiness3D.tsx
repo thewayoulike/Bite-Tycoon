@@ -3,7 +3,7 @@ import {Html} from '@react-three/drei';
 import {Business,Property} from '../prototype/expansionModel';
 import type {VenueInteraction} from '../prototype/BusinessInterior';
 import {VenueVisitor,createVenue,serviceBlocker,venueRules} from '../empire/venueSimulation';
-import {roomLabel,shiftActive,staffCount} from '../empire/lodging';
+import {roomLabel,roomTypes,shiftActive,staffCount} from '../empire/lodging';
 import {FloorPoint,LodgingLayout,createLodgingLayout} from '../empire/lodgingLayout';
 import {LodgingInterior3D} from './LodgingInterior3D';
 import {RealCharacter3D} from './RealCharacter3D';
@@ -42,7 +42,7 @@ export function LodgingBusiness3D({p,b,floor,gameSpeed,interactive,onInteract,se
     <LodgingPeople visitors={people} layouts={layouts} floor={floor} speed={gameSpeed} isNight={isNight} onPerson={person=>act(person.state==='waiting'?'serve':'bookings',person.state==='waiting'?person.id:undefined)}/>
     {layout.rooms.map(room=>{const unit=venue.units[room.index];if(!unit)return null;return <group key={room.index}>
       <mesh position={[room.door.x,.035,room.door.z]} rotation={[-Math.PI/2,0,0]} onClick={event=>{event.stopPropagation();act('prices',room.index);}}><planeGeometry args={p.kind==='hotel'?[.5,1.35]:[1.35,.5]}/><meshStandardMaterial color={unit.dirty?'#b99168':unit.occupied?'#7a958c':'#b9ae97'}/></mesh>
-      {interactive&&<Marker point={room.center} title={roomLabel(p,room.index)} note={`${unit.occupied?'Occupied':unit.dirty?'Needs cleaning':'Ready'} · $${unit.rate??unit.rent??85} · manage`} onClick={()=>act('prices',room.index)}/>}
+      {interactive&&<Marker point={room.center} title={`${roomLabel(p,room.index)} · ${roomTypes(p).find(t=>t.id===unit.type)?.name??''}`} note={`${unit.occupied?'Occupied':unit.dirty?'Needs cleaning':'Ready'} · $${unit.rate??unit.rent??85} · manage`} onClick={()=>act('prices',room.index)}/>}
     </group>;})}
     {interactive&&<>
       {floor===0&&<Marker point={{x:-3,z:-2.6}} title={venueRules(p)?.verb??'Reception'} note={serviceBlocker(p,b)??`${waiting.length} waiting · click to serve`} disabled={!!serviceBlocker(p,b)} onClick={()=>act('serve')}/>}

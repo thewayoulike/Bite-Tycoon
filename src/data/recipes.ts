@@ -13,6 +13,7 @@ export interface Recipe {
   ingredients: Record<string, number>;
   unlocked: boolean;
   unlockCost: number;
+  requiredLevel?: number;
 }
 
 // 🛒 All Available Ingredients and their base cost per unit

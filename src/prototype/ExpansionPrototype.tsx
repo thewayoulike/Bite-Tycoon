@@ -8,8 +8,8 @@ import type {GameState} from '../hooks/useGameLoop';
 import {weeklyWages} from '../gameplay';
 import './expansion.css';
 
-const icons={restaurant:UtensilsCrossed,cafe:Coffee,hotel:Hotel,apartments:House,shop:ShoppingBag,park:TreePine};
-const titles:Record<BusinessKind,string>={restaurant:'Restaurant',cafe:'Café',hotel:'Hotel',apartments:'Apartments',shop:'Retail shop',park:'Park'};
+const icons={restaurant:UtensilsCrossed,cafe:Coffee,hotel:Hotel,apartments:House,shop:ShoppingBag,park:TreePine,plaza:Building2};
+const titles:Record<BusinessKind,string>={restaurant:'Restaurant',cafe:'Café',hotel:'Hotel',apartments:'Apartments',shop:'Retail shop',park:'Park',plaza:'Shopping plaza'};
 const money=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n);
 export type LiveDistrict={restaurants:Record<string,GameState>;onEnter:(id:string,section:RestaurantSection)=>void;onReturn:()=>void;onStart:()=>void;onSpeed:(speed:number)=>void;speed:number;saveError:boolean};
 export default function Prototype({state:connectedState,onChange,live}:{state?:ExpansionState;onChange?:(update:(s:ExpansionState)=>ExpansionState)=>void;live?:LiveDistrict}={}){

@@ -9,7 +9,7 @@ test('expansion starts with one independently funded diner and all requested pro
   assert.deepEqual(Object.keys(state.businesses),['diner']);
   assert.equal(state.businesses.diner.cash,8500);
   assert.equal(PROPERTIES.length,7);
-  assert.deepEqual(new Set(PROPERTIES.map(p=>p.kind)),new Set(['restaurant','cafe','hotel','apartments','shop','park']));
+  assert.deepEqual(new Set(PROPERTIES.map(p=>p.kind)),new Set(['restaurant','cafe','hotel','apartments','shop','plaza']));
 });
 
 test('acquisition opens an independent account with a recorded funding loan',()=>{
@@ -72,11 +72,12 @@ test('sales and rent settle separately and delayed wages debit each employer onc
   assert.equal(next.businesses.diner.cash,before.diner);
   assert.equal(next.businesses.cafe.cash,before.cafe);
   next=nextDay(next);
-  assert.equal(next.businesses.diner.cash,before.diner-59);
-  assert.equal(next.businesses.cafe.cash,before.cafe-75);
+  assert.equal(next.businesses.diner.cash,before.diner-59+210);
+  assert.equal(next.businesses.cafe.cash,before.cafe-75-210);
   assert.equal(next.payroll.length,0);
   assert.deepEqual(nextDay(next).businesses,next.businesses);
-  assert.deepEqual(next.loans,active.loans);
+  assert.equal(next.loans[0].outstanding,active.loans[0].outstanding-210);
+  assert.equal(next.loans[0].repayment?.due,0);
 });
 
 test('skipping to the next week pays overdue wages without duplication',()=>{

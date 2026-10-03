@@ -1,12 +1,15 @@
+import {weatherForDay,weatherDemand} from './weather';
 import {Business,businessSupplies,businessWages,ExpansionState,Property,propertyById,autoStockBusiness} from '../prototype/expansionModel';
-import {retailPrice,retailProduct,retailStockLevel} from './retail';
+import {retailPrice,retailProduct,retailStockLevel,retailProductFloor,consumeRetailStock} from './retail';
 import {offersFor,offerPrice,offerEnabled,unitOffer} from './businessOffers';
-import {isLodging,roomsPerFloor,newLodgingUnit,ensureLodging,manageLodging,absoluteTime} from './lodging';
+import {isLodging,roomsPerFloor,newLodgingUnit,ensureLodging,manageLodging,absoluteTime,roomNeedsRepair} from './lodging';
 import type {RoomType} from './lodging';
 import {advanceLodging,lodgingBlocker,serveLodging} from './lodgingSimulation';
+import {ensurePlaza,startPlazaWeek,advancePlaza} from './plaza';
+import type {ShopType} from './plaza';
 
 export type VenueVisitor={id:number;seed:number;state:'waiting'|'using'|'leaving';patience:number;remaining:number;unit:number|null;productId?:string;quantity?:number;offerId?:string;bookingId?:number;agreedRate?:number};
-export type VenueUnit={occupied:boolean;dirty:boolean;remaining:number;seed:number;rentWeek:number;rent?:number;type?:RoomType;rate?:number;condition?:number;cleanliness?:number;level?:number;bookingId?:number;checkoutAt?:number;leaseEnd?:number};
+export type VenueUnit={occupied:boolean;dirty:boolean;remaining:number;seed:number;rentWeek:number;rent?:number;type?:RoomType;rate?:number;condition?:number;cleanliness?:number;level?:number;bookingId?:number;checkoutAt?:number;leaseEnd?:number;shopType?:ShopType;tenantName?:string};
 export type VenueState={running:boolean;clock:number;arrivalTimer:number;serviceTimer:number;careTimer:number;serial:number;visitors:VenueVisitor[];units:VenueUnit[];week:{revenue:number;served:number;lost:number;wages:number};totalServed:number;totalRevenue:number};
 export type VenueAction='serve'|'clean';
 export const VENUE_RULES={
@@ -14,6 +17,7 @@ export const VENUE_RULES={
   apartments:{rate:180,arrival:22,patience:45,stay:6,verb:'Sign lease',noun:'applicants'},
   shop:{rate:24,arrival:5,patience:24,stay:4,verb:'Checkout',noun:'shoppers'},
   park:{rate:12,arrival:5,patience:28,stay:12,verb:'Serve kiosk',noun:'visitors'},
+  plaza:{rate:220,arrival:14,patience:65,stay:8,verb:'Review leases',noun:'applicants'},
 };
 export const isVenue=(p:Property)=>p.kind in VENUE_RULES;
 export const venueRules=(p:Property)=>VENUE_RULES[p.kind as keyof typeof VENUE_RULES];
@@ -31,11 +35,12 @@ function consume(p:Property,b:Business,amounts:number[]):Business|null {
   return {...b,inventory,stock:Math.min(...Object.values(inventory))};
 }
 export function startVenueWeek(p:Property,b:Business,week:number):Business {
-  b=ensureLodging(p,b);
+  b=ensurePlaza(p,ensureLodging(p,b));
   const previous=b.venue??createVenue(p);
   if(previous.running)return b;
   let venue:VenueState={...previous,running:true,clock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,week:{revenue:0,served:0,lost:0,wages:0},visitors:previous.visitors.filter(v=>v.state==='using')};
   let next={...b,venue};
+  if(p.kind==='plaza')return startPlazaWeek(next,week);
   if(p.kind==='apartments'){
     const rent=venue.units.reduce((n,u,i)=>n+(u.occupied&&u.rentWeek<week?Math.round(u.rent??u.rate??offerPrice(b,unitOffer(p,i))):0),0);
     if(rent){
@@ -46,6 +51,7 @@ export function startVenueWeek(p:Property,b:Business,week:number):Business {
   return {...next,venue,...(b.lodging?{lodging:{...b.lodging,occupiedSeconds:0,availableSeconds:0,roomRevenue:p.kind==='apartments'?venue.week.revenue:0,roomNights:p.kind==='apartments'?venue.units.filter(u=>u.occupied).length:0}}:{})};
 }
 export function serviceBlocker(p:Property,b:Business,visitorId?:number):string|null {
+  if(p.kind==='plaza')return 'Review applications in Tenants & leases.';
   if(isLodging(p))return lodgingBlocker(p,ensureLodging(p,b),visitorId);
   const v=b.venue;
   if(!v?.running)return 'Start the week to welcome visitors';
@@ -62,7 +68,7 @@ export function serveVenueVisitor(p:Property,b:Business,week:number,day:number,v
   if(serviceBlocker(p,b,visitorId))return b;
   const person=b.venue!.visitors.find(v=>v.state==='waiting'&&(visitorId===undefined||visitorId===v.id));
   if(!person)return b;
-  const retail=b.retail&&person.productId?{...b.retail,stock:{...b.retail.stock,[person.productId]:b.retail.stock[person.productId]-(person.quantity??1)}}:undefined;
+  const retail=b.retail&&person.productId?consumeRetailStock(b.retail,person.productId,person.quantity??1):undefined;
   const supplied=retail?{...b,retail,stock:retailStockLevel(retail)}:consume(p,b,[2,1,1]);if(!supplied)return b;
   const rules=venueRules(p),v=b.venue!,unit=v.units.length?v.units.findIndex((u,i)=>!u.occupied&&!u.dirty&&offerEnabled(b,unitOffer(p,i).id)&&(!person.offerId||unitOffer(p,i).id===person.offerId)):null;
   const offer=unit!==null?unitOffer(p,unit):offersFor(p).find(item=>item.id===person.offerId);
@@ -82,12 +88,13 @@ export function cleanVenueUnit(p:Property,b:Business,index?:number):Business {
 }
 export function operateVenue(state:ExpansionState,id:string,action:VenueAction,visitorOrUnit?:number):ExpansionState {
   const p=propertyById(id),b=state.businesses[id];if(!p||!b||!isVenue(p))return state;
-  if(isLodging(p)&&action==='clean'){const unit=visitorOrUnit??b.venue?.units.findIndex(u=>u.dirty)??-1;return manageLodging(state,id,{type:p.kind==='apartments'?'repair':'clean',unit});}
+  if(isLodging(p)&&action==='clean'){const unit=visitorOrUnit??b.venue?.units.findIndex((u,i)=>u.dirty||roomNeedsRepair(b,i))??-1;return manageLodging(state,id,{type:b.venue?.units[unit]?.dirty?'clean':'repair',unit});}
   const next=action==='serve'?serveVenueVisitor(p,b,state.week,state.day,visitorOrUnit):cleanVenueUnit(p,b,visitorOrUnit);
   return next===b?state:{...state,businesses:{...state.businesses,[id]:next},notice:action==='serve'?`${p.name}: service completed; payment received in this business’s account.`:`${p.name}: maintenance completed using this property’s supplies.`};
 }
-export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:number):Business {
-  if(isLodging(p))return advanceLodging(p,ensureLodging(p,b),delta,week,day);
+export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:number,demand=1):Business {
+  if(p.kind==='plaza')return advancePlaza(p,ensurePlaza(p,b),delta,week,day,demand);
+  if(isLodging(p))return advanceLodging(p,ensureLodging(p,b),delta,week,day,demand);
   if(!b.venue?.running||delta<=0)return b;
   const dt=Math.min(delta,Math.max(0,180-b.venue.clock));if(!dt)return b;
   const rules=venueRules(p),old=b.venue;
@@ -105,17 +112,17 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
     if(p.kind==='apartments'&&u.occupied&&old.clock<80+i*9&&old.clock+dt>=80+i*9)return {...u,dirty:true};
     return u;
   });
-  let venue:VenueState={...old,clock:old.clock+dt,arrivalTimer:old.arrivalTimer-dt,serviceTimer:old.serviceTimer+dt,careTimer:old.careTimer+dt,visitors,units,week:{...old.week,lost:old.week.lost+lost,wages:old.week.wages+businessWages(p,b)*dt/180}};
+  let venue:VenueState={...old,clock:old.clock+dt,arrivalTimer:old.arrivalTimer-dt*demand,serviceTimer:old.serviceTimer+dt,careTimer:old.careTimer+dt,visitors,units,week:{...old.week,lost:old.week.lost+lost,wages:old.week.wages+businessWages(p,b)*dt/180}};
   const hasVacancy=p.kind!=='apartments'||units.some(u=>!u.occupied);
   if(venue.arrivalTimer<=0&&venue.clock<170&&hasVacancy){
     const interval=rules.arrival/(1+b.upgrade*.12)* (b.condition<35?1.6:1);
     venue={...venue,arrivalTimer:interval,serial:venue.serial+1};
     if(visitors.filter(v=>v.state==='waiting').length<6){
-      const shelf=b.retail?.shelves,productId=shelf?.[(venue.serial-1)%shelf.length];
+      const shelf=b.retail?.shelves.filter(id=>retailProductFloor(id)===0||b.retail?.electronicsUnlocked),productId=shelf?.[(venue.serial-1)%shelf.length];
       const offers=offersFor(p).filter(item=>offerEnabled(b,item.id)),offer=offers[(venue.serial-1)%Math.max(1,offers.length)];
       const ratio=productId?retailPrice(b,productId)/retailProduct(productId)!.price:offer?offerPrice(b,offer)/offer.price:1;
       const demand=Math.exp(-2.5*Math.max(0,ratio-1));
-      if((venue.serial*37%100)/100<demand)venue.visitors=[...visitors,{id:venue.serial,seed:venue.serial*17+p.id.length*31,state:'waiting',patience:rules.patience,remaining:0,unit:null,productId,quantity:productId?1+venue.serial%3:undefined,offerId:offer?.id}];
+      if((venue.serial*37%100)/100<demand)venue.visitors=[...visitors,{id:venue.serial,seed:venue.serial*17+p.id.length*31,state:'waiting',patience:rules.patience,remaining:0,unit:null,productId,quantity:productId?(retailProductFloor(productId)===1?1:1+venue.serial%3):undefined,offerId:offer?.id}];
     }
     else venue.week={...venue.week,lost:venue.week.lost+1};
   }
@@ -135,7 +142,7 @@ export function advanceVenues(state:ExpansionState,delta:number):ExpansionState 
   let next={...state,businesses:{...state.businesses}};
   for(const [id,b] of Object.entries(state.businesses)){
     const p=propertyById(id)!;if(!isVenue(p))continue;
-    next.businesses[id]=advanceVenue(p,b,delta,state.week,state.day);
+    next.businesses[id]=advanceVenue(p,b,delta,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits);
     next=autoStockBusiness(next,id);
   }
   return next;

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { RECIPES } from '../data/recipes';
+import {restaurantCatalog,RESTAURANT_TYPES} from '../data/restaurantCatalogs';
 import { ModelParts } from './modelParts';
 
 export type FoodKind = 'burger'|'pizza'|'fries'|'hotdog'|'sushi'|'salad'|'steak'|'chicken'|'sandwich'|'bowl'|'coffee'|'drink';
-const recipes = new Map(RECIPES.map(recipe=>[recipe.id,recipe]));
+const recipes = new Map([...RECIPES,...RESTAURANT_TYPES.flatMap(t=>restaurantCatalog(t.id).recipes)].map(recipe=>[recipe.id,recipe]));
 export function getFoodKind(recipeId: string): FoodKind {
   const name = `${recipeId} ${recipes.get(recipeId)?.name ?? ''}`.toLowerCase();
   if (/burger/.test(name)) return 'burger';
@@ -11,8 +12,8 @@ export function getFoodKind(recipeId: string): FoodKind {
   if (/fries/.test(name)) return 'fries';
   if (/hotdog|hot dog/.test(name)) return 'hotdog';
   if (/sushi/.test(name)) return 'sushi';
-  if (/coffee/.test(name)) return 'coffee';
-  if (/juice|soda|milkshake|lemonade|\btea\b/.test(name)) return 'drink';
+  if (/coffee|espresso|cappuccino|latte|flat white|mocha|affogato/.test(name)) return 'coffee';
+  if (/juice|soda|milkshake|lemonade|cola|cooler|slush|spritzer|\btea\b/.test(name)) return 'drink';
   if (/salad/.test(name)) return 'salad';
   if (/sandwich|wrap|bread/.test(name)) return 'sandwich';
   if (/bucket|chicken bites|tempura/.test(name)) return 'chicken';
