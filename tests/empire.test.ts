@@ -118,7 +118,7 @@ test('live week settlement does not invent diner revenue or double-charge proper
   assert.equal(closed.restaurants.cafe.money,160,'lease paid once from cafe cash');
   assert.equal(closed.restaurants.cafe.weekSummary?.propertyRent,140);
   assert.equal(closed.restaurants.cafe.stats.rentCosts,140);
-  assert.equal(closed.district.businesses.hotel.cash,-90);
+  assert.equal(closed.district.businesses.hotel.cash,0);
   assert.equal(closed.district.report.length,3);
   assert.equal(advanceEmpire(closed,20,advanceGame),closed);
   let next=startEmpireWeek(closed);
@@ -126,11 +126,11 @@ test('live week settlement does not invent diner revenue or double-charge proper
   const paid=advanceEmpire(next,.1,advanceGame);
   assert.equal(paid.restaurants.diner.money,beforeDiner-35);
   assert.equal(paid.restaurants.cafe.money,101);
-  assert.equal(paid.district.businesses.hotel.cash,-300);
-  assert.equal(paid.district.payroll.length,0);
+  assert.equal(paid.district.businesses.hotel.cash,0);
+  assert.equal(paid.district.payroll.length,1);assert.equal(paid.district.payroll[0].amount,210);
   const repeat=advanceEmpire(paid,.1,advanceGame);
   assert.equal(repeat.restaurants.cafe.money,101);
-  assert.equal(repeat.district.businesses.hotel.cash,-300);
+  assert.equal(repeat.district.businesses.hotel.cash,0);
 });
 
 test('financial statements track loans as liabilities and receivables, not sales',()=>{

@@ -6,6 +6,8 @@ import { INGREDIENT_ICONS, INGREDIENT_CATEGORIES, CATEGORY_LABELS, IngredientCat
 interface ResearchLabModalProps {
   money: number;
   existingRecipesCount: number;
+  researchActiveCount?:number;
+  onOpenMenu?:()=>void;
   onPayResearchCost: (cost: number) => void;
   onAddCustomRecipe: (recipe: Recipe) => void;
 }
@@ -73,6 +75,8 @@ export const generateRecipeOptions = (selectedIngredients: Record<string, number
 export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
   money,
   existingRecipesCount,
+  researchActiveCount=0,
+  onOpenMenu,
   onPayResearchCost,
   onAddCustomRecipe,
 }) => {
@@ -81,6 +85,7 @@ export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
   const [search, setSearch] = useState('');
   const [labPhase, setLabPhase] = useState<'select' | 'options'>('select');
   const [labOptions, setLabOptions] = useState<Recipe[]>([]);
+  const [savedRecipe,setSavedRecipe]=useState('');
 
   const totalIngredientsInPot = Object.values(labIngredients).reduce((a, b) => a + b, 0);
   const canAddMore = totalIngredientsInPot < 4;
@@ -125,6 +130,7 @@ export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
 
   const handleSelectRecipe = (recipe: Recipe) => {
     onAddCustomRecipe(recipe);
+    setSavedRecipe(recipe.name);
     setLabIngredients({});
     setLabOptions([]);
     setLabPhase('select');
@@ -140,6 +146,7 @@ export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
 
   return (
     <div className="flex flex-col h-full font-mono">
+      <div className="mc-inner-panel p-3 mb-3"><strong>Research menu: {researchActiveCount} / 10 active</strong><p className="text-sm">Keep as many learned recipes as you like. Activate up to 10 alongside your restaurant’s own dishes. Remove one research dish from the menu to make room for another; it stays learned.</p>{savedRecipe&&<p role="status">Saved {savedRecipe}. Add it under Menu & prices.</p>}{onOpenMenu&&<button className="mc-button px-3 py-2 mt-2" onClick={onOpenMenu}>Manage research menu</button>}</div>
       {/* Header Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b-4 border-[#8b8b8b] pb-3 mb-3">
         <div className="flex items-center gap-2.5">
@@ -405,7 +412,7 @@ export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
               3 Commercial Prototypes Discovered!
             </h4>
             <p className="text-xs font-bold text-[#555555] uppercase mt-1">
-              Review their margin, prep speed, and flavor profile. Select 1 to permanently add to your restaurant menu.
+              Compare margin and prep speed. Save one to your research collection, then activate it under Menu & prices.
             </p>
           </div>
 
@@ -490,7 +497,7 @@ export const ResearchLabModal: React.FC<ResearchLabModalProps> = ({
                     onClick={() => handleSelectRecipe(opt)}
                     className="w-full py-2.5 mc-button-green font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow"
                   >
-                    <Check size={14} /> Add to Restaurant
+                    <Check size={14} /> Save research recipe
                   </button>
                 </div>
               );

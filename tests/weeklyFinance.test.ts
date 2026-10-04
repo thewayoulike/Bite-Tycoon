@@ -1,3 +1,4 @@
+import {advanceBusinessStockroom} from '../src/inventory/businessStockroom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {INITIAL_STATE,advanceGame} from '../src/hooks/useGameLoop';
@@ -28,7 +29,8 @@ test('all seven properties have isolated current-week reports; test funds, loans
 });
 
 test('weekly retail COGS uses FIFO discounted costs and staff payroll payments are not charged twice',()=>{
- let e=fresh();e=applyDistrictUpdate(e,s=>orderRetailStock(s,'shop','apples',50),INITIAL_STATE);
+ let e=fresh();e.district.businesses.shop.retail!.store!.level=3;e=applyDistrictUpdate(e,s=>orderRetailStock(s,'shop','apples',50),INITIAL_STATE);
+ e=applyDistrictUpdate(e,s=>({...s,businesses:{...s.businesses,shop:advanceBusinessStockroom(propertyById('shop')!,s.businesses.shop,s.week,2)}}),INITIAL_STATE);
  e=applyDistrictUpdate(e,s=>{const b=s.businesses.shop;return {...s,businesses:{...s.businesses,shop:{...b,cash:b.cash+150,retail:consumeRetailStock(b.retail!,'apples',30),books:{...b.books!,revenue:b.books!.revenue+150,wagesAccrued:b.books!.wagesAccrued+20}}}};},INITIAL_STATE);
  const r=report(e,'shop');near(r.revenue,150);near(r.cogs,20*1.2+10*1.08);near(r.wages,20);near(r.profit,150-34.8-20);
  e=applyDistrictUpdate(e,s=>nextDay({...s,day:3,payroll:[...s.payroll,{businessId:'shop',amount:19,week:s.week}]}),INITIAL_STATE);
@@ -65,7 +67,7 @@ test('closing P&L saves the same detailed accounting figures and stays frozen du
  for(const p of PROPERTIES){
   const r=saved.reports.find(r=>r.id===p.id)!,totals=cumulativeProfitLoss(p,e.district.businesses[p.id],e.district,e.restaurants[p.id]);
   for(const key of Object.keys(totals) as (keyof typeof totals)[])near(r[key],totals[key]);
-  near(r.expenses,r.cogs+r.wages+r.hiring+r.maintenance+r.fees+r.spoilage+r.rent);near(r.profit,r.revenue-r.expenses);
+  near(r.expenses,r.cogs+r.wages+r.hiring+r.maintenance+r.fees+r.spoilage+r.rent+(r.depreciation??0));near(r.profit,r.revenue-r.expenses);
   assert.equal(r.week,1);assert.equal(r.day,7);near(r.cash,e.district.businesses[p.id].cash);
   near(e.district.report.find(item=>item.id===p.id)!.profit,r.profit);near(report(e,p.id).profit,0);
  }

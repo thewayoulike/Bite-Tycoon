@@ -1,6 +1,12 @@
+import {promotionDiscount} from '../career/retailEvents';
+import {newStore,StoreState,productUnlocked,selectedFixtureRoom,shelfPlan,advanceStoreLevel} from './supermarket';
+import {orderBusinessStock,manageBusinessStockroom} from '../inventory/businessStockroom';
+import type {StockBatch} from '../inventory/stockroom';
+import {protectedObligations} from './cashProtection';
+import {propertyById} from '../prototype/expansionModel';
 import type {Business,ExpansionState} from '../prototype/expansionModel';
 export const ELECTRONICS_FLOOR_COST=5000;
-export const ELECTRONICS_FLOOR_CUSTOMERS=20;
+export const ELECTRONICS_FLOOR_CUSTOMERS=300;
 export const SUPERMARKET_MAX_BUDGET=20000;
 export const RETAIL_PRODUCTS=[
   {id:'apples',name:'Fresh apples',category:'Produce',cost:1.2,price:3,icon:'🍎',color:'#bc6b4e'},
@@ -40,8 +46,8 @@ export const RETAIL_PRODUCTS=[
   {id:'kettle',name:'Electric kettle',category:'Appliances',cost:14,price:32,icon:'🫖',color:'#c4bdad'},
   {id:'toaster',name:'Toaster',category:'Appliances',cost:17,price:38,icon:'🍞',color:'#bfc2c0'},
 ];
-export type RetailState={stock:Record<string,number>;shelves:string[];electronicsUnlocked?:boolean;batches?:Record<string,{qty:number;costPerUnit:number}[]>};
-export const createRetail=(stock=100):RetailState=>({stock:Object.fromEntries(RETAIL_PRODUCTS.slice(0,6).map(p=>[p.id,Math.round((p.id==='tea'?10:20)*stock/100)])),shelves:['apples','bread','milk']});
+export type RetailState={store?:StoreState;stock:Record<string,number>;shelves:string[];electronicsUnlocked?:boolean;batches?:Record<string,StockBatch[]>};
+export const createRetail=(stock=100):RetailState=>({store:newStore(),stock:Object.fromEntries(RETAIL_PRODUCTS.slice(0,6).map(p=>[p.id,Math.round((p.id==='tea'?10:20)*stock/100)])),shelves:['apples','bread','milk']});
 export const retailProduct=(id:string)=>RETAIL_PRODUCTS.find(p=>p.id===id);
 export const retailProductFloor=(id:string)=>['Electronics','Appliances'].includes(retailProduct(id)?.category??'')?1:0;
 export const retailOrderDiscount=(id:string,quantity:number)=>quantity>=(retailProductFloor(id)===1?5:50)?.1:quantity>=(retailProductFloor(id)===1?3:25)?.05:0;
@@ -53,51 +59,55 @@ export function consumeRetailStock(retail:RetailState,id:string,quantity:number)
  return {...retail,stock:{...retail.stock,[id]:Math.max(0,(retail.stock[id]??0)-quantity)},batches:{...retail.batches,[id]:batches}};
 }
 export const retailDisplayCapacity=(floor:number)=>RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===floor).length;
-export const availableRetailProducts=(b:Business)=>RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===0||b.retail?.electronicsUnlocked);
+export const availableRetailProducts=(b:Business)=>RETAIL_PRODUCTS.filter(p=>productUnlocked(b,p.id));
 export const retailShelfCount=(b:Business,floor:number)=>b.retail?.shelves.filter(id=>retailProductFloor(id)===floor).length??0;
-export const retailSelectionDisabled=(b:Business,id:string)=>!b.retail||retailProductFloor(id)===1&&!b.retail.electronicsUnlocked||(b.retail.shelves.includes(id)&&b.retail.shelves.length===1);
+export const retailSelectionDisabled=(b:Business,id:string)=>!b.retail||!productUnlocked(b,id)||(b.retail.shelves.includes(id)?b.retail.shelves.length===1:!selectedFixtureRoom(b,id));
 export function unlockElectronicsFloor(state:ExpansionState,id:string):ExpansionState{
  const b=state.businesses[id];if(!b?.retail||b.retail.electronicsUnlocked)return state;
+ if(b.retail.store)return b.retail.store.level===3?advanceStoreLevel(state,id):{...state,notice:'Complete the grocery and stockroom levels before electronics.'};
  if((b.venue?.totalServed??0)<ELECTRONICS_FLOOR_CUSTOMERS)return {...state,notice:`Serve ${ELECTRONICS_FLOOR_CUSTOMERS} supermarket shoppers to unlock the electronics floor.`};
  if(b.cash<ELECTRONICS_FLOOR_COST)return {...state,notice:`The electronics floor needs $${ELECTRONICS_FLOOR_COST} from the supermarket account.`};
  return {...state,businesses:{...state.businesses,[id]:{...b,cash:b.cash-ELECTRONICS_FLOOR_COST,spending:b.spending+ELECTRONICS_FLOOR_COST,retail:{...b.retail,electronicsUnlocked:true},books:b.books?{...b.books,upgrades:b.books.upgrades+ELECTRONICS_FLOOR_COST}:undefined,ledger:[...b.ledger,{week:state.week,day:state.day,label:'Electronics floor fitted out',amount:-ELECTRONICS_FLOOR_COST}].slice(-60)}},notice:'Electronics floor opened. Choose products, order stock and set prices in Inventory and Products & prices.'};
 }
-export const retailPrice=(b:Business,id:string)=>b.menu?.[id]?.price??retailProduct(id)!.price;
+export const retailPrice=(b:Business,id:string)=>Math.round((b.menu?.[id]?.price??retailProduct(id)!.price)*(1-promotionDiscount(b,id))*100)/100;
 export const retailValue=(b:Business)=>b.retail?RETAIL_PRODUCTS.reduce((n,p)=>n+retailItemValue(b.retail!,p.id),0):0;
 export const retailStockLevel=(retail:RetailState)=>retail.shelves.length?Math.min(100,Math.round(retail.shelves.reduce((n,id)=>n+(retail.stock[id]??0)/(retailProductFloor(id)===1?3:30),0)/retail.shelves.length*100)):0;
 export function setShelfProduct(state:ExpansionState,id:string,productId:string):ExpansionState {
   const b=state.businesses[id];if(!b?.retail||!retailProduct(productId))return state;
   const selected=b.retail.shelves.includes(productId);
   if(retailSelectionDisabled(b,productId))return state;
-  const retail={...b.retail,shelves:selected?b.retail.shelves.filter(key=>key!==productId):[...b.retail.shelves,productId]};
+  const retail={...b.retail,...(selected&&b.retail.store?{store:{...b.retail.store,shelf:{...b.retail.store.shelf,[productId]:0}}}:{}),shelves:selected?b.retail.shelves.filter(key=>key!==productId):[...b.retail.shelves,productId]};
   const next={...state,businesses:{...state.businesses,[id]:{...b,retail,stock:retailStockLevel(retail)}},notice:selected?'Removed from display; remaining units stay in the supermarket stockroom.':'Product added to the supermarket. Order stock, or let the purchasing manager replenish it.'};
   return autoRetailStock(next,id);
 }
 export function placeAllRetailProducts(state:ExpansionState,id:string,floor:number):ExpansionState {
  const b=state.businesses[id];if(!b?.retail||floor===1&&!b.retail.electronicsUnlocked)return state;
+ if(b.retail.store){const plan=shelfPlan(b,floor);if(plan.cost)return {...state,notice:`Display plan needs ${plan.addDry} dry and ${plan.addCold} refrigerated spaces ($${plan.cost}). Review and confirm the fixture plan.`};}
  const additions=availableRetailProducts(b).filter(p=>retailProductFloor(p.id)===floor&&!b.retail!.shelves.includes(p.id)).map(p=>p.id);if(!additions.length)return state;
  const retail={...b.retail,shelves:[...b.retail.shelves,...additions]};
  return autoRetailStock({...state,businesses:{...state.businesses,[id]:{...b,retail,stock:retailStockLevel(retail)}},notice:'All products placed on display. Order their stock, or let your manager replenish within the existing budget.'},id);
 }
 export function setProductPrice(state:ExpansionState,id:string,productId:string,price:number):ExpansionState {
-  const b=state.businesses[id],p=retailProduct(productId);if(!b?.retail||!p||retailProductFloor(productId)===1&&!b.retail.electronicsUnlocked||!Number.isFinite(price)||price<p.cost||price>p.price*3)return state;
+  const b=state.businesses[id],p=retailProduct(productId);if(!b?.retail||!p||!productUnlocked(b,productId)||!Number.isFinite(price)||price<p.cost||price>p.price*3)return state;
   return {...state,businesses:{...state.businesses,[id]:{...b,menu:{...b.menu,[productId]:{price:Math.round(price*100)/100,enabled:true}}}}};
 }
 export function orderRetailStock(state:ExpansionState,id:string,productId:string,quantity:number,automatic=false):ExpansionState {
-  const b=state.businesses[id],p=retailProduct(productId);if(!b?.retail||!p||retailProductFloor(productId)===1&&!b.retail.electronicsUnlocked||!Number.isInteger(quantity)||quantity<=0)return state;
+  if(state.businesses[id]?.stockroom)return orderBusinessStock(state,id,productId,quantity,'standard',automatic);
+  const b=state.businesses[id],p=retailProduct(productId);if(!b?.retail||!p||!productUnlocked(b,productId)||!Number.isInteger(quantity)||quantity<=0)return state;
   const count=Math.min(quantity,100-(b.retail.stock[productId]??0)),cost=retailOrderCost(productId,count);
   if(count<=0||b.cash<cost)return state;
   const retail={...b.retail,stock:{...b.retail.stock,[productId]:(b.retail.stock[productId]??0)+count},batches:{...b.retail.batches,[productId]:[...retailBatches(b.retail,productId),{qty:count,costPerUnit:cost/count}]}};
   return {...state,businesses:{...state.businesses,[id]:{...b,cash:b.cash-cost,retail,stock:retailStockLevel(retail),spending:b.spending+cost,books:b.books?{...b.books,purchases:b.books.purchases+cost}:undefined,manager:b.manager&&automatic?{...b.manager,spent:b.manager.spent+cost}:b.manager,ledger:[...b.ledger,{week:state.week,day:state.day,label:`${automatic?'Manager: ':''}${p.name} (+${count})`,amount:-cost}].slice(-60)}}};
 }
 export function autoRetailStock(state:ExpansionState,id:string):ExpansionState {
+  if(state.businesses[id]?.stockroom)return manageBusinessStockroom(state,id,true);
   let next=state;const original=state.businesses[id];if(!original?.retail||!original.manager?.enabled)return state;
   // Empty displays go first so grocery top-ups do not repeatedly starve empty electronics.
   const shelves=[...original.retail.shelves].sort((a,b)=>Number((original.retail!.stock[a]??0)>0)-Number((original.retail!.stock[b]??0)>0));
   for(const key of shelves){
     const b=next.businesses[id],p=retailProduct(key)!,count=b.retail!.stock[key]??0,manager=b.manager!;
     const electronics=retailProductFloor(key)===1;if(electronics&&!b.retail!.electronicsUnlocked||count>=(electronics?1:15))continue;
-    const budget=Math.max(0,Math.min(manager.budget-manager.spent,b.cash-manager.reserve));
+    const budget=Math.max(0,Math.min(manager.budget-manager.spent,b.cash-manager.reserve-protectedObligations(propertyById(id)!,b,next).total));
     let qty=Math.max(0,Math.min((electronics?3:30)-count,100-count));
     while(qty>0&&retailOrderCost(p.id,qty)>budget+1e-8)qty--;
     if(qty>0)next=orderRetailStock(next,id,key,qty,true);

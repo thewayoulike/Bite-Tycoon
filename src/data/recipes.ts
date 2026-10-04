@@ -77,6 +77,16 @@ export const INGREDIENTS: Record<string, Ingredient> = {
   apple: { id: 'apple', name: 'Apple', cost: 1 },
   lemon: { id: 'lemon', name: 'Lemon', cost: 1 },
 
+  tea: { id: 'tea', name: 'Tea Leaves', cost: 2 },
+  seaweed: { id: 'seaweed', name: 'Nori Seaweed', cost: 2 },
+  cucumber: { id: 'cucumber', name: 'Cucumber', cost: 1 },
+  chickpea: { id: 'chickpea', name: 'Chickpeas', cost: 2 },
+  lentil: { id: 'lentil', name: 'Red Lentils', cost: 2 },
+  yogurt: { id: 'yogurt', name: 'Yogurt', cost: 2 },
+  coconut: { id: 'coconut', name: 'Coconut Milk', cost: 3 },
+  miso: { id: 'miso', name: 'Miso Paste', cost: 2 },
+  sesame: { id: 'sesame', name: 'Sesame Seeds', cost: 1 },
+
   // Sauces & Herbs
   soy_sauce: { id: 'soy_sauce', name: 'Soy Sauce', cost: 1 },
   spices: { id: 'spices', name: 'Spices', cost: 2 },

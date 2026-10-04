@@ -6,7 +6,7 @@ export function ProgressionComparison({p,level,after,onClose,onStage}:{p:Propert
   const rows=food?[
     ['Active menu','Always up to 6 dishes',`${MENU_CAPACITIES[n]} dishes at Level ${level}`],
     ['Recipe collection','Buy recipes and keep them permanently','Keep every recipe; menu slots grow separately'],
-    ['Cuisine','All restaurants share the same recipe catalog','Separate 24-recipe collections for diner, café & bakery, bistro, Italian and fast food; each has its own pantry'],
+    ['Cuisine','All restaurants share the same recipe catalog','Separate 30-recipe collections plus 10 research menu slots for diner, café & bakery, bistro, Italian and fast food; each has its own pantry'],
     ['Next expansion','Buy tables, staff and individual upgrades',level===6?'Flagship reached':`${[60,180,450,975,1800][n]} cumulative guests · $${[750,1800,4000,8000,14000][n].toLocaleString()} fit-out`],
     ['Readiness','Staff unlock at service milestones','Level 3+: 80% served. Level 4+: 2 profitable weeks and no overdue wages'],
     ['Inventory','Active-menu ingredients and automatic manager orders','Keep that working link; equipment, delivery windows and coverage targets follow later'],

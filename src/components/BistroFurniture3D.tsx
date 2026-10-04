@@ -112,7 +112,7 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
   index: number;
   isEating: boolean; servedRecipeIds?: string[];
   actions: any;
-  identity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood';
+  identity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood'|'indian'|'japanese';
   level?:number;
 }) => {
   const x = mapPos(table.x);

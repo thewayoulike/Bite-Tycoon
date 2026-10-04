@@ -10,6 +10,7 @@ import {RealCharacter3D} from '../components/RealCharacter3D';
 import {ParkFountain3D} from '../components/CityScenery3D';
 import {StylizedTree3D} from '../components/StreetAssets3D';
 import {ElectronicsInterior3D,SupermarketInterior3D} from '../components/SupermarketInterior3D';
+import {SupermarketPeople3D} from '../components/SupermarketPeople3D';
 import {retailProductFloor} from '../empire/retail';
 import {createVenue,serviceBlocker,VenueVisitor,venueRules} from '../empire/venueSimulation';
 import {LodgingBusiness3D} from '../components/LodgingBusiness3D';
@@ -63,7 +64,7 @@ export function BusinessInterior({p,b}:{p:Property;b:Business}){
   return <Canvas shadows={{type:THREE.PCFShadowMap}} dpr={[1,1.5]} camera={{position:[15,19,24],fov:43}}><color attach="background" args={['#dce6df']}/><hemisphereLight intensity={1.8}/><directionalLight position={[-8,18,10]} intensity={2.5} castShadow/><OutdoorReflections3D isNight={false}/><BusinessContents3D p={p} b={b}/><OrbitControls target={[0,.7,0]} minDistance={8} maxDistance={45} maxPolarAngle={1.4}/></Canvas>;
 }
 export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract,serviceActive=false,isNight=false,floor=0}:{p:Property;b:Business;gameSpeed?:number;interactive?:boolean;onInteract?:(action:VenueInteraction,id?:number)=>void;serviceActive?:boolean;isNight?:boolean;floor?:number}){
-  const park=p.kind==='park',venue=b.venue??createVenue(p),rules=venueRules(p),visitors=p.kind==='shop'?venue.visitors.filter(v=>retailProductFloor(v.productId??'')===floor):venue.visitors,waiting=visitors.filter(v=>v.state==='waiting');
+  const park=p.kind==='park',venue=b.venue??createVenue(p),rules=venueRules(p),visitors=p.kind==='shop'?venue.visitors.filter(v=>retailProductFloor(v.productId??'')===floor):venue.visitors,waiting=visitors.filter(v=>v.state==='waiting'&&(!b.retail?.store||v.basket));
   const blocker=waiting.length?serviceBlocker(p,b,waiting[0].id):'Waiting for arrivals';
   const housing=p.kind==='hotel'||p.kind==='apartments';
   const act=(action:VenueInteraction,id?:number)=>onInteract?.(action,id);
@@ -79,11 +80,13 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
       <mesh position={[0,3,-9.5]}><planeGeometry args={[7,.55]}/><meshBasicMaterial map={getSignTexture(p.name.toUpperCase())} transparent/></mesh>
       {[-5,5].map(x=><group key={x} position={[x,3.2,3]}><mesh><cylinderGeometry args={[.6,.8,.3,16]}/><meshStandardMaterial color="#eee3c2" emissive="#f4d394" emissiveIntensity={isNight?1:.15}/></mesh></group>)}
     </>}
+    {b.retail?.store?<SupermarketPeople3D b={b} floor={floor} speed={gameSpeed} onAction={(a,id)=>{if(interactive)act(a,id);}}/>:<>
     {/* One opening service worker and one caretaker; hiring adds visible helpers. */}
     {Array.from({length:1+(b.hires?.service??0)},(_,i)=><group key={`service-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[6+i,0,-6.6]:[-5.2+i,0,5.6]}><RealCharacter3D role={park?"helper":"cashier"} seed={p.id.length*5+i} gameSpeed={gameSpeed} isWorking={serviceActive&&waiting.length>0}/></group>)}
     {Array.from({length:1+(b.hires?.care??0)},(_,i)=><group key={`care-${i}`} onClick={e=>{e.stopPropagation();if(interactive)act('staff');}} position={park?[-6+i,0,-6]:[7.8,0,-6+i*2]}><RealCharacter3D role={park?"gardener":"cleaner"} seed={21+i} gameSpeed={gameSpeed} isWorking={serviceActive}/></group>)}
     {b.manager&&<group position={park?[8,0,-7]:[-7.5,0,3]}><RealCharacter3D role="manager" seed={45} gameSpeed={gameSpeed}/></group>}
     {visitors.map(person=><MovingPerson key={person.id} person={person} p={p} floor={floor} index={Math.max(0,waiting.findIndex(v=>v.id===person.id))} speed={gameSpeed} onServe={interactive?()=>person.state==='waiting'?act('serve',person.id):act('bookings'):undefined}/>)}
+    </>}
     {interactive&&rules&&<>
       {<Hotspot position={park?[6,3,-4.5]:[-4,2.9,7]} title={rules.verb} note={blocker??`${waiting.length} waiting · click to serve`} disabled={!!blocker} onClick={()=>act('serve',waiting[0]?.id)}/>}
       <Hotspot position={park?[-7,2.4,-5]:[7.5,2.7,-6]} title={p.kind==='hotel'?'Linen & supplies':p.kind==='apartments'?'Maintenance store':p.kind==='shop'?'Stockroom':'Garden supplies'} note={`${Math.round(b.stock)}% stocked · order supplies`} onClick={()=>act('inventory')}/>

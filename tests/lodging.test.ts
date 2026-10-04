@@ -1,3 +1,5 @@
+import {advanceBusinessStockroom} from '../src/inventory/businessStockroom';
+import {incoming} from '../src/inventory/stockroom';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {INITIAL_STATE} from '../src/hooks/useGameLoop';
@@ -33,7 +35,7 @@ test('repair blockers explain shifts, unopened weeks and missing supplies; resto
   const dry={...damaged,inventory:{...damaged.inventory,[key]:0}};
   assert.match(roomRepairBlocker(p,dry,0)!,/Order more in Inventory/);assert.match(lodgingRepairStatus(p,dry),/Staff waiting/);
   let b=advanceVenue(p,dry,10,1,1);assert.equal(b.venue!.units[0].condition,40);assert.equal(b.cash,dry.cash);
-  s={...s,businesses:{...s.businesses,[id]:b}};s=restockBusinessItem(s,id,key,10);b=s.businesses[id];
+  s={...s,businesses:{...s.businesses,[id]:b}};s=restockBusinessItem(s,id,key,10);b=advanceBusinessStockroom(p,s.businesses[id],1,2);
   const repaired=advanceVenue(p,b,10,1,1);assert.equal(repaired.venue!.units[0].condition,100);close(repaired.cash,b.cash-15);
   const poor={...damaged,cash:14};assert.match(roomRepairBlocker(p,poor,0)!,/Needs \$15/);assert.equal(advanceVenue(p,poor,10,1,1).venue!.units[0].condition,40);
  }
@@ -60,7 +62,7 @@ test('additional maintenance workers increase repair throughput without double-c
 });
 test('renovations change one unit once, with no duplicate charge, rate reset or free repair',()=>{
  for(const id of ['hotel','apartments']){
-  let s=fresh().district;const before=s.businesses[id],type=id==='hotel'?'suite':'twobed';
+  let s=fresh().district;s.businesses[id].lodging!.openFloors=id==='hotel'?5:3;const before=s.businesses[id],type=id==='hotel'?'suite':'twobed';
   assert.equal(manageLodging(s,id,{type:'renovate',unit:0,roomType:before.venue!.units[0].type!}).businesses[id],before);
   s=manageLodging(s,id,{type:'renovate',unit:0,roomType:type});const renovated=s.businesses[id];
   assert.equal(renovated.venue!.units[0].type,type);close(renovated.cash,before.cash-(id==='hotel'?1400:1000));
@@ -82,8 +84,8 @@ test('occupied and reserved units cannot be converted or charged',()=>{
   assert.equal(manageLodging(s,id,{type:'renovate',unit:0,roomType:id==='hotel'?'family':'onebed'}).businesses[id],b);
  }
 });
-test('three starter leases unlock apartment expansion without waiting six weeks for turnover',()=>{
- let s=fresh().district,b=s.businesses.apartments;s={...s,businesses:{...s.businesses,apartments:{...b,venue:{...b.venue!,totalServed:3,units:b.venue!.units.map(u=>({...u,occupied:true}))}}}};
+test('apartment expansion rewards occupied-home weeks rather than replacing tenants',()=>{
+ let s=fresh().district,b=s.businesses.apartments;s={...s,businesses:{...s.businesses,apartments:{...b,lodging:{...b.lodging!,occupiedHomeWeeks:6},venue:{...b.venue!,totalServed:3,units:b.venue!.units.map(u=>({...u,occupied:true}))}}}};
  s=manageLodging(s,'apartments',{type:'floor'});assert.equal(s.businesses.apartments.lodging!.openFloors,2);assert.equal(s.businesses.apartments.venue!.units.length,6);assert.equal(s.businesses.apartments.venue!.units.filter(u=>u.occupied).length,3);
 });
 test('receptionists respect shifts and finite check-in capacity',()=>{
@@ -97,7 +99,7 @@ test('new hotels and apartments start with one floor; expansion is earned, paid,
   const p=propertyById(id)!,initial=s.businesses[id],perFloor=id==='hotel'?4:3;
   assert.equal(initial.lodging!.openFloors,1);assert.equal(initial.venue!.units.length,perFloor);
   assert.equal(manageLodging(s,id,{type:'floor'}).businesses[id],initial);
-  s={...s,businesses:{...s.businesses,[id]:{...initial,cash:200000,books:{...initial.books!,capital:initial.books!.capital+175000},venue:{...initial.venue!,totalServed:100}}}};
+  s={...s,businesses:{...s.businesses,[id]:{...initial,cash:200000,lodging:{...initial.lodging!,completedNights:500,occupiedHomeWeeks:300,reputation:90,profitableWeeks:3,lastReport:{week:1,occupancy:80,averageRate:100,reputation:90,served:100,lost:0,revenue:10000}},books:{...initial.books!,capital:initial.books!.capital+175000},venue:{...initial.venue!,totalServed:100}}}};
   for(let floor=2;floor<=maxFloors(p);floor++){
    const before=s.businesses[id],cost=nextFloorCost(p,before);s=manageLodging(s,id,{type:'floor'});const after=s.businesses[id];assert.equal(after.lodging!.openFloors,floor);assert.equal(after.venue!.units.length,floor*perFloor);close(after.cash,before.cash-cost);const f=venueFinancials(p,after,s);close(f.assets,f.liabilities+f.equity);close(f.closingCash,after.cash);
   }
@@ -125,7 +127,7 @@ test('leases retain agreed rent and are collected once per week despite rate and
 });
 test('purchasing targets honor reserve and budget, and refunds reconcile all statements',()=>{
  let s=startEmpireWeek(fresh()).district,b=s.businesses.hotel;
- b={...b,manager:{enabled:true,budget:15,spent:0,reserve:b.cash-10},inventory:{...b.inventory,'stock-5':0},lodging:{...b.lodging!,targets:{'stock-5':20}}};s={...s,businesses:{...s.businesses,hotel:b}};s=autoStockBusiness(s,'hotel');assert.ok(s.businesses.hotel.cash>=b.manager!.reserve);assert.ok(s.businesses.hotel.manager!.spent<=10.001);assert.ok(s.businesses.hotel.inventory!['stock-5']>0);
+ b={...b,manager:{enabled:true,budget:15,spent:0,reserve:b.cash-10},inventory:{...b.inventory,'stock-5':0},lodging:{...b.lodging!,targets:{'stock-5':20}}};s={...s,businesses:{...s.businesses,hotel:b}};s=autoStockBusiness(s,'hotel');assert.ok(s.businesses.hotel.cash>=b.manager!.reserve);assert.ok(s.businesses.hotel.manager!.spent<=10.001);assert.ok(incoming(s.businesses.hotel.stockroom,'stock-5')>0);
  b=s.businesses.hotel;b={...b,venue:{...b.venue!,units:b.venue!.units.map((u,i)=>i===0?{...u,occupied:true,rent:100}:u)},lodging:{...b.lodging!,issues:[{id:1,unit:0,kind:'noise',description:'Noise',deadline:100}]}};s={...s,businesses:{...s.businesses,hotel:b}};const cash=b.cash;s=manageLodging(s,'hotel',{type:'issue',id:1,choice:'refund'});close(s.businesses.hotel.cash,cash-25);close(s.businesses.hotel.venue!.week.revenue,b.venue!.week.revenue-25);const f=venueFinancials(propertyById('hotel')!,s.businesses.hotel,s);close(f.assets,f.liabilities+f.equity);close(f.closingCash,s.businesses.hotel.cash);
 });
 test('legacy saves keep rooms, occupants, agreed rents and cash without adding unrecorded stock',()=>{

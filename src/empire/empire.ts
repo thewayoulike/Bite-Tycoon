@@ -1,18 +1,31 @@
+import {restaurantDepth} from '../career/restaurant';
+import {settleInternalRent,internalRentForWeek,advanceTenantTrade,closeTenantTurnover} from '../career/mallCompanies';
+import {ensureCrew} from '../career/crew';
+import {simulationRate} from '../career/settings';
+import {closeMallWeek} from './mallDepth';
+import {ensureSupermarket} from './supermarket';
+import {ensureRestaurantStockroom} from '../inventory/restaurantStockroom';
+import {ensureBusinessStockroom} from '../inventory/businessStockroom';
 import {weatherForDay,weatherDemand,weatherSeed,WeatherDemand} from './weather';
 import type {GameState} from '../hooks/useGameLoop';
 import {activeRecipes, INITIAL_INVENTORY_VALUE, STARTING_MONEY, startOrPauseArrivals, weeklyWages} from '../gameplay';
 import {Business, automaticLoanPayments, ensureLoanRepayments, payWeeklyLease, createBusiness, ExpansionState, finishWeek, initialExpansion, nextDay, PROPERTIES, propertyById} from '../prototype/expansionModel';
 import {advanceVenues,createVenue,isVenue,startVenueWeek} from './venueSimulation';
 import {configureRestaurantIdentity} from './restaurantIdentity';
-import {chooseRestaurantType,validRestaurantType} from '../restaurantTypes';
+import {chooseRestaurantType,validRestaurantType,normalizeRestaurantCatalog,isOpeningRestaurant,defaultRestaurantType} from '../restaurantTypes';
 import type {RestaurantType} from '../data/restaurantCatalogs';
 import {openBusinessBooks} from './venueFinance';
 import {createRetail} from './retail';
 import {ensureLodging} from './lodging';
 import {ensurePlaza} from './plaza';
+import {closeHotelPerformance} from './hotelProgression';
 import {openWeeklyBooks,weeklyProfitLoss} from './weeklyFinance';
+import {syncAssets,depreciateAssets,accumulatedDepreciation} from './assets';
+import {protectedObligations} from './cashProtection';
+import {retryLease} from '../prototype/expansionModel';
 
 export interface EmpireState {
+  settings?:import("../career/settings").CareerSettings;
   version: 1;
   activeRestaurantId: string;
   speed: number;
@@ -26,7 +39,7 @@ export const isRestaurant = (id:string) => ['restaurant','cafe'].includes(proper
 const cashEntry=(b:Business,week:number,day:number,label:string,amount:number):Business=>({...b,ledger:[...b.ledger,{week,day,label,amount}].slice(-60)});
 
 export function createEmpire(diner:GameState):EmpireState {
-  diner=configureRestaurantIdentity(diner,'diner');
+  diner=ensureRestaurantStockroom(configureRestaurantIdentity(diner,'diner'));
   const district=initialExpansion(diner.money);
   district.week=diner.week;district.day=Math.min(7,Math.floor(diner.time*7/100)+1);
   district.businesses.diner.ledger=[{week:diner.week,day:district.day,label:'Opening diner balance',amount:diner.money}];
@@ -38,19 +51,26 @@ export function createEmpire(diner:GameState):EmpireState {
 /** Restaurant money is authoritative; the district is a view of those accounts. */
 export function districtView(empire:EmpireState):ExpansionState {
   const businesses={...empire.district.businesses};
-  for(const [id,b] of Object.entries(businesses))if(isVenue(propertyById(id)!))businesses[id]=openBusinessBooks(propertyById(id)!,ensurePlaza(propertyById(id)!,ensureLodging(propertyById(id)!,id==='shop'&&!b.retail?{...b,retail:createRetail(b.stock)}:b,empire.district.week)),empire.district);
+  for(const [id,b] of Object.entries(businesses))if(isVenue(propertyById(id)!))businesses[id]=openBusinessBooks(propertyById(id)!,ensureSupermarket(ensurePlaza(propertyById(id)!,ensureLodging(propertyById(id)!,propertyById(id)!.kind==='shop'&&!b.retail?{...b,retail:createRetail(b.stock)}:b,empire.district.week))),empire.district);
+  for(const [id,b] of Object.entries(businesses))if(isVenue(propertyById(id)!))businesses[id]=ensureBusinessStockroom(propertyById(id)!,b,empire.district.week,empire.district.day);
   for(const [id,r] of Object.entries(empire.restaurants)) {
     const menu=activeRecipes(r),ingredients=[...new Set(menu.flatMap(item=>Object.keys(item.ingredients)))];
     businesses[id]={...businesses[id],...(r.restaurantType?{restaurantType:r.restaurantType}:{}),cash:r.money,stock:ingredients.length?Math.min(100,...ingredients.map(ing=>r.inventory[ing]??0)):0,condition:r.tables.length?Math.round(100*r.tables.filter(t=>!t.isDirty).length/r.tables.length):100};
   }
-  for(const [id,b] of Object.entries(businesses))businesses[id]=openWeeklyBooks(propertyById(id)!,b,empire.district,empire.restaurants[id]);
+  for(const [id,b] of Object.entries(businesses)){
+    const p=propertyById(id)!,r=empire.restaurants[id];
+    businesses[id]={...b,crew:ensureCrew(p,b,r)};
+    const property=r?(id==='diner'?0:Math.max(0,(b.tenure==='owned'?p.buy:p.deposit)-INITIAL_INVENTORY_VALUE)):(b.books?.openingProperty??0);
+    businesses[id]=openWeeklyBooks(p,syncAssets(businesses[id],empire.district.week,property,r?r.stats.upgradeCosts:(b.books?.upgrades??0)),empire.district,r);
+  }
   return ensureLoanRepayments({...empire.district,weatherSeed:weatherSeed(empire.district.weatherSeed),businesses});
 }
 
 export function updateRestaurant(empire:EmpireState,id:string,update:(r:GameState)=>GameState):EmpireState {
   const before=empire.restaurants[id];if(!before)return empire;
-  const after=update(before);if(after===before)return empire;
   const view=districtView(empire);
+  const protectedState={...before,cashProtection:protectedObligations(propertyById(id)!,view.businesses[id],view,before)};
+  const after=update(protectedState);if(after===protectedState)return empire;
   let business={...view.businesses[id],cash:after.money};
   if(after.money!==before.money)business=cashEntry(business,empire.district.week,empire.district.day,'Restaurant purchase / service adjustment',after.money-before.money);
   return {...empire,restaurants:{...empire.restaurants,[id]:after},district:{...view,businesses:{...view.businesses,[id]:business}}};
@@ -63,7 +83,7 @@ function openingRestaurant(starter:GameState,cash:number,week:number,id:string,s
   r.staff.waiters=1;
   r.waiterEntities=[{id:`${id}-waiter`,state:'idle',targetCustomerId:null,targetOrderId:null,targetTableId:null,x:-5,y:-8,stamina:100}];
   const identified=configureRestaurantIdentity(r,id);
-  return type?chooseRestaurantType(identified,type,true):identified;
+  return ensureRestaurantStockroom(chooseRestaurantType(identified,type??defaultRestaurantType(id),true));
 }
 
 export function applyDistrictUpdate(empire:EmpireState,update:(s:ExpansionState)=>ExpansionState,starter:GameState):EmpireState {
@@ -102,7 +122,8 @@ export function unlockTestDistrict(empire:EmpireState,starter:GameState):EmpireS
     if(isVenue(p)&&!b.venue)businesses[p.id]={...b,venue:createVenue(p)};
     testCapital[p.id]=(testCapital[p.id]??0)+grant+(existing?0:p.buy);
     if(isRestaurant(p.id)) {
-      const r=restaurants[p.id]??openingRestaurant(starter,b.cash,district.week,p.id,empire.speed);
+      const existingRestaurant=restaurants[p.id]??openingRestaurant(starter,b.cash,district.week,p.id,empire.speed);
+      const r=existingRestaurant.restaurantType?existingRestaurant:{...chooseRestaurantType({...existingRestaurant,phase:'planning'},defaultRestaurantType(p.id)),phase:existingRestaurant.phase};
       restaurants[p.id]={...r,money:b.cash,testingUnlocked:true,recipes:r.recipes.map(recipe=>({...recipe,unlocked:true}))};
     }
   }
@@ -118,14 +139,15 @@ export function setEmpireSpeed(empire:EmpireState,speed:number):EmpireState {
 /** Advance every restaurant without mounting extra 3D scenes. Non-food businesses settle once at week end. */
 export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameState,d:number,weather?:WeatherDemand)=>GameState):EmpireState {
   if(delta<=0||empire.speed===0||Object.values(empire.restaurants).every(r=>r.phase==='planning'))return empire;
+  delta*=simulationRate(empire);
   let district=districtView(empire);
   const weather=weatherForDay(district.week,district.day,district.weatherSeed);
-  let restaurants=Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,simulate(r,delta,weatherDemand(propertyById(id)!.kind,weather.kind))]));
+  let restaurants=Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,simulate({...r,advanced:restaurantDepth(r),crew:ensureCrew(propertyById(id)!,district.businesses[id],r),stockDemandFactor:Math.min(1.2,Math.max(.8,weatherDemand(propertyById(id)!.kind,weather.kind).visits)),cashProtection:protectedObligations(propertyById(id)!,district.businesses[id],district,r)},delta,weatherDemand(propertyById(id)!.kind,weather.kind))]));
   // Keep a readable weekly ledger without recording ten tiny entries each second.
   const businesses={...district.businesses};
   for(const [id,r] of Object.entries(restaurants)) {
     const old=empire.restaurants[id];let b={...businesses[id],cash:r.money};
-    if(old.pendingPayroll.length>r.pendingPayroll.length) {
+    if(old.pendingPayroll.reduce((n,p)=>n+p.amount,0)>r.pendingPayroll.reduce((n,p)=>n+p.amount,0)) {
       const paid=old.pendingPayroll.reduce((n,p)=>n+p.amount,0)-r.pendingPayroll.reduce((n,p)=>n+p.amount,0);
       if(paid>0)b=cashEntry(b,district.week,district.day,'Weekly wages paid',-paid);
     }
@@ -135,23 +157,31 @@ export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameSt
   const current=Object.values(restaurants).filter(r=>r.week===district.week);
   const day=current.length?Math.min(7,Math.floor(Math.max(...current.map(r=>r.time))*7/100)+1):7;
   while(district.day<day)district=nextDay(district,false);
+  district={...district,businesses:Object.fromEntries(Object.entries(district.businesses).map(([id,b])=>[id,retryLease(propertyById(id)!,b,district)]))};
   district=automaticLoanPayments(district);
+  const retriedInternal=settleInternalRent({...empire,restaurants,district});district=retriedInternal.district;restaurants=retriedInternal.restaurants;
   restaurants=Object.fromEntries(Object.entries(restaurants).map(([id,r])=>[id,{...r,money:district.businesses[id].cash}]));
   if(Object.values(restaurants).every(r=>r.phase==='planning'&&r.week>district.week)) {
     const nonFood=Object.fromEntries(Object.entries(district.businesses).filter(([id])=>!isRestaurant(id)));
     const closed=finishWeek({...district,businesses:nonFood},false);
     for(const [id,r] of Object.entries(restaurants)) {
       const b=district.businesses[id],summary=r.weekSummary!,p=propertyById(id)!;
-      const leased=payWeeklyLease(p,b,district),rent=b.cash-leased.cash;
+      const leased=payWeeklyLease(p,b,district),rent=(leased.leaseChargedWeek??0)===(b.leaseChargedWeek??b.leasePaidWeek??0)?0:p.rent,cashPaid=b.cash-leased.cash;
       const profitableStreak=summary.profit-rent>0?(empire.restaurants[id].performance?.profitableStreak??0)+1:0;
-      restaurants[id]={...r,money:r.money-rent,performance:{bestServiceRate:Math.max(r.performance?.bestServiceRate??0,summary.served+summary.lost?100*summary.served/(summary.served+summary.lost):0),profitableStreak,lastWeek:district.week},stats:{...r.stats,rentCosts:(r.stats.rentCosts??0)+rent,totalExpenses:r.stats.totalExpenses+rent},weekSummary:{...summary,profit:summary.profit-rent,propertyRent:rent}};
+      restaurants[id]={...r,money:r.money-cashPaid,performance:{bestServiceRate:Math.max(r.performance?.bestServiceRate??0,summary.served+summary.lost?100*summary.served/(summary.served+summary.lost):0),profitableStreak,lastWeek:district.week},stats:{...r.stats,rentCosts:(r.stats.rentCosts??0)+rent,totalExpenses:r.stats.totalExpenses+rent},weekSummary:{...summary,profit:summary.profit-rent,propertyRent:rent}};
       let account={...leased,cash:restaurants[id].money};
       account=cashEntry(account,district.week,7,'Weekly restaurant sales (already collected)',summary.revenue);
       businesses[id]=account;
     }
-    const closingState={...district,day:7,businesses:{...businesses,...closed.businesses}};
-    const reports=PROPERTIES.filter(p=>closingState.businesses[p.id]).map(p=>weeklyProfitLoss(p,closingState.businesses[p.id],closingState,restaurants[p.id]));
-    district={...closed,businesses:closingState.businesses,closedWeek:{week:district.week,reports},report:reports.map(r=>({id:r.id,revenue:r.revenue,rent:r.rent,wages:r.wages,supplies:r.cogs+r.fees+r.spoilage+r.maintenance+r.hiring,profit:r.profit,cash:r.cash})),notice:`Week ${district.week} closed. Each business kept its own income and expenses. Wages are paid after Day 3 of the new week.`};
+    let closingState={...district,day:7,businesses:{...businesses,...closed.businesses}};
+    if(closingState.businesses.park)closingState.businesses.park=closeTenantTurnover(closingState.businesses.park,district.week);
+    const internalClose=settleInternalRent({...empire,restaurants,district:closingState},true);closingState=internalClose.district;restaurants=internalClose.restaurants;
+    for(const [id,b] of Object.entries(closingState.businesses))closingState.businesses[id]=depreciateAssets(b,district.week);
+    const reports=Object.keys(closingState.businesses).map(id=>propertyById(id)!).map(p=>weeklyProfitLoss(p,closingState.businesses[p.id],closingState,restaurants[p.id]));
+    for(const report of reports)if(restaurants[report.id]){const r=restaurants[report.id];restaurants[report.id]={...r,weekSummary:r.weekSummary?{...r.weekSummary,profit:report.profit,depreciation:report.depreciation??0,hiring:report.hiring,maintenance:report.maintenance}:null,performance:{...r.performance!,profitableStreak:report.profit>0?(empire.restaurants[report.id].performance?.profitableStreak??0)+1:0}};}
+    for(const report of reports)if(propertyById(report.id)?.kind==='hotel')closingState.businesses[report.id]=closeHotelPerformance(closingState.businesses[report.id],report);
+    for(const report of reports)if(propertyById(report.id)?.kind==='plaza')closingState.businesses[report.id]=closeMallWeek(closingState.businesses[report.id],report);
+    district={...closed,businesses:closingState.businesses,closedWeek:{week:district.week,reports,internalRent:internalRentForWeek(closingState,district.week)},report:reports.map(r=>({id:r.id,revenue:r.revenue,rent:r.rent,wages:r.wages,supplies:r.cogs+r.fees+r.spoilage+r.maintenance+r.hiring,profit:r.profit,cash:r.cash})),notice:`Week ${district.week} closed. Each business kept its own income and expenses. Wages are paid after Day 3 of the new week.`};
   }
   const next={...empire,restaurants,district};
   return {...next,district:districtView(next)};
@@ -165,7 +195,7 @@ export function restaurantProperty(empire:EmpireState,id:string) {
 export function businessFinance(empire:EmpireState,id:string) {
   const p=propertyById(id)!,b=empire.district.businesses[id];
   const openingCash=id==='diner'?(empire.initialDinerCash??STARTING_MONEY):0;
-  return {openingCash,initialContribution:(id==='diner'?openingCash+INITIAL_INVENTORY_VALUE:0)+(empire.testCapital?.[id]??0),
+  return {openingCash,depreciation:accumulatedDepreciation(b),leaseDue:b.leaseDue??0,initialContribution:(id==='diner'?openingCash+INITIAL_INVENTORY_VALUE:0)+(empire.testCapital?.[id]??0),
     propertyCost:id==='diner'?0:b.tenure==='owned'?p.buy:p.deposit,
     loansPayable:empire.district.loans.filter(l=>l.to===id).reduce((n,l)=>n+l.outstanding,0),
     loansReceivable:empire.district.loans.filter(l=>l.from===id).reduce((n,l)=>n+l.outstanding,0)};
@@ -182,7 +212,9 @@ export function parseEmpireSave(raw:string|null):EmpireState|null {
     for(const [id,b] of Object.entries(value.district.businesses))if(isVenue(propertyById(id)!)&&!b.venue)value.district.businesses[id]={...b,venue:createVenue(propertyById(id)!)};
     for(const [id,r] of Object.entries(value.restaurants)){
       if(r.restaurantType!==undefined&&!validRestaurantType(r.restaurantType))return null;
-      value.restaurants[id]=configureRestaurantIdentity(r,id);
+      let identified=configureRestaurantIdentity(r,id);
+      if(!identified.restaurantType&&!isOpeningRestaurant(identified))identified={...chooseRestaurantType({...identified,phase:'planning'},identified.restaurantIdentity??defaultRestaurantType(id),false),phase:r.phase};
+      value.restaurants[id]=ensureRestaurantStockroom(normalizeRestaurantCatalog(identified));
     }
     value.district=districtView(value);
     return value;

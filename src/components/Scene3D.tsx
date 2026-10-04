@@ -708,7 +708,7 @@ export function RestaurantContents3D({state,actions,cutaway=true,isNight=false}:
 const isNearDoor=state.customers.some(c=>c.state==='entering'||c.state==='leaving');
 const identity=state.restaurantIdentity??'diner';
 return <>
-        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} isNight={isNight} level={state.restaurantType?restaurantLevel(state):1}/>
+        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} isNight={isNight} terrace={state.advanced?.terrace} level={state.restaurantType?restaurantLevel(state):1}/>
 
         {/* Ambient warm dining area pendant lights */}
         <PendantLamp3D position={[-7, 9.8, -2]} isNight={isNight} />

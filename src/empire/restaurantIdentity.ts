@@ -2,8 +2,10 @@ import {normalizeTableLayout} from '../restaurantLayout';
 import type {GameState} from '../hooks/useGameLoop';
 import {INGREDIENTS} from '../data/recipes';
 import {INITIAL_INVENTORY_VALUE,STARTING_INVENTORY} from '../gameplay';
-export type RestaurantIdentity='diner'|'cafe'|'bistro'|'italian'|'fastfood';
+export type RestaurantIdentity='diner'|'cafe'|'bistro'|'italian'|'fastfood'|'indian'|'japanese';
 export const RESTAURANT_IDENTITIES={
+  indian:{name:'Saffron Kitchen',tagline:'Curries · tandoor · fresh breads',wall:'#ebdbbd',frame:'#9b6041',menu:['coffee_black','fries','juice_fruit']},
+  japanese:{name:'Maple & Rice',tagline:'Rice bowls · sushi · tea',wall:'#e5dfd0',frame:'#484943',menu:['coffee_black','fries','juice_fruit']},
   fastfood:{name:'Quick Bite',tagline:'Burgers · crispy chicken · wraps',wall:'#eee5d5',frame:'#a44232',menu:['coffee_black','fries','juice_fruit']},
   italian:{name:'Trattoria Locale',tagline:'Pizza · pasta · homemade favorites',wall:'#e6d6c0',frame:'#51634c',menu:['coffee_black','fries','juice_fruit']},
   diner:{name:'Your first diner',tagline:'Classic comfort food',wall:'#ece4d7',frame:'#913f38',menu:['coffee_black','fries','juice_fruit']},

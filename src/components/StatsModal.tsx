@@ -1,3 +1,4 @@
+import {transitValue} from '../inventory/stockroom';
 import React, { useState } from 'react';
 import { Users, DollarSign, TrendingUp, TrendingDown, PieChart, Landmark, FileText, Activity } from 'lucide-react';
 import { INITIAL_INVENTORY_VALUE, STARTING_MONEY } from '../gameplay';
@@ -12,7 +13,7 @@ interface StatsModalProps {
   weeklyReport?:WeeklyProfitLoss;
 }
 
-export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,account={openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
+export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,account={depreciation:0,leaseDue:0,openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
   const [activeSubTab, setActiveSubTab] = useState<'statements' | 'kpis'>('statements');
 
   const formatMoney = (val: number) => {
@@ -26,22 +27,22 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
   // Accurate asset valuation by summing FIFO batch queue
   const currentInventoryValue = Object.values(state.inventoryBatches || {}).flat().reduce((total, batch) => {
     return total + (batch.qty * batch.costPerUnit);
-  }, 0);
+  }, 0)+transitValue(state.stockroom);
 
   const cogs = INITIAL_INVENTORY_VALUE + state.stats.inventoryCosts - currentInventoryValue - (state.stats.spoilageCosts || 0);
   const inHouseSales = state.stats.totalEarned - (state.stats.totalTips || 0) - (state.stats.onlineEarned || 0) - (state.stats.vipBonus || 0);
   const grossProfit = state.stats.totalEarned - cogs;
 
-  const totalOpex = state.weekStats.wages + state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0) + (state.stats.rentCosts || 0);
+  const totalOpex = (state.stats.maintenanceCosts??0) + account.depreciation + state.weekStats.wages + state.stats.salaryCosts + state.stats.managerCosts + (state.stats.onlineFees || 0) + (state.stats.spoilageCosts || 0) + (state.stats.rentCosts || 0);
   const netProfit = grossProfit - totalOpex;
 
   const inventoryChange = currentInventoryValue - INITIAL_INVENTORY_VALUE;
-  const netOperatingCash = netProfit - inventoryChange + unpaidWages;
+  const netOperatingCash = netProfit + account.depreciation + account.leaseDue - inventoryChange + unpaidWages;
 
   const equipmentInvestments = state.stats.upgradeCosts + state.stats.recipeCosts + (state.stats.appCosts || 0);
   const totalInvestments = equipmentInvestments + account.propertyCost;
   const propertyAssets=account.propertyCost?Math.max(0,account.propertyCost-INITIAL_INVENTORY_VALUE):0;
-  const totalAssets = state.money + currentInventoryValue + equipmentInvestments + propertyAssets + account.loansReceivable;
+  const totalAssets = state.money + currentInventoryValue + equipmentInvestments + propertyAssets - account.depreciation + account.loansReceivable;
   const ownersEquity = account.initialContribution + netProfit;
 
   // Operational KPIs
@@ -53,7 +54,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
   const laborRatio = state.stats.totalEarned > 0 ? Math.round(((state.stats.salaryCosts + state.stats.managerCosts) / state.stats.totalEarned) * 100) : 0;
 
   return (
-    <FinancialPeriodView report={weeklyReport}>
+    <FinancialPeriodView report={weeklyReport} payroll={{cash:state.money,owed:unpaidWages,due:state.pendingPayroll.filter(p=>state.week>p.dueWeek||(state.week===p.dueWeek&&state.time>=300/7)).reduce((sum,p)=>sum+p.amount,0)}}>
     <div className="flex flex-col h-full font-mono">
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
@@ -204,6 +205,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                     <span>Staff recruitment fees</span>
                     <span className="text-[#c62828] font-bold">{formatMoney(-state.stats.managerCosts)}</span>
                   </div>
+                  <div className="flex justify-between"><span>Training, repairs & terrace upkeep</span><strong>{formatMoney(-(state.stats.maintenanceCosts??0))}</strong></div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
                     <span>App Platform Commission</span>
                     <span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.onlineFees || 0))}</span>
@@ -213,6 +215,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                     <span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.spoilageCosts || 0))}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]"><span>Property rent</span><span className="text-[#c62828] font-bold">{formatMoney(-(state.stats.rentCosts||0))}</span></div>
+                  <div className="flex justify-between"><span>Depreciation (non-cash)</span><strong>{formatMoney(-account.depreciation)}</strong></div>
                   <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
                     <span>Total Overhead</span>
                     <span className="text-[#c62828]">{formatMoney(-totalOpex)}</span>
@@ -260,8 +263,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                       {formatMoney(-inventoryChange)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
-                    <span>Net Operating Cash (adjusted for unpaid wages)</span>
+                  <div className="flex justify-between"><span>Add back wages not yet paid</span><strong>{formatMoney(unpaidWages)}</strong></div><div className="flex justify-between"><span>Add back depreciation & unpaid rent</span><strong>{formatMoney(account.depreciation+account.leaseDue)}</strong></div><div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
+                    <span>Net operating cash</span>
                     <span className={netOperatingCash >= 0 ? "text-[#2e7d32]" : "text-[#c62828]"}>
                       {formatMoney(netOperatingCash)}
                     </span>
@@ -325,7 +328,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                     <span className="text-[#1565c0] font-bold">{formatMoney(state.money)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
-                    <span>FIFO Pantry Stock (Asset Value)</span>
+                    <span>Pantry & paid deliveries (Asset Value)</span>
                     <span className="text-[#2e7d32] font-bold">{formatMoney(currentInventoryValue)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[#2b2b2b]">
@@ -337,7 +340,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                     <span className="text-[#2b2b2b] font-bold">{formatMoney(state.stats.recipeCosts + (state.stats.appCosts || 0))}</span>
                   </div>
                   <div className="flex justify-between text-[#2b2b2b]"><span>Property / opening setup assets</span><strong>{formatMoney(propertyAssets)}</strong></div>
-                  <div className="flex justify-between text-[#2b2b2b]"><span>Loans receivable from other businesses</span><strong>{formatMoney(account.loansReceivable)}</strong></div>
+                  <div className="flex justify-between"><span>Accumulated depreciation</span><strong>{formatMoney(-account.depreciation)}</strong></div><div className="flex justify-between text-[#2b2b2b]"><span>Loans receivable from other businesses</span><strong>{formatMoney(account.loansReceivable)}</strong></div>
                   <div className="flex justify-between items-center font-black border-t border-[#8b8b8b] pt-1 text-[#2b2b2b]">
                     <span>Total Valuation Assets</span>
                     <span className="text-[#2e7d32]">{formatMoney(totalAssets)}</span>
@@ -367,7 +370,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
                     <span>Total Owner's Book Equity</span>
                     <span className="text-[#2b2b2b]">{formatMoney(ownersEquity)}</span>
                   </div>
-                  <div className="flex justify-between text-[#2b2b2b]"><span>Loans payable to other businesses</span><strong>{formatMoney(account.loansPayable)}</strong></div>
+                  <div className="flex justify-between"><span>Unpaid property rent</span><strong>{formatMoney(account.leaseDue)}</strong></div><div className="flex justify-between text-[#2b2b2b]"><span>Loans payable to other businesses</span><strong>{formatMoney(account.loansPayable)}</strong></div>
                 </div>
               </div>
             </div>
@@ -375,7 +378,7 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
             <div className="flex justify-between items-center text-sm font-black border-t-2 border-[#373737] pt-2 mt-3 bg-[#e2e8f0] p-2 rounded">
               <span className="text-[#2b2b2b]">TOTAL LIAB. & EQUITY</span>
               <span className="text-[#2b2b2b]">
-                {formatMoney(ownersEquity + unpaidWages + account.loansPayable)}
+                {formatMoney(ownersEquity + unpaidWages + account.leaseDue + account.loansPayable)}
               </span>
             </div>
           </div>

@@ -1,3 +1,5 @@
+import {StockroomItem,StockroomControls} from './StockroomItem';
+import {neededQuantity} from '../inventory/stockroom';
 import React, { useState } from 'react';
 import { Package, Search, AlertTriangle, CheckCircle2, Layers, DollarSign } from 'lucide-react';
 import { INGREDIENTS } from '../data/recipes';
@@ -10,6 +12,8 @@ export type InventoryCatalog = {
   itemActions?:(id:string)=>React.ReactNode; selectionActions?:React.ReactNode;
 };
 interface InventoryModalProps {
+  stockroom?:StockroomControls;
+  stockTargets?:Record<string,{target:number;reorderAt:number}>;
   restaurantPantry?:{name:string;ingredientIds:string[]};
   catalog?: InventoryCatalog;
   inventory: Record<string, number>;
@@ -20,7 +24,9 @@ interface InventoryModalProps {
 }
 
 export const InventoryModal: React.FC<InventoryModalProps> = ({
+  stockroom,
   restaurantPantry,
+  stockTargets,
   catalog,
   inventory,
   inventoryBatches,
@@ -37,8 +43,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   const neededSet = new Set(catalog?.neededIds ?? unlockedRecipes.flatMap(r=>Object.keys(r.ingredients||{})));
   const neededList = [...neededSet];
   const lowAt=catalog?.lowStock??5;
-  const itemLowAt=(id:string)=>catalog?.lowStockAt?.(id)??lowAt;
-  const lowStockCount = neededList.filter(id => (inventory[id] || 0) < itemLowAt(id)).length;
+  const itemLowAt=(id:string)=>stockroom?.views.find(v=>v.definition.id===id)?.rule.minimum??catalog?.lowStockAt?.(id)??stockTargets?.[id]?.reorderAt??lowAt;
+  const lowStockCount = neededList.filter(id => {const view=stockroom?.views.find(v=>v.definition.id===id);return view?view.available+view.onOrder<view.rule.minimum:(inventory[id]||0)<itemLowAt(id);}).length;
   const categories=catalog?[{id:'all',label:'All',icon:'📦'},...Array.from(new Set(catalog.items.map(i=>i.category))).map(id=>({id,label:id,icon:''}))]:CATEGORY_LABELS;
   const displayIds=Object.keys(items).filter(id=>(filterTab==='all'||neededSet.has(id))&&(category==='all'||items[id].category===category)&&items[id].name.toLowerCase().includes(search.trim().toLowerCase()));
   const selectedItem=items[displayIds.includes(selectedItemId)?selectedItemId:displayIds[0]];
@@ -54,15 +60,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     {qty:100,discount:.2,label:'Wholesale 100x',badge:'-20%',btnClass:'mc-button-green'},
     {qty:500,discount:.3,label:'Industrial 500x',badge:'-30%',btnClass:'mc-button-purple'}];
   const handleRestockAllLow=()=>{
+    if(stockroom){for(const view of stockroom.views)if(neededSet.has(view.definition.id)&&view.available+view.onOrder<view.rule.minimum){const qty=neededQuantity(view);if(qty)stockroom.onOrder(view.definition.id,qty,'standard');}return;}
     let remaining=money;
     for(const id of neededList){const item=items[id],stock=inventory[id]||0;if(!item||stock>=itemLowAt(id))continue;
-      const qty=Math.max(0,Math.min(catalog?.restockQuantity?.(id,stock)??(catalog?25:50),(catalog?.capacity??Infinity)-stock)),discount=catalog?0:.1,cost=quote(item,qty,discount);
+      const qty=Math.max(0,Math.min(catalog?.restockQuantity?.(id,stock)??(stockTargets?.[id]?stockTargets[id].target-stock:catalog?25:50),(catalog?.capacity??Infinity)-stock)),discount=catalog||stockTargets?0:.1,cost=quote(item,qty,discount);
       if(qty&&remaining>=cost){onBuyIngredient(id,qty,discount);remaining-=cost;}
     }
   };
 
   return (
     <div className="inventory-console flex flex-col h-full font-mono">
+      {stockroom&&<div className="mc-slot p-3 mb-3 text-xs"><strong>Deliveries & stockroom · next morning, or emergency now +10%</strong><details><summary>Buying rules & delivery log ({stockroom.room.notes.length})</summary><p>Paid shipments remain inventory assets. Equipment is managed in Upgrades. Only the selected business pays for its orders.</p>{stockroom.room.notes.map((note,i)=><p key={i}>{note}</p>)}</details></div>}
       {catalog?.selectionActions}
       {/* Top Header & Quick Restock Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
@@ -85,7 +93,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <button
               onClick={handleRestockAllLow}
               className="px-3 py-1.5 mc-button-gold text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
-              title={catalog?.lowStockAt?'Restock required items below their stock targets using this business’s cash':`Restock required items below ${lowAt} units using this business’s cash`}
+              title={catalog?.lowStockAt||stockTargets?'Restock required items to their demand-based targets using this business’s cash':`Restock required items below ${lowAt} units using this business’s cash`}
             >
               <AlertTriangle size={14} className="animate-pulse" />
               Restock Low ({lowStockCount})
@@ -100,7 +108,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       </div>
 
       {/* Main Container */}
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[460px]">
+      <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-[460px]">
         {/* Left Column: Grid, Filters & Search */}
         <div className="flex-1 flex flex-col mc-inner-panel p-3 min-w-0">
           {/* Primary View Filters & Search */}
@@ -170,7 +178,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                 No items found matching filters.
               </div>
             ) : (
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-1.5">
                 {displayIds.map(id => {
                   const item = items[id];
                   const stock = inventory[id] || 0;
@@ -232,8 +240,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
         </div>
 
         {/* Right Column: Selected Ingredient & FIFO Inspector & Purchasing */}
-        <div className="w-full lg:w-80 mc-inner-panel p-4 flex flex-col justify-between shrink-0 bg-[#d4d4d4]">
-          {selectedItem ? (
+        <div className="w-full md:w-80 lg:w-96 mc-inner-panel p-4 flex flex-col justify-between shrink-0 bg-[#d4d4d4]">
+          {selectedItem && stockroom?.views.find(v=>v.definition.id===selectedItem.id)? <StockroomItem key={selectedItem.id+JSON.stringify(stockroom.views.find(v=>v.definition.id===selectedItem.id)!.rule)} view={stockroom.views.find(v=>v.definition.id===selectedItem.id)!} controls={stockroom} cash={money} actions={catalog?.itemActions?.(selectedItem.id)}/> : selectedItem ? (
             <div className="flex flex-col h-full justify-between">
               <div>
                 {/* Header of Item */}
@@ -296,6 +304,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
                 {/* FIFO Active Batch Queue Breakdown */}
                 <div className="mb-3">
+                  {stockTargets?.[selectedItem.id]&&<p className="mc-slot p-3 text-xs">Sales-based target: <strong>{stockTargets[selectedItem.id].target}</strong> units · reorder below <strong>{stockTargets[selectedItem.id].reorderAt}</strong>. Shared recipe needs are combined.</p>}
                   {catalog?<div className="mc-slot p-3 text-xs"><strong>THIS PROPERTY’S STOCKROOM</strong><p className="mt-2">{catalog.capacity?`Up to ${catalog.capacity} units per item. `:""}Orders use this business’s cash. Supplies are used as this property serves customers.</p>{catalog.itemActions?.(selectedItem.id)}</div>:<>
                   <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-[#555555] mb-1">
                     <span className="flex items-center gap-1">

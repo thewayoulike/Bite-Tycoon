@@ -13,6 +13,12 @@ function localPoint(item: Furnishing, x: number, z: number): FloorPoint {
   return { x: item.x + x * Math.cos(item.yaw) + z * Math.sin(item.yaw), z: item.z - x * Math.sin(item.yaw) + z * Math.cos(item.yaw) };
 }
 
+export function residentKitchenPoint(layout:LodgingLayout,room:InteriorRoom):FloorPoint{
+ const kitchen=layout.items.filter(i=>i.kind==='kitchen').sort((a,b)=>Math.hypot(a.x-room.center.x,a.z-room.center.z)-Math.hypot(b.x-room.center.x,b.z-room.center.z))[0];
+ if(kitchen){const point=localPoint(kitchen,0,kitchen.d/2+PERSON_CLEARANCE+.18);if(lodgingWalkingPath(layout,room.destination,point).length>1)return point;}
+ return room.destination;
+}
+
 /** Walk only to clear floor beside furniture. Sitting/climbing is a separate motion. */
 export function lodgingActivity(layout: LodgingLayout, room: InteriorRoom, night: boolean): LodgingActivity | null {
   let saved = cache.get(layout);

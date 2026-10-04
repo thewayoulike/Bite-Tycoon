@@ -1,3 +1,7 @@
+import {advanceRestaurantDepth,restaurantDepth,recipeStation} from '../career/restaurant';
+import {advanceCrew,crewPremium,available} from '../career/crew';
+import {ensureRestaurantStockroom,advanceRestaurantStockroom,orderRestaurantStock,setRestaurantReorder} from '../inventory/restaurantStockroom';
+import type {Stockroom,StockBatch,DeliveryMode,ReorderRule} from '../inventory/stockroom';
 import type {WeatherDemand} from '../empire/weather';
 import type {RestaurantType} from '../data/restaurantCatalogs';
 import {chooseRestaurantType} from '../restaurantTypes';
@@ -12,6 +16,8 @@ import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
 import { sounds } from '../utils/audio';
 import {advanceEmpire, applyDistrictUpdate, createEmpire, districtView, EmpireState, parseEmpireSave, SAVE_KEY, setEmpireSpeed, startEmpireWeek, unlockTestDistrict, updateRestaurant} from '../empire/empire';
 import type {ExpansionState} from '../prototype/expansionModel';
+import {propertyById} from '../prototype/expansionModel';
+import {protectedObligations} from '../empire/cashProtection';
 import { SHIFT_SECONDS, STARTING_MONEY, STARTING_INVENTORY, UPGRADE_COSTS, activeRecipes, menuDemand, weeklyWages, applyManagerPurchases, finishShift, toggleMenuRecipe, hireStaff, startOrPauseArrivals, changeManagerSettings, payDueWages, serveReadyTable } from '../gameplay';
 export { UPGRADE_COSTS, SALARIES } from '../gameplay';
 
@@ -29,6 +35,9 @@ export interface FloatingEvent {
 }
 
 export interface WeekSummary {
+  depreciation?:number;
+  hiring?:number;
+  maintenance?:number;
   propertyRent?: number;
   week: number;
   revenue: number;
@@ -119,6 +128,13 @@ export interface CleanerEntity {
 }
 
 export interface GameState {
+  crew?:import("../career/crew").Employee[];
+  advanced?:import("../career/restaurant").RestaurantDepth;
+  stockroom?:Stockroom;
+  stockDemandFactor?:number;
+  cashProtection?:import('../empire/cashProtection').CashProtection;
+  lastWeekItemSales?: Record<string,number>;
+  lastPayrollAttemptDay?:number;
   servicePlan?: RestaurantServicePlan;
   bookings?: BistroBooking[];
   restaurantType?: RestaurantType;
@@ -133,7 +149,7 @@ export interface GameState {
   testingUnlocked?: boolean;
   identityVersion?: number;
   tableLayoutVersion?: number;
-  restaurantIdentity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood';
+  restaurantIdentity?: 'diner'|'cafe'|'bistro'|'italian'|'fastfood'|'indian'|'japanese';
   priorityTableId: string | null;
   pendingPayroll: { amount: number; dueWeek: number }[];
   manager: { enabled: boolean; target: number; budget: number; reserve: number; spent: number };
@@ -142,7 +158,7 @@ export interface GameState {
   orders: Order[];
   recipes: Recipe[];
   inventory: Record<string, number>;
-  inventoryBatches: Record<string, { qty: number; costPerUnit: number }[]>; // NEW: FIFO Batch Tracking
+  inventoryBatches: Record<string, StockBatch[]>; // NEW: FIFO Batch Tracking
   unlockedApps: string[];
   staff: {
     waiters: number;
@@ -177,6 +193,7 @@ export interface GameState {
     vipBonus: number;
     spoilageCosts: number;
     rentCosts?: number;
+    maintenanceCosts?:number;
   };
   restaurantLayout: number;
   wallColor: string | null;
@@ -193,6 +210,7 @@ export interface GameState {
     itemsSold: Record<string, number>;
     foodCost: number;
     wages: number;
+    spoilage?:number;
     fees: number;
   };
 }
@@ -247,7 +265,7 @@ export const INITIAL_STATE: GameState = {
 
 // 🧠 CORE FIFO ENGINE
 // Deducts items from the oldest batches first and returns the EXACT cost consumed!
-export function consumeFIFO(batches: {qty: number, costPerUnit: number}[], amount: number) {
+export function consumeFIFO(batches: StockBatch[], amount: number) {
   let costConsumed = 0;
   let remaining = amount;
   let newBatches = [...(batches || [])].map(b => ({...b}));
@@ -279,6 +297,10 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     floatingEvents: [...(prevState.floatingEvents || [])]
   };
 
+  const crewHour=(8+newState.time*7*24/100)%24;
+  if(newState.crew)newState.crew=advanceCrew(newState.crew,delta,crewHour,{chef:newState.orders.length?'Cooking orders':'Ready',waiter:newState.customers.length?'Serving guests':'Ready',cleaner:newState.tables.some(t=>t.isDirty)?'Cleaning tables':'Ready',manager:'Checking purchasing targets'});
+  const crewSkill=(role:string,index:number)=>1+((newState.crew?.find(e=>e.id===`${role}-${index}`)?.skill??1)-1)*.1;
+  const crewReady=(role:string,index:number)=>!newState.crew||!!newState.crew.find(e=>e.id===`${role}-${index}`&&available(e,crewHour));
   let { tables, customers, orders, staff, upgrades, stats, recipes, unlockedApps } = newState;
   let newFloatingEvents: FloatingEvent[] = [];
 
@@ -289,10 +311,12 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   newState.manager = { ...prevState.manager };
   if (newState.phase === 'service') {
     const seconds = Math.min(delta, Math.max(0, (100 - newState.time) / 100 * SHIFT_SECONDS));
-    newState.weekStats.wages += weeklyWages(staff) * seconds / SHIFT_SECONDS;
+    newState.weekStats.wages += (weeklyWages(staff)+crewPremium(newState.crew)) * seconds / SHIFT_SECONDS;
     newState.time = Math.min(100, newState.time + delta * 100 / SHIFT_SECONDS);
     if (newState.time >= 100) { newState.phase = 'closing'; newState.isRestaurantOpen = false; }
   }
+  newState = advanceRestaurantDepth(newState,delta);
+  newState = advanceRestaurantStockroom(newState);
   newState = payDueWages(newState);
   newState = advanceBistroBookings({...newState,tables,customers,orders});
   tables=newState.tables;customers=newState.customers;
@@ -302,7 +326,8 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   const emptyTables = tables.filter((t) => t.customerId === null && !t.isDirty&&!reserved.includes(t.id));
   if (newState.isRestaurantOpen && emptyTables.length > 0&&tables.filter(t=>t.customerId).length<walkInCapacity(newState)) {
     const rush = newState.restaurantType?restaurantRush(newState):(newState.time >= 40 && newState.time < 70 ? 2 : 1);
-    const spawnChance = (0.08 + upgrades.spawnRate * 0.02) * rush * menuDemand(newState) * weather.visits * delta;
+    const reputationDemand=1+Math.max(0,(newState.restaurantLevel??1)-1)*.15;
+    const spawnChance = (0.08 + upgrades.spawnRate * 0.02) * reputationDemand * rush * menuDemand(newState) * weather.visits * delta;
     if (Math.random() < spawnChance || (newState.week === 1 && newState.time >= 2 && customers.length === 0 && newState.stats.customersServed + newState.stats.customersLost === 0)) {
       const table = emptyTables[Math.floor(Math.random() * emptyTables.length)];
       const partySize = newState.restaurantType==='cafe'?1+Math.floor(Math.random()*2):newState.restaurantType==='diner'?2+Math.floor(Math.random()*3):Math.floor(Math.random() * 4) + 1;
@@ -311,7 +336,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
 
       const newCustomer: Customer = {
         id: `c_${Date.now()}_${Math.random()}`, state: 'entering',
-        patience: isVIP ? 50 : 100, maxPatience: isVIP ? 50 : 100,
+        patience: (isVIP ? 50 : 100)*(restaurantDepth(newState).terrace&&restaurantDepth(newState).terraceOperational!==false?1.2:1), maxPatience: (isVIP ? 50 : 100)*(restaurantDepth(newState).terrace&&restaurantDepth(newState).terraceOperational!==false?1.2:1),
         tableId: table.id, actionTimer: walkTime, currentBill: 0, isVIP, vipBonus: 0,
         partySize,
         tipModifier: 1
@@ -465,13 +490,14 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   // --- WAITER AUTOMATION & STAMINA ---
   for (let i = 0; i < waiterEntities.length; i++) {
     let w = waiterEntities[i];
+    if(w.state==='idle'&&!crewReady('waiter',i))continue;
     if (w.state === 'on_break') {
       w.stamina = Math.min(100, w.stamina + 20 * delta);
       if (w.stamina >= 100) w.state = 'idle';
       continue;
     }
 
-    const WAITER_SPEED = 5 * (w.stamina <= 20 ? 0.4 : 1);
+    const WAITER_SPEED = 5 * crewSkill('waiter',i) * (w.stamina <= 20 ? 0.4 : 1);
     let moving = false;
 
     if (w.state === 'idle') {
@@ -529,7 +555,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     }
 
     if (w.state === 'taking_order') {
-      w.actionTimer = (w.actionTimer || 0) - delta;
+      w.actionTimer = (w.actionTimer || 0) - delta*crewSkill('waiter',i);
       if (w.actionTimer <= 0) {
         const tableCustomers = customers.filter(c => c.tableId === w.targetTableId && c.state === 'waiting_order');
 
@@ -598,12 +624,13 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   // --- CLEANERS AUTOMATION & STAMINA ---
   for (let i = 0; i < cleanerEntities.length; i++) {
     let c = cleanerEntities[i];
+    if(c.state==='idle'&&!crewReady('cleaner',i))continue;
     if (c.state === 'on_break') {
         c.stamina = Math.min(100, c.stamina + 20 * delta);
         if (c.stamina >= 100) c.state = 'idle';
         continue;
     }
-    const CLEANER_SPEED = 4 * (c.stamina <= 20 ? 0.4 : 1);
+    const CLEANER_SPEED = 4 * crewSkill('cleaner',i) * (c.stamina <= 20 ? 0.4 : 1);
     let moving = false;
 
     if (c.state === 'idle') {
@@ -627,7 +654,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     }
 
     if (c.state === 'cleaning') {
-        c.actionTimer = (c.actionTimer || 0) - delta;
+        c.actionTimer = (c.actionTimer || 0) - delta*crewSkill('cleaner',i);
         c.stamina = Math.max(0, c.stamina - 2 * delta);
         if (c.actionTimer <= 0) {
             tables = tables.map(t => t.id === c.targetTableId ? { ...t, isDirty: false } : t);
@@ -648,31 +675,38 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   // --- CHEFS COOKING & STAMINA ---
   if(newState.restaurantType==='cafe'&&servicePlan(newState).coffeeFirst)orders.sort((a,b)=>Number(isCoffee(b.recipeId))-Number(isCoffee(a.recipeId)));
   if (newState.priorityTableId) orders.sort((a, b) => Number(b.tableId === newState.priorityTableId) - Number(a.tableId === newState.priorityTableId));
-  let availableChefPower = 0;
+  const chefBudgets:{station:string;power:number}[]=[];
   let activelyCooking = orders.some(o => o.state === 'cooking' || o.state === 'pending');
 
   for (let i = 0; i < chefEntities.length; i++) {
     let chef = chefEntities[i];
+    if(!crewReady('chef',i))continue;
     if (chef.state === 'on_break') {
         chef.stamina = Math.min(100, chef.stamina + 20 * delta);
         if (chef.stamina >= 100) chef.state = 'idle';
     } else {
         const power = chef.stamina <= 20 ? 0.4 : 1;
-        availableChefPower += power * upgrades.cookingSpeed * preparationBoost(newState) * delta * 20;
+        const member=newState.crew?.find(e=>e.id===`chef-${i}`);
+        chefBudgets.push({station:member?.station??'all',power:power*(1+((member?.skill??1)-1)*.1) * upgrades.cookingSpeed * preparationBoost(newState) * delta * 20});
         if (activelyCooking) chef.stamina = Math.max(0, chef.stamina - 0.4 * delta);
       else chef.stamina = Math.min(100, chef.stamina + 4 * delta);
     }
   }
 
-  if (availableChefPower > 0) {
+  if (chefBudgets.some(c=>c.power>0)&&!restaurantDepth(newState).catering.some(c=>c.status==='preparing')) {
     orders = orders.map(o => (o.state === 'pending' ? { ...o, state: 'cooking' as const } : o)).map(o => {
       if (o.state === 'cooking') {
         if (o.isOnFire) return o;
 
         const recipe = recipes.find(r => r.id === o.recipeId) || recipes[0];
-        const preparation=preparationTime(newState,recipe,orders);
+        const station=recipeStation(recipe),condition=restaurantDepth(newState).stations[station];
+        const skilled=newState.crew?.filter(e=>e.role==='chef'&&available(e,crewHour)&&(e.station==='all'||e.station===station));
+        if(condition<20||(newState.crew&&!skilled?.length))return o;
+        const eligible=chefBudgets.filter(c=>c.station==='all'||c.station===station);
+        const availableChefPower=eligible.reduce((n,c)=>n+c.power,0);
+        const preparation=preparationTime(newState,recipe,orders)/Math.max(.35,condition/100);
         const progressToAdd = Math.min(100 - o.progress, availableChefPower / preparation);
-        availableChefPower -= progressToAdd * preparation;
+        let spent=progressToAdd*preparation;for(const c of eligible){const use=Math.min(c.power,spent);c.power-=use;spent-=use;}
         const newProgress = o.progress + progressToAdd;
         const orderState: 'ready' | 'cooking' = newProgress >= 100 ? 'ready' : 'cooking';
         return { ...o, progress: newProgress, state: orderState,readyAt:orderState==='ready'?newState.time:o.readyAt };
@@ -783,7 +817,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   });
   useEffect(()=>setEmpire(prev=>({...prev,restaurants:Object.fromEntries(Object.entries(prev.restaurants).map(([id,r])=>[id,normalizeTableLayout(r)]))})),[]);
   const [saveError,setSaveError]=useState(false);
-  const state=empire.restaurants[empire.activeRestaurantId];
+  const selected=empire.restaurants[empire.activeRestaurantId];
+  const state={...selected,cashProtection:protectedObligations(propertyById(empire.activeRestaurantId)!,empire.district.businesses[empire.activeRestaurantId],empire.district,selected)};
   const setState=(update:(r:GameState)=>GameState)=>setEmpire(prev=>updateRestaurant(prev,empire.activeRestaurantId,update));
   const lastTickRef = useRef<number>(Date.now());
   const stateRef = useRef(empire);
@@ -842,8 +877,9 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
      sounds.playCooking();
      setState(prev => {
       const order = prev.orders.find(o => o.id === orderId);
-      if (!order || order.state === 'ready') return prev;
+      if (!order || order.state === 'ready' || restaurantDepth(prev).catering.some(c=>c.status==='preparing')) return prev;
       const recipe = prev.recipes.find(r => r.id === order.recipeId) || prev.recipes[0];
+      if (restaurantDepth(prev).stations[recipeStation(recipe)]<20) return prev;
       const newProgress = Math.min(100, order.progress + (prev.upgrades.cookingSpeed * preparationBoost(prev) * 15) / recipe.cookingTime);
       if (newProgress >= 100) {
         sounds.playOrderReady();
@@ -941,6 +977,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   const buyIngredient = (ingredientId: string, amount: number, discount: number = 0) => {
     sounds.playClick();
     setState(prev => {
+      if(prev.stockroom)return orderRestaurantStock(prev,ingredientId,amount);
       const ingredient = INGREDIENTS[ingredientId];
       if (!ingredient) return prev;
 
@@ -1040,6 +1077,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     district:districtView(empire),
     saveError,
     actions: {
+      updateEmpire:(update:(e:EmpireState)=>EmpireState)=>setEmpire(update),
       changeServicePlan:(changes:Partial<RestaurantServicePlan>)=>setState(prev=>changeServicePlan(prev,changes)),
       bookBistroTable:(id:string)=>setState(prev=>bookBistroTable(prev,id)),
       cancelBistroBooking:(id:string)=>setState(prev=>cancelBistroBooking(prev,id)),
@@ -1061,6 +1099,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
       hireManager,
       unlockRecipe,
       buyIngredient,
+      orderStock:(id:string,qty:number,mode:DeliveryMode)=>setState(prev=>orderRestaurantStock(prev,id,qty,mode)),
+      setStockRule:(id:string,rule:ReorderRule|null)=>setState(prev=>setRestaurantReorder(prev,id,rule)),
       setRestaurantLayout,
       setWallColor,
       setFrameColor,

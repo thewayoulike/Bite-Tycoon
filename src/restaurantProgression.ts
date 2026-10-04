@@ -1,3 +1,6 @@
+import {restaurantStockPlan} from './restaurantPurchasing';
+import {INGREDIENTS} from './data/recipes';
+import {weeklyWages} from './gameplay';
 import type {GameState} from './hooks/useGameLoop';
 import {menuUsage} from './restaurantMenu';
 
@@ -26,6 +29,9 @@ export function restaurantUnlockBlocker(state:GameState):string|null{
   }
   if(state.pendingPayroll.some(p=>p.dueWeek<state.week&&p.amount>0))return 'Pay overdue wages before expanding.';
   if(state.money<next.cost)return `Needs $${(next.cost-state.money).toLocaleString()} more in this account.`;
+  const stock=Object.entries(restaurantStockPlan(state).ingredients).reduce((n,[id,t])=>n+Math.max(0,t.target-(state.inventory[id]??0))*(INGREDIENTS[id]?.cost??0),0);
+  const protectedCash=(state.cashProtection?.total??state.pendingPayroll.reduce((n,p)=>n+p.amount,0))+state.manager.reserve+weeklyWages(state.staff);
+  if(state.money-next.cost<protectedCash+stock)return "Keep money for bills, weekly wages, your buffer and starting stock after this unlock.";
   return null;
 }
 export function upgradeRestaurant(state:GameState):GameState{

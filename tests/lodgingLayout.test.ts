@@ -22,7 +22,7 @@ test('hotel and apartment lobbies have clear arrival, queue, lift, and exit rout
 
 test('every hotel room and apartment type is accessible on every unlocked floor',()=>{
   for(const kind of ['hotel','apartments'] as const)for(let floor=1;floor<=(kind==='hotel'?5:10);floor++){
-    const variants=kind==='hotel'?['standard','double','family','suite']:['studio','onebed','twobed','penthouse'];
+    const variants=kind==='hotel'?['standard','double','family','business','premium','suite']:['studio','onebed','twobed','penthouse'];
     for(const type of variants){
       const layout=createLodgingLayout(kind,floor,Array(kind==='hotel'?4:3).fill(type));
       for(const point of [...layout.care,layout.manager])assert.ok(walkablePoint(layout,point),'Staff must spawn in the shared corridor');
@@ -50,7 +50,7 @@ test('blocked destinations never fall back to crossing furniture; all amenities 
   const bed=room.items.find(item=>item.kind==='bed')!;
   assert.deepEqual(lodgingWalkingPath(room,room.elevator,bed),[]);
   for(const kind of ['hotel','apartments'] as const){
-    const amenities=createLodgingLayout(kind,3,[],['restaurant','gym','conference','rooftop']);
+    const amenities=createLodgingLayout(kind,3,[],['restaurant','gym','conference','rooftop','laundry']);
     for(const target of amenities.care)route(amenities,amenities.elevator,target);
   }
 });

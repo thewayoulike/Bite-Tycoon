@@ -1,3 +1,4 @@
+import {mallFacilityCoverage,mallRoleCoverage} from '../empire/mallDepth';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useFrame} from '@react-three/fiber';
 import {Html} from '@react-three/drei';
@@ -97,16 +98,17 @@ export function plazaInteriorGeometry(types:string[],floor=0,facilities:readonly
  if(floor===0){m.box([7,.57,14.2],[4.2,1.1,1.1],'#a18c6e');m.box([7,1.15,14.2],[4.4,.12,1.25],'#e6ded0');m.box([7,1.45,14.3],[.45,.4,.1],'#36464d');m.box([-7,1.2,14.3],[1.25,2.3,.35],'#485f67');m.box([-7,1.4,14.5],[1,1.4,.025],'#bccecc');}
  return m.finish();
 }
-function MovingShopper({route,seed,speed,child=false}:{route:[number,number][];seed:number;speed:number;child?:boolean}){
+const patrolRoute:[number,number][]=[[3.1,13],[3.1,-13],[-3.1,-13],[-3.1,13],[3.1,13]];
+function MovingShopper({route,seed,speed,child=false,role='customer'}:{route:[number,number][];seed:number;speed:number;child?:boolean;role?:'customer'|'cleaner'|'helper'|'manager'} ){
  const group=useRef<THREE.Group>(null),elapsed=useRef(seed%17),legs=useMemo(()=>route.slice(1).map((p,i)=>Math.hypot(p[0]-route[i][0],p[1]-route[i][1])),[route]),length=legs.reduce((n,v)=>n+v,0);
  useFrame((_,delta)=>{elapsed.current+=Math.min(delta,.08)*speed;let distance=(elapsed.current*(child?.75:1.35))%length;for(let i=1;i<route.length;i++){const a=route[i-1],b=route[i],len=legs[i-1];if(distance<=len){group.current?.position.set(a[0]+(b[0]-a[0])*distance/len,0,a[1]+(b[1]-a[1])*distance/len);if(group.current)group.current.rotation.y=Math.atan2(b[0]-a[0],b[1]-a[1]);break;}distance-=len;}});
- return <group ref={group}><RealCharacter3D role="customer" seed={seed} castId={child?CHILDREN[seed%CHILDREN.length].id:undefined} gameSpeed={speed} isWalking={speed>0}/></group>;
+ return <group ref={group}><RealCharacter3D role={role} seed={seed} castId={child?CHILDREN[seed%CHILDREN.length].id:undefined} gameSpeed={speed} isWalking={speed>0}/></group>;
 }
 function MallGlass({floor}:{floor:number}){return <group>{[-1,1].map(s=><mesh key={s} position={[s*11.95,2.2,0]}><boxGeometry args={[.045,4.4,32]}/><meshStandardMaterial color="#abc6d2" transparent opacity={.15} metalness={.3} roughness={.12} depthWrite={false}/></mesh>)}{floor>0&&[-1,1].map(s=><mesh key={s} position={[s*2.03,.63,0]}><boxGeometry args={[.035,1,10.4]}/><meshStandardMaterial color="#b3d3db" transparent opacity={.24} depthWrite={false}/></mesh>)}{[0,1,2,3].flatMap(slot=>{const[x,z]=plazaShopPosition(slot);return [-2.78,2.78].map(dz=><mesh key={`${slot}:${dz}`} position={[Math.sign(x)*4.45,1.97,z+dz]}><boxGeometry args={[.035,3.15,3.2]}/><meshStandardMaterial color="#bed1d3" transparent opacity={.12} roughness={.16} depthWrite={false}/></mesh>);})}</group>;}
 function SeatedShopper({position,seed,gameSpeed,eating=true}:{position:[number,number,number];seed:number;gameSpeed:number;eating?:boolean}){return <group position={position} rotation={[0,-Math.PI/2,0]}><RealCharacter3D role="customer" seed={seed} gameSpeed={gameSpeed} isSitting isEating={eating} seatHeight={.46}/></group>;}
 export function ShoppingPlaza3D({b,floor,gameSpeed,interactive,onInteract,isNight}:{b:Business;floor:number;gameSpeed:number;interactive:boolean;onInteract?:(a:VenueInteraction,id?:number)=>void;isNight:boolean}){
  const [labels,setLabels]=useState(false),units=(b.venue?.units??[]).slice(floor*4,floor*4+4),types=units.map(u=>u.shopType??'barber').join(','),facilities=b.plaza?.facilities??[],facilityKey=facilities.join(','),model=useMemo(()=>plazaInteriorGeometry(types.split(','),floor,facilityKey.split(',') as MallFacility[]),[types,floor,facilityKey]);
- const active=!isNight&&!!b.venue?.running,amenity=MALL_FACILITIES.find(f=>f.floor===floor),hasAmenity=!!amenity&&facilities.includes(amenity.id),routes=useMemo(()=>[0,1,2,3].map(plazaShopRoute),[]);
+ const active=(!isNight||floor===3)&&!!b.venue?.running,amenity=MALL_FACILITIES.find(f=>f.floor===floor),hasAmenity=!!amenity&&facilities.includes(amenity.id),staffedAmenity=!!amenity&&mallFacilityCoverage(b,amenity.id)>0,routes=useMemo(()=>[0,1,2,3].map(plazaShopRoute),[]);
  useEffect(()=>()=>model.dispose(),[model]);
  return <><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.68}/></mesh><MallGlass floor={floor}/>
   <Sign text={`${floor===0?'G':floor}  |  ${MALL_FLOORS[floor].name}`} position={[0,3.65,-15.5]} width={10} height={.65}/><Sign text="Toilets / baby care" position={[8.5,3,-15.5]} width={4.3}/><Sign text="Service / staff" position={[-8.5,3,-15.5]} width={4.3}/>
@@ -114,14 +116,18 @@ export function ShoppingPlaza3D({b,floor,gameSpeed,interactive,onInteract,isNigh
    <Sign text={type.name} position={[x,3.35,z-4.35]} width={6.6} color={type.color} height={.6}/>
    {u.occupied&&<><RealCharacter3D role={food?'chef':'cashier'} seed={70+index} position={[x,0,z+3.9]} gameSpeed={gameSpeed} isWorking={active}/>{active&&<><MovingShopper route={routes[slot]} seed={41+index*13} speed={gameSpeed}/>{food&&<SeatedShopper seed={122+index} position={[x+Math.sign(x)*.5+.95,0,z-2.35]} gameSpeed={gameSpeed}/>}</>}</>}
    {interactive&&<mesh position={[x,1.5,z]} onClick={e=>{e.stopPropagation();onInteract?.('prices',index);}}><boxGeometry args={[7,3,8.7]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>}
-   {interactive&&labels&&<Html position={[x,2,z]} center zIndexRange={[6,0]}><button className="venue-hotspot" aria-label={`Manage ${plazaUnitName(index)} · ${type.name}`} onClick={e=>{e.stopPropagation();onInteract?.('prices',index);}}><strong>{plazaUnitName(index)} · {u.occupied?'Leased':'To let'}</strong><small>{type.name} · ${u.occupied?u.rent:u.rate}/week</small></button></Html>}
+   {interactive&&labels&&<Html position={[x,2,z]} center zIndexRange={[6,0]}><button className="venue-hotspot" aria-label={`Manage ${plazaUnitName(index)} · ${type.name}`} onClick={e=>{e.stopPropagation();onInteract?.('prices',index);}}><strong>{plazaUnitName(index)} · {u.ownerCompany?'Enter your business':u.occupied?'Leased':'To let'}</strong><small>{type.name} · ${u.occupied?u.rent:u.rate}/week</small></button></Html>}
   </group>;})}
   {floor===0&&<><RealCharacter3D role="manager" seed={92} position={[7,0,15]} gameSpeed={gameSpeed}/><Sign text="Concierge / leasing" position={[7,2.8,14.3]} width={4.6}/></>}
-  <RealCharacter3D role="cleaner" seed={39+floor} position={[-6,0,-14.1]} gameSpeed={gameSpeed} isWorking={active}/>
-  {active&&hasAmenity&&floor===1&&<>{[5,19,26].map(seed=><MovingShopper key={seed} route={mallPlayRoute} seed={seed} speed={gameSpeed} child/>)}<RealCharacter3D role="customer" seed={133} position={[8,0,-1.4]} gameSpeed={gameSpeed} isSitting seatHeight={.5}/><RealCharacter3D role="helper" seed={44} position={[-4.8,0,2.7]} gameSpeed={gameSpeed}/></>}
-  {active&&hasAmenity&&(floor===2||floor===4)&&[-1,1].map(s=><SeatedShopper key={s} seed={155+s} position={[s*(floor===2?9.6:8)+.95,0,0]} gameSpeed={gameSpeed}/>)}
-  {active&&hasAmenity&&floor===3&&<SeatedShopper seed={194} position={[-6.7,0,0]} gameSpeed={gameSpeed} eating={false}/>}
-  {amenity&&<Sign text={hasAmenity?amenity.name:'Future '+amenity.name} position={[-8,2.7,-2.8]} width={6.6} color={hasAmenity?'#686453':'#7b8081'}/>}
+  {mallRoleCoverage(b,'care',floor)>0&&<MovingShopper role="cleaner" route={patrolRoute} seed={39+floor} speed={active?gameSpeed:0}/>}
+  {active&&hasAmenity&&staffedAmenity&&floor===1&&<>{[5,19,26].map(seed=><MovingShopper key={seed} route={mallPlayRoute} seed={seed} speed={gameSpeed} child/>)}<RealCharacter3D role="customer" seed={133} position={[8,0,-1.4]} gameSpeed={gameSpeed} isSitting seatHeight={.5}/><RealCharacter3D role="helper" seed={44} position={[-4.8,0,2.7]} gameSpeed={gameSpeed}/></>}
+  {active&&hasAmenity&&staffedAmenity&&(floor===2||floor===4)&&[-1,1].map(s=><SeatedShopper key={s} seed={155+s} position={[s*(floor===2?9.6:8)+.95,0,0]} gameSpeed={gameSpeed}/>)}
+  {active&&hasAmenity&&staffedAmenity&&floor===3&&<SeatedShopper seed={194} position={[-6.7,0,0]} gameSpeed={gameSpeed} eating={false}/>}
+  {amenity&&<Sign text={hasAmenity?amenity.name+(staffedAmenity?'':' · CLOSED / NEEDS STAFF'):'Future '+amenity.name} position={[-8,2.7,-2.8]} width={6.6} color={hasAmenity?'#686453':'#7b8081'}/>}
+  {mallRoleCoverage(b,'security',floor)>0&&<MovingShopper role="helper" route={patrolRoute} seed={90} speed={active?gameSpeed:0}/>}
+  {mallRoleCoverage(b,'maintenance',floor)>0&&<MovingShopper role="helper" route={patrolRoute} seed={95} speed={active?gameSpeed:0}/>}
+  {mallRoleCoverage(b,'concierge',floor)>0&&<RealCharacter3D role="manager" seed={94} position={[9,0,14.8]} gameSpeed={gameSpeed} isWorking={active}/>}
+  {active&&staffedAmenity&&floor===3&&<RealCharacter3D role="cashier" seed={98} position={[-5,0,2.7]} gameSpeed={gameSpeed} isWorking/>}
   {interactive&&<Html fullscreen style={{pointerEvents:'none'}} zIndexRange={[22,21]}><div className="mall-view-tools"><span>Click a shop to manage it</span><button className="mc-button" aria-pressed={labels} onClick={()=>setLabels(v=>!v)}>{labels?'Hide shop labels':'Show shop labels'}</button><button className="mc-button" onClick={()=>onInteract?.('bookings')}>Tenants & leases</button><button className="mc-button" onClick={()=>onInteract?.('upgrades')}>Floors & facilities</button></div></Html>}
  </>;
 }

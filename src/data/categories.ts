@@ -1,4 +1,5 @@
 export const INGREDIENT_ICONS: Record<string, string> = {
+  tea:'🍵',seaweed:'🌿',cucumber:'🥒',chickpea:'🫘',lentil:'🫘',yogurt:'🥛',coconut:'🥥',miso:'🥣',sesame:'🌾',
   rice: "🍚", noodle: "🍜", beef: "🥩", chicken: "🍗", fish: "🐟", shrimp: "🍤", vegetable: "🥗", egg: "🥚",
   flour: "🌾", sugar: "🍬", milk: "🥛", cheese: "🧀", potato: "🥔", tomato: "🍅", onion: "🧅", garlic: "🧄",
   spices: "🌶️", soy_sauce: "🍶", oil: "🛢️", bread: "🍞", bun: "🍔", lettuce: "🥬", sausage: "🌭", fruit: "🍎", 
@@ -11,6 +12,7 @@ export const INGREDIENT_ICONS: Record<string, string> = {
 export type IngredientCategory = 'all' | 'protein' | 'carb' | 'produce' | 'dairy' | 'sauce' | 'liquid';
 
 export const INGREDIENT_CATEGORIES: Record<string, IngredientCategory> = {
+  tea:'liquid',seaweed:'sauce',cucumber:'produce',chickpea:'carb',lentil:'carb',yogurt:'dairy',coconut:'sauce',miso:'sauce',sesame:'sauce',
   // Liquids
   water: 'liquid', soda_syrup: 'liquid', coffee_bean: 'liquid',
   

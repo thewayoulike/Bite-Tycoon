@@ -1,3 +1,13 @@
+import {advanceServices} from '../career/services';
+import {advanceRetailEvents,promotionDemand} from '../career/retailEvents';
+import {advanceTenantTrade} from '../career/mallCompanies';
+import {advanceCrew,ensureCrew} from '../career/crew';
+import {startStoreWeek} from './supermarket';
+import {advanceSupermarket,checkoutStore,storeServiceBlocker} from './supermarketSimulation';
+import {collectApartmentRent} from './apartments';
+import type {StockBatch} from '../inventory/stockroom';
+import {consumeBusinessSupplies,advanceBusinessStockroom} from '../inventory/businessStockroom';
+import {recordStockUse} from '../inventory/stockroom';
 import {weatherForDay,weatherDemand} from './weather';
 import {Business,businessSupplies,businessWages,ExpansionState,Property,propertyById,autoStockBusiness} from '../prototype/expansionModel';
 import {retailPrice,retailProduct,retailStockLevel,retailProductFloor,consumeRetailStock} from './retail';
@@ -8,8 +18,8 @@ import {advanceLodging,lodgingBlocker,serveLodging} from './lodgingSimulation';
 import {ensurePlaza,startPlazaWeek,advancePlaza} from './plaza';
 import type {ShopType} from './plaza';
 
-export type VenueVisitor={id:number;seed:number;state:'waiting'|'using'|'leaving';patience:number;remaining:number;unit:number|null;productId?:string;quantity?:number;offerId?:string;bookingId?:number;agreedRate?:number};
-export type VenueUnit={occupied:boolean;dirty:boolean;remaining:number;seed:number;rentWeek:number;rent?:number;type?:RoomType;rate?:number;condition?:number;cleanliness?:number;level?:number;bookingId?:number;checkoutAt?:number;leaseEnd?:number;shopType?:ShopType;tenantName?:string};
+export type VenueVisitor={id:number;seed:number;state:'waiting'|'using'|'leaving';patience:number;remaining:number;unit:number|null;productId?:string;quantity?:number;offerId?:string;bookingId?:number;agreedRate?:number;basket?:boolean;checkoutReadyAt?:number;shoppingTime?:number;queueAt?:number};
+export type VenueUnit={ownerCompany?:string;premiumFinish?:boolean;furnishing?:'unfurnished'|'partial'|'furnished';linenReady?:boolean;linen?:Record<string,StockBatch[]>;occupied:boolean;dirty:boolean;remaining:number;seed:number;rentWeek:number;rent?:number;type?:RoomType;rate?:number;condition?:number;cleanliness?:number;level?:number;bookingId?:number;checkoutAt?:number;leaseEnd?:number;shopType?:ShopType;tenantName?:string};
 export type VenueState={running:boolean;clock:number;arrivalTimer:number;serviceTimer:number;careTimer:number;serial:number;visitors:VenueVisitor[];units:VenueUnit[];week:{revenue:number;served:number;lost:number;wages:number};totalServed:number;totalRevenue:number};
 export type VenueAction='serve'|'clean';
 export const VENUE_RULES={
@@ -31,8 +41,7 @@ function record(b:Business,week:number,day:number,label:string,amount:number):Bu
 function consume(p:Property,b:Business,amounts:number[]):Business|null {
   const items=businessSupplies(p,b);
   if(items.some((item,i)=>item.quantity<amounts[i]))return null;
-  const inventory=Object.fromEntries(items.map((item,i)=>[item.id,item.quantity-amounts[i]]));
-  return {...b,inventory,stock:Math.min(...Object.values(inventory))};
+  return consumeBusinessSupplies(p,b,Object.fromEntries(items.map((item,i)=>[item.id,amounts[i]??0])));
 }
 export function startVenueWeek(p:Property,b:Business,week:number):Business {
   b=ensurePlaza(p,ensureLodging(p,b));
@@ -40,17 +49,13 @@ export function startVenueWeek(p:Property,b:Business,week:number):Business {
   if(previous.running)return b;
   let venue:VenueState={...previous,running:true,clock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,week:{revenue:0,served:0,lost:0,wages:0},visitors:previous.visitors.filter(v=>v.state==='using')};
   let next={...b,venue};
+  if(b.retail?.store)return startStoreWeek(next,week);
   if(p.kind==='plaza')return startPlazaWeek(next,week);
-  if(p.kind==='apartments'){
-    const rent=venue.units.reduce((n,u,i)=>n+(u.occupied&&u.rentWeek<week?Math.round(u.rent??u.rate??offerPrice(b,unitOffer(p,i))):0),0);
-    if(rent){
-      next=record(next,week,1,'Weekly tenant rents collected',rent) as typeof next;
-      venue={...venue,units:venue.units.map(u=>u.occupied?{...u,rentWeek:week}:u),week:{...venue.week,revenue:rent},totalRevenue:venue.totalRevenue+rent};
-    }
-  }
-  return {...next,venue,...(b.lodging?{lodging:{...b.lodging,occupiedSeconds:0,availableSeconds:0,roomRevenue:p.kind==='apartments'?venue.week.revenue:0,roomNights:p.kind==='apartments'?venue.units.filter(u=>u.occupied).length:0}}:{})};
+  if(p.kind==='apartments'){next=collectApartmentRent(next,week) as typeof next;venue=next.venue!;}
+  return {...next,venue,...(b.lodging?{lodging:{...next.lodging!,earnedRoomNights:p.kind==='apartments'?venue.units.filter(u=>u.occupied).length:0,roomEarnings:{},breakfastServed:0,breakfastMissed:0,occupiedSeconds:0,availableSeconds:0,roomRevenue:p.kind==='apartments'?venue.week.revenue:0,roomNights:p.kind==='apartments'?venue.units.filter(u=>u.occupied).length:0}}:{})};
 }
 export function serviceBlocker(p:Property,b:Business,visitorId?:number):string|null {
+  if(b.retail?.store)return storeServiceBlocker(b,visitorId);
   if(p.kind==='plaza')return 'Review applications in Tenants & leases.';
   if(isLodging(p))return lodgingBlocker(p,ensureLodging(p,b),visitorId);
   const v=b.venue;
@@ -64,12 +69,13 @@ export function serviceBlocker(p:Property,b:Business,visitorId?:number):string|n
   return null;
 }
 export function serveVenueVisitor(p:Property,b:Business,week:number,day:number,visitorId?:number):Business {
+  if(b.retail?.store)return checkoutStore(b,week,day,visitorId);
   if(isLodging(p))return serveLodging(p,ensureLodging(p,b),week,day,visitorId);
   if(serviceBlocker(p,b,visitorId))return b;
   const person=b.venue!.visitors.find(v=>v.state==='waiting'&&(visitorId===undefined||visitorId===v.id));
   if(!person)return b;
   const retail=b.retail&&person.productId?consumeRetailStock(b.retail,person.productId,person.quantity??1):undefined;
-  const supplied=retail?{...b,retail,stock:retailStockLevel(retail)}:consume(p,b,[2,1,1]);if(!supplied)return b;
+  const supplied=retail?{...b,retail,stockroom:b.stockroom?recordStockUse(b.stockroom,person.productId!,person.quantity??1):undefined,stock:retailStockLevel(retail)}:consume(p,b,[2,1,1]);if(!supplied)return b;
   const rules=venueRules(p),v=b.venue!,unit=v.units.length?v.units.findIndex((u,i)=>!u.occupied&&!u.dirty&&offerEnabled(b,unitOffer(p,i).id)&&(!person.offerId||unitOffer(p,i).id===person.offerId)):null;
   const offer=unit!==null?unitOffer(p,unit):offersFor(p).find(item=>item.id===person.offerId);
   const sale=retail?Math.round(retailPrice(b,person.productId!)*(person.quantity??1)*100)/100:Math.round((offer?offerPrice(b,offer):rules.rate));
@@ -93,6 +99,7 @@ export function operateVenue(state:ExpansionState,id:string,action:VenueAction,v
   return next===b?state:{...state,businesses:{...state.businesses,[id]:next},notice:action==='serve'?`${p.name}: service completed; payment received in this business’s account.`:`${p.name}: maintenance completed using this property’s supplies.`};
 }
 export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:number,demand=1):Business {
+  if(b.retail?.store)return advanceSupermarket(p,b,delta,week,day,demand);
   if(p.kind==='plaza')return advancePlaza(p,ensurePlaza(p,b),delta,week,day,demand);
   if(isLodging(p))return advanceLodging(p,ensureLodging(p,b),delta,week,day,demand);
   if(!b.venue?.running||delta<=0)return b;
@@ -142,7 +149,13 @@ export function advanceVenues(state:ExpansionState,delta:number):ExpansionState 
   let next={...state,businesses:{...state.businesses}};
   for(const [id,b] of Object.entries(state.businesses)){
     const p=propertyById(id)!;if(!isVenue(p))continue;
-    next.businesses[id]=advanceVenue(p,b,delta,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits);
+    const date=Math.min(7,Math.floor(((b.venue?.clock??0)+delta)*7/180)+1);
+    const hour=(8+(b.venue?.clock??0)*7*24/180)%24;
+    const staffed={...b,crew:advanceCrew(ensureCrew(p,b),Math.min(delta,Math.max(0,180-(b.venue?.clock??0))),hour,{service:b.venue?.visitors.some(v=>v.state==='waiting')?'Serving arrivals':'Ready',care:'Stock and cleaning rounds',maintenance:b.venue?.units.some(u=>(u.condition??100)<90)?'Repair rounds':'Ready',manager:'Checking purchasing targets',concierge:'Helping visitors',security:'Patrolling shared areas',attendant:'Supervising play',operator:'Operating facilities',electronics:b.venue?.visitors.length?'Advising shoppers':'Ready',receiving:Object.values(b.retail?.store?.receiving??{}).some(n=>n>0)?'Handling deliveries':'Ready',handling:b.retail?.store?.deliveries?.length?'Dispatching orders':'Ready',cleaner:'Cleaning shared spaces',laundry:'Sorting and washing linen',supervisor:'Resident service rounds',specialist:'Preparing fresh counter'})};
+    const stocked=advanceRetailEvents(advanceBusinessStockroom(p,staffed,state.week,date),state.week,date);
+    next.businesses[id]=advanceVenue(p,stocked,delta,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits*promotionDemand(stocked));
+    next.businesses[id]=advanceServices(p,next.businesses[id],delta,state.week,date);
+    next.businesses[id]=advanceTenantTrade(next.businesses[id],delta,state.week);
     next=autoStockBusiness(next,id);
   }
   return next;

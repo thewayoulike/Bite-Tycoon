@@ -1,7 +1,7 @@
 /** Interior geometry and navigation use the same furniture footprints, in metres. */
 export type FloorPoint = {x:number;z:number};
 export type LodgingKind = 'hotel'|'apartments';
-export type FurnishingKind = 'wall'|'bed'|'sofa'|'table'|'chair'|'reception'|'cabinet'|'kitchen'|'fridge'|'shower'|'toilet'|'vanity'|'plant'|'luggage'|'elevator'|'door'|'cart'|'treadmill'|'media'|'mailboxes'|'parcels'|'minibar';
+export type FurnishingKind = 'wall'|'bed'|'sofa'|'table'|'chair'|'reception'|'cabinet'|'kitchen'|'fridge'|'shower'|'toilet'|'vanity'|'plant'|'luggage'|'elevator'|'door'|'cart'|'treadmill'|'media'|'mailboxes'|'parcels'|'minibar'|'washer'|'bikerack';
 export interface Furnishing extends FloorPoint {id:string;kind:FurnishingKind;w:number;d:number;h:number;yaw:number;color?:string;}
 export interface FloorFinish extends FloorPoint {w:number;d:number;surface:'wood'|'tile'|'carpet';color:string;}
 export interface InteriorRoom {index:number;center:FloorPoint;door:FloorPoint;destination:FloorPoint;bedside:FloorPoint;}
@@ -11,7 +11,7 @@ export interface LodgingLayout {
 }
 export const PERSON_CLEARANCE=.38;
 
-export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]=[],facilities:string[]=[]):LodgingLayout {
+export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]=[],facilities:string[]=[],packages:string[]=[]):LodgingLayout {
   const layout:LodgingLayout={kind,floor,items:[],finishes:[],rooms:[],entrance:{x:0,z:11},elevator:{x:0,z:-8.7},queue:[],staff:[],care:[],manager:{x:-7,z:-6}};
   const put=(kind:FurnishingKind,x:number,z:number,w:number,d:number,h=1,yaw=0,color?:string)=>layout.items.push({id:`${kind}-${layout.items.length}`,kind,x,z,w,d,h,yaw,color});
   const wall=(x:number,z:number,w:number,d:number,h=1.15)=>put('wall',x,z,w,d,h);
@@ -32,11 +32,11 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
     wall(-5.6,-8.6,.14,2.5);wall(-5.6,-5.15,.14,.5);wall(-7.25,-4.9,3.3,.14);
     put('table',-7.2,-7.4,2,1.05,.78);put('chair',-7.2,-8.4,.65,.7,1.05);put('cabinet',-8.4,-6.1,.65,1.7,1.6);
     layout.manager={x:-7,z:-6.1};
-    if(kind==='apartments')put('mailboxes',1,-9.4,4,.65,1.7,0,'#777f87');
-    else put('cabinet',5.6,-9.3,4,.8,1.2);
+    if(kind==='apartments'){put('mailboxes',1,-9.4,4,.65,1.7,0,'#777f87');if(facilities.includes('parcels'))put('parcels',4.5,-8.8,1.3,.7,2);}
+    else {put('cabinet',5.6,-9.3,4,.8,1.2);wall(5.8,2.8,5.8,.14);wall(3,4.3,.14,3);put('toilet',7.9,4.1,.65,.85,.85);put('vanity',4.1,4.1,1,.7,.9);put('kitchen',5.8,-8,3.6,.75,.95);}
     // Open access to the office is on its right rear side.
     layout.queue=Array.from({length:8},(_,i)=>({x:-1.6+(i%2)*1.35,z:-1.15+Math.floor(i/2)*1.05}));
-    layout.care=[{x:7,z:1},{x:7,z:3}];
+    layout.care=[{x:7,z:1},{x:5,z:1}];
   }else if(facilities.length){
     layout.elevator=kind==='hotel'?{x:0,z:-8.4}:{x:6,z:8.45};put('elevator',layout.elevator.x,kind==='hotel'?-9.4:9.4,2.5,.8,2.8,kind==='hotel'?0:Math.PI);
     finish(0,0,17.7,19.7,'wood','#b6a18a');
@@ -44,18 +44,28 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
     if(facilities.includes('restaurant')){put('kitchen',-5.3,-8.7,5.3,.8,1);for(const x of [-6.8,-3.5]){put('table',x,-5.5,1.4,1.4,.8);for(const z of [-6.7,-4.3])put('chair',x,z,.6,.6,1);}}
     if(facilities.includes('gym'))for(const x of [3.3,5.5,7.7])put('treadmill',x,-6.4,1.5,2.8,1.5);
     if(facilities.includes('conference')){put('table',5.2,2.5,4.6,1.6,.8);for(const x of [3.7,5.2,6.7])for(const z of [.8,4.2])put('chair',x,z,.65,.65,1);}
+    if(kind==='hotel'&&facilities.includes('laundry')){for(const x of [3.2,4.8,6.4])put('washer',x,7.7,1.2,1.1,1.15,Math.PI);put('table',5,5.8,4.6,.9,.9);put('cabinet',8,6.5,.8,2,1.8);}
     if(facilities.includes('rooftop')){put('sofa',-5.4,1,4,1.1,1);put('sofa',-5.4,5,4,1.1,1,Math.PI);put('table',-5.4,3,2,1,.5);put('plant',-8,6.6,.7,.7,1.8);}
+    if(kind==='apartments'){
+      if(facilities.includes('resident-laundry'))for(const x of [-7,-5.5,-4])put('washer',x,-8,1.1,1,1.15);
+      if(facilities.includes('workshop')){put('table',-5.5,-4.5,4,1,.9);put('cabinet',-8,-5.5,.7,2,1.8);}
+      if(facilities.includes('work-lounge')){put('table',5,-7,4,1,.8);for(const x of [3.7,5.5])put('chair',x,-5.8,.65,.65,1);}
+      if(facilities.includes('playroom')){finish(-5.5,1,4.8,4,'carpet','#b9aaa0');put('table',-5.5,1,1.5,1,.5);for(const x of [-6.8,-4.2])put('chair',x,1,.55,.55,.6);put('cabinet',-8,1,.6,2,.7);}
+      if(facilities.includes('fitness'))for(const x of [4.5,7])put('treadmill',x,1.6,1.5,2.6,1.5);
+      if(facilities.includes('bikes')){put('bikerack',-7.4,7,1.8,2.1,1.3);}
+      if(facilities.includes('terrace')||facilities.includes('roof-garden')){finish(-3,6.7,6.5,4.5,'wood','#b5a48b');put('sofa',-3,7.8,3.5,1,1,Math.PI);put('table',-3,6,1.5,.8,.5);for(const x of [-5.6,-.6])put('plant',x,7.4,.6,.6,1.4);}
+    }
     layout.care=[{x:0,z:2},{x:0,z:-4}];layout.manager={x:0,z:5};
   }else if(kind==='hotel'){
     finish(0,0,2.7,19.6,'carpet','#596b7a');put('elevator',0,-9.4,2.35,.8,2.8);layout.elevator={x:0,z:-8.4};
     for(let n=0;n<4;n++){
       const side=n%2===0?-1:1,cz=n<2?-5:4,index=(floor-1)*4+n,type=types[n]??'standard';
-      finish(side*5.15,cz,7.35,8.8,type==='suite'?'wood':'carpet',type==='suite'?'#ad967c':type==='family'?'#aebcc1':type==='double'?'#c1b09c':'#bcb3a5');
+      finish(side*5.15,cz,7.35,8.8,['suite','premium'].includes(type)?'wood':'carpet',type==='premium'?'#8f7c65':type==='business'?'#8d9caa':type==='suite'?'#ad967c':type==='family'?'#aebcc1':type==='double'?'#c1b09c':'#bcb3a5');
       // Corridor partition has a 1.8m opening into each room.
       wall(side*1.45,cz-1.6,.16,5.8);wall(side*1.45,cz+3.8,.16,1.2);
       put('door',side*1.57,cz+3.65,.09,1.45,2.45);
       if(n<2)wall(side*5.2,-.5,7.35,.16);
-      const bedW=type==='standard'?1.65:type==='suite'?2.3:2;
+      const bedW=type==='standard'?1.65:['suite','premium'].includes(type)?2.3:2;
       if(type==='family'){put('bed',side*5.25,cz-1.6,1.45,3.05,1);put('bed',side*7.35,cz-1.6,1.45,3.05,1);}
       else {const bedX=type==='double'?6.5:6;put('bed',side*bedX,cz-1.6,bedW,3.05,1);put('cabinet',side*(bedX-bedW/2-.48),cz-2.7,.6,.65,.58);put('cabinet',side*(bedX+bedW/2+.48),cz-2.7,.6,.65,.58);}
       finish(side*2.95,cz-2.55,2.8,3.65,'tile','#c5c2ba');wall(side*4.45,cz-2.6,.14,3.65,1.55);
@@ -69,9 +79,9 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
         finish(side*6.3,cz+2.9,4.7,2.8,'carpet','#c6b9a0');
         put('sofa',side*6.1,cz+3.5,3.3,1,1,Math.PI);put('table',side*8.1,cz+3.5,.55,.55,.46);
       }else{
-        put('table',side*8.2,cz+1.25,.7,1.55,.8);put('chair',side*7.15,cz+1.25,.65,.65,1.05,side*Math.PI/2);
-        put('luggage',side*8.2,cz+3.4,.6,.85,.65);
-        if(type==='double')put('sofa',side*5.9,cz+3.6,2.3,.85,1,Math.PI);
+        put('table',side*8.2,cz+1.25,.7,type==='business'?2.7:1.55,.8);if(type==='business')put('chair',side*5.3,cz+3.4,.7,.7,1);put('chair',side*7.15,cz+1.25,.65,.65,1.05,side*Math.PI/2);
+        if(type==='premium')put('media',side*8.2,cz+3.4,1.2,.5,1);else put('luggage',side*8.2,cz+3.4,.6,.85,.65);
+        if(['double','premium'].includes(type))put('sofa',side*5.9,cz+3.6,2.3,.85,1,Math.PI);
         if(type==='family'){put('cabinet',side*6.1,cz+3.65,2.2,.6,.75);put('chair',side*4.9,cz+2.7,.7,.7,1.05);}
       }
       const door={x:side*1.45,z:cz+2.2};
@@ -81,9 +91,9 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
   }else{
     finish(0,6.5,17.7,3.2,'carpet','#858d94');put('elevator',6,9.4,2.6,.8,2.8,Math.PI);layout.elevator={x:6,z:8.45};
     for(let n=0;n<3;n++){
-      const x=(n-1)*5.9,index=(floor-1)*3+n,type=types[n]??'studio';
+      const x=(n-1)*5.9,index=(floor-1)*3+n,type=(types[n]??'studio').split(':')[0],premium=types[n]?.endsWith(':premium');
       const penthouse=type==='penthouse',twoBed=type==='twobed';
-      finish(x,-2.5,5.7,14.4,'wood',penthouse?'#9e8268':twoBed?'#b6a28a':type==='onebed'?'#c0a488':'#c4b29a');finish(x+1.65,-7.35,2.2,4.8,'tile',penthouse?'#e4ded3':'#c7c8c5');
+      finish(x,-2.5,5.7,14.4,'wood',premium?'#8b6f53':penthouse?'#9e8268':twoBed?'#b6a28a':type==='onebed'?'#c0a488':'#c4b29a');finish(x+1.65,-7.35,2.2,4.8,'tile',penthouse?'#e4ded3':'#c7c8c5');
       finish(x+(penthouse?-1.6:1.6),1.5,2.35,4.2,'carpet',penthouse?'#b1a38f':['#c2a289','#abb9b5','#bdaf94'][n]);
       if(n<2)wall(x+2.95,-2.5,.16,14.5);
       wall(x-1.9,4.8,1.95,.16);wall(x+1.9,4.8,1.95,.16);
@@ -120,6 +130,9 @@ export function createLodgingLayout(kind:LodgingKind,floor:number,types:string[]
     }
     layout.care=[{x:-5.9,z:6.4},{x:2.8,z:6.4},{x:6,z:6.4}];layout.manager={x:-2.4,z:8.6};
     put('plant',-7.8,8.5,.7,.7,1.7);put('plant',7.8,8.5,.7,.7,1.7);
+  }
+  if(kind==='apartments'&&floor>0&&layout.rooms.length&&packages.length){
+    layout.items=layout.items.filter(item=>{const bay=Math.max(0,Math.min(2,Math.round(item.x/5.9)+1)),pack=packages[bay]??'furnished';return pack==='furnished'||!(pack==='unfurnished'?['bed','sofa','chair','table','media','cabinet','luggage']:['sofa','chair','table','media']).includes(item.kind);});
   }
   return layout;
 }

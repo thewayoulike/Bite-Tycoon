@@ -5,6 +5,8 @@ import { Recipe, INGREDIENTS } from '../data/recipes';
 import { INGREDIENT_ICONS } from '../data/categories';
 import type { GameState } from '../hooks/useGameLoop';
 import {UnlockDetails} from './UnlockDetails';
+import {visibleRestaurantRecipes,menuUsage,menuRecipeBlocker,isResearchRecipe} from '../restaurantMenu';
+import type {RestaurantType} from '../data/restaurantCatalogs';
 
 interface RecipesModalProps {
   recipes: Recipe[];
@@ -17,7 +19,8 @@ interface RecipesModalProps {
   recommendations?: {name:string;ids:string[]};
   catalogName?:string;
   restaurantLevel?:number;
-  legacyRecipeIds?:string[];
+  restaurantType?:RestaurantType;
+  weekItemSales?:Record<string,number>;
   onToggleActive: (id: string) => void;
   onUnlockRecipe: (id: string) => void;
   onChangePrice: (id: string, newPrice: number) => void;
@@ -34,19 +37,20 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
   recommendations,
   catalogName,
   restaurantLevel=6,
-  legacyRecipeIds=[],
+  restaurantType,
+  weekItemSales={},
   onToggleActive,
   onUnlockRecipe,
   onChangePrice,
 }) => {
-  const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom' | 'recommended' | 'legacy'>('active');
+  const [filter, setFilter] = useState<'all' | 'active' | 'unlocked' | 'locked' | 'custom' | 'recommended'>('active');
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
 
-  const collection=recipes.filter(r=>!legacyRecipeIds.includes(r.id));
-  const filteredRecipes = recipes.filter(r => {
-    if(filter==='legacy')return legacyRecipeIds.includes(r.id)&&r.unlocked&&(!search.trim()||r.name.toLowerCase().includes(search.toLowerCase()));
-    if(filter!=='active'&&legacyRecipeIds.includes(r.id))return false;
+  const menuState={recipes,activeMenu,restaurantType},visible=visibleRestaurantRecipes(menuState),usage=menuUsage(menuState);
+  const collection=visible.filter(r=>!isResearchRecipe(r.id));
+  const filteredRecipes = visible.filter(r => {
+    if(filter!=='active'&&filter!=='custom'&&isResearchRecipe(r.id))return false;
     if (filter === 'recommended' && !recommendations?.ids.includes(r.id)) return false;
     if (filter === 'active' && !activeMenu.includes(r.id)) return false;
     if (filter === 'unlocked' && !r.unlocked) return false;
@@ -73,7 +77,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
               {catalogName?`${catalogName} · Menu & recipes`:'Choose your weekly menu'}
             </h3>
             <p className="text-[10px] font-bold text-[#555555] uppercase">
-              Choose 1–{menuLimit} dishes. Higher prices reduce demand; new recipes go into your collection.
+              {restaurantType?`Type menu ${usage.type}/${menuLimit} · Research ${usage.research}/10 extra slots. Remove a research dish to replace it; learned recipes stay in your collection.`:`Choose 1–${menuLimit} dishes. Higher prices reduce demand.`}
             </p>
           </div>
         </div>
@@ -92,13 +96,12 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex gap-1">
           {[
-            { id: 'active', label: `On menu (${activeMenu.length}/${menuLimit})` },
+            { id: 'active', label: `On menu (${usage.total})` },
             ...(recommendations ? [{id:'recommended',label:recommendations.name}] : []),
-            { id: 'all', label: `All (${collection.length})` },
+            { id: 'all', label: `Type recipes (${collection.length})` },
             { id: 'unlocked', label: `Collection (${collection.filter(r => r.unlocked).length})` },
             { id: 'locked', label: `Locked (${collection.filter(r => !r.unlocked).length})` },
-            ...(legacyRecipeIds.length?[{id:'legacy',label:`Legacy (${recipes.filter(r=>legacyRecipeIds.includes(r.id)&&r.unlocked).length})`}]:[]),
-            { id: 'custom', label: `⭐ Lab (${recipes.filter(r => r.id.startsWith('custom_')).length})` }
+            { id: 'custom', label: `⭐ Lab collection (${visible.filter(r => isResearchRecipe(r.id)).length})` }
           ].map(tab => (
             <button
               key={tab.id}
@@ -142,6 +145,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2">
             {filteredRecipes.map(recipe => {
               const isCustom = recipe.id.startsWith('custom_');
+              const blocked=menuRecipeBlocker(menuState,recipe.id,menuLimit);
 
               // Calculate raw ingredient cost
               let rawCost = 0;
@@ -194,7 +198,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
-                              <Clock size={11} /> {recipe.cookingTime * 5}s base prep
+                              <Clock size={11} /> {Number((recipe.cookingTime * 5).toFixed(2))}s base prep
                             </span>
                             {isCustom && (
                               <span className="text-[8px] font-black text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5">
@@ -276,8 +280,10 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                     </div>
                   </div>
 
+                  {recipe.unlocked&&<p className="text-xs mb-2">Sold this week: <strong>{weekItemSales[recipe.id]??0}</strong>{isCustom?' · Uses one research slot when on the menu':''}</p>}
+                  {recipe.unlocked&&blocked&&<p className="text-xs text-amber-800 mb-2">{blocked}</p>}
                   {recipe.unlocked && <button onClick={() => { setLastAdded(activeMenu.includes(recipe.id) ? null : recipe.id); onToggleActive(recipe.id); }}
-                    disabled={activeMenu.includes(recipe.id) ? activeMenu.length === 1 : activeMenu.length >= menuLimit}
+                    disabled={!!blocked}
                     aria-pressed={activeMenu.includes(recipe.id)} className="mc-button px-3 py-2 mb-2 text-sm">
                     {activeMenu.includes(recipe.id) ? 'Remove from menu' : hasManager && manager.enabled ? 'Add to menu & auto-stock' : 'Add to menu'} · {recipe.name}
                   </button>}
@@ -288,8 +294,8 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                       : !activeMenu.includes(recipe.id) ? 'Your manager will order ingredients immediately, within the weekly budget and cash reserve—even during planning.'
                       : !isMissingIngredients ? 'Ingredients ready. Automatic restocking stays within the purchasing budget and cash reserve.'
                       : manager.spent >= manager.budget ? 'Stock still needed: the manager’s weekly budget is used up. Increase it in Staff & Shop or buy ingredients in Pantry.'
-                      : money <= manager.reserve ? 'Stock still needed: the manager is protecting your cash reserve. Adjust it in Staff & Shop or buy ingredients in Pantry.'
-                      : 'Stock still needed: the remaining purchasing budget or available cash cannot cover the missing ingredients. Check Staff & Shop or Pantry.'}
+                      : money <= manager.reserve ? 'Stock still needed: the manager protects your cash buffer and upcoming obligations. Adjust it in Staff & Shop or buy ingredients in Pantry.'
+                      : 'Stock still needed: the purchasing budget or cash remaining after bills and your buffer cannot cover the missing ingredients. Check Staff & Shop or Pantry.'}
                   </p>}
                   {/* Actions Row */}
                   {recipe.unlocked ? (

@@ -32,8 +32,8 @@ export function changeServicePlan(state:GameState,changes:Partial<RestaurantServ
   return {...state,servicePlan:plan};
 }
 export const isPickup=(tableId:string)=>tableId.startsWith('online_pickup_');
-export const isPastry=(id:string)=>/^cuisine_cafe_(11|12|13|14|20|21|22|24)$/.test(id);
-export const isCoffee=(id:string)=>/^cuisine_cafe_([1-9]|10)$/.test(id);
+export const isPastry=(id:string)=>/^cuisine_cafe_(11|12|13|14|20|21|22|24|27|29)$/.test(id);
+export const isCoffee=(id:string)=>/^cuisine_cafe_([1-9]|10|25|26)$/.test(id);
 export function preparationTime(state:GameState,recipe:Recipe,orders:Order[]){
   if(state.restaurantType!=='cafe'||restaurantLevel(state)<3||!isPastry(recipe.id))return recipe.cookingTime;
   const group=Math.min(servicePlan(state).pastryBatch,orders.filter(o=>o.recipeId===recipe.id&&o.state!=='ready'&&!o.isOnFire).length);

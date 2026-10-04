@@ -1,6 +1,6 @@
 import {INGREDIENTS,Recipe} from './recipes';
 
-export type RestaurantType='diner'|'cafe'|'bistro'|'italian'|'fastfood';
+export type RestaurantType='diner'|'cafe'|'bistro'|'italian'|'fastfood'|'indian'|'japanese';
 export const RESTAURANT_RECIPE_COUNT=30;
 export type RestaurantAssignments=Record<string,RestaurantType>;
 export const DEFAULT_RESTAURANT_TYPES:RestaurantAssignments={diner:'diner',cafe:'cafe',bistro:'bistro'};
@@ -46,6 +46,12 @@ const definitions:Record<RestaurantType,{name:string;description:string;dishes:D
     ['Pan-seared fish with broccoli','fish:2 broccoli lemon butter'],['Braised beef with root vegetables','beef:2 carrot potato onion'],['Roasted garden vegetable plate','vegetable:3 cream garlic spices'],
     ['Crab and citrus salad','crab lettuce lemon avocado'],['Baked cream custard','egg:2 milk cream sugar'],['Orchard fruit tart','apple:2 fruit flour butter honey'],
   ]},
+  indian:{name:'Indian kitchen',description:'Curries, rice plates, breads, snacks and warm desserts.',dishes:[
+ ['Butter chicken','chicken:2 tomato cream butter spices'],['Chickpea curry','chickpea:2 tomato onion spices'],['Vegetable biryani','rice:2 vegetable spices onion'],['Chicken biryani','rice:2 chicken:2 spices onion'],['Lamb rogan josh','lamb:2 tomato onion spices'],['Garlic naan','flour:2 garlic butter milk'],['Plain naan','flour:2 milk butter'],['Potato samosas','flour potato:2 onion oil'],['Spinach paneer','vegetable:2 cheese:2 cream spices'],['Red lentil dal','lentil:2 tomato spices water'],['Tandoori chicken','chicken:2 yogurt spices lemon'],['Fish curry','fish:2 tomato milk spices'],['Prawn masala','shrimp:2 tomato garlic spices'],['Aloo gobi','potato:2 vegetable:2 spices'],['Jeera rice','rice:2 spices butter'],['Onion bhaji','onion:2 flour oil spices'],['Chana chaat','chickpea tomato onion lemon'],['Mango lassi','fruit:2 yogurt milk sugar'],['Masala chai','tea milk sugar spices'],['Sweet lassi','yogurt:2 milk sugar'],['Coconut rice','rice:2 coconut milk'],['Keema peas','beef:2 vegetable tomato spices'],['Egg curry','egg:3 tomato onion spices'],['Mushroom masala','mushroom:2 cream tomato spices'],['Vegetable korma','vegetable:3 cream spices'],['Chicken tikka wrap','chicken:2 tortilla cream spices'],['Lemon rice','rice:2 lemon oil spices'],['Rice pudding','rice milk:2 sugar'],['Cardamom biscuits','flour:2 butter sugar spices'],['Gulab dessert bites','milk flour sugar water']
+ ]},
+ japanese:{name:'Japanese kitchen',description:'Rice bowls, grilled fish, noodles, sushi and tea.',dishes:[
+ ['Salmon sushi','fish:2 rice:2 seaweed'],['Avocado maki','avocado rice seaweed'],['Cucumber maki','cucumber rice seaweed'],['Chicken teriyaki bowl','chicken:2 rice:2 soy_sauce sugar'],['Vegetable ramen','noodle:2 vegetable mushroom water'],['Chicken ramen','noodle:2 chicken egg water'],['Beef udon','noodle:2 beef onion soy_sauce'],['Prawn tempura','shrimp:2 flour egg oil'],['Vegetable tempura','vegetable:2 flour oil'],['Miso soup','miso tofu seaweed water'],['Chicken katsu','chicken:2 flour egg oil'],['Katsu rice curry','chicken rice:2 spices potato'],['Grilled fish rice','fish:2 rice lemon'],['Tofu teriyaki','tofu:2 rice soy_sauce sugar'],['Mushroom rice bowl','mushroom:2 rice soy_sauce'],['Egg donburi','egg:2 rice onion soy_sauce'],['Beef rice bowl','beef:2 rice onion soy_sauce'],['Tuna rice roll','fish rice seaweed'],['Sweetcorn ramen','corn:2 noodle milk water'],['Yakitori skewers','chicken:2 soy_sauce sugar'],['Cabbage pancakes','vegetable flour egg oil'],['Chicken gyoza','chicken flour onion garlic'],['Vegetable gyoza','vegetable flour mushroom garlic'],['Sesame cucumber salad','cucumber:2 sesame oil'],['Seaweed salad','seaweed:2 cucumber soy_sauce'],['Green tea','tea water:2'],['Iced lemon tea','tea lemon sugar water'],['Matcha milk drink','tea milk:2 sugar'],['Sweet rice cakes','rice:2 sugar milk'],['Strawberry cream roll','fruit flour cream sugar']
+ ]},
   italian:{name:'Italian restaurant',description:'Pizza, pasta, antipasti, risotto and Italian desserts.',dishes:[
     ['Margherita pizza','flour:2 tomato:2 cheese:2 oil'],['Funghi pizza','flour:2 mushroom:2 cheese tomato'],['Spicy chicken pizza','flour:2 chicken:2 cheese tomato hot_sauce'],['Four-cheese pizza','flour:2 cheese:4 cream'],
     ['Garden vegetable pizza','flour:2 vegetable:2 cheese tomato'],['Spaghetti al pomodoro','pasta:2 tomato:3 garlic oil'],['Spaghetti carbonara','pasta:2 bacon egg cheese'],['Lasagna bolognese','pasta:2 beef:2 tomato cheese'],
@@ -67,7 +73,7 @@ export function restaurantCatalog(type:RestaurantType){
     const price=Math.max(3,Math.ceil(raw*2.6));
     return {id:`cuisine_${type}_${i+1}`,name,ingredients,basePrice:price,price,cookingTime:prep??(i<4?1.2:2),unlocked:true,unlockCost:Math.round(price*3)};
   });
-  const opening={fastfood:[0,2,4,10,18,21],diner:[0,1,2,4,17,16],cafe:[0,2,10,13,16,21],bistro:[0,2,5,6,18,22],italian:[0,5,10,14,20,22]}[type];
+  const opening={indian:[0,2,5,7,17,18],japanese:[0,3,4,9,12,25],fastfood:[0,2,4,10,18,21],diner:[0,1,2,4,17,16],cafe:[0,2,10,13,16,21],bistro:[0,2,5,6,18,22],italian:[0,5,10,14,20,22]}[type];
   const starterIds=opening.map(i=>recipes[i].id);
   return {name:definition.name,description:definition.description,recipes,starterIds,ingredientIds:[...new Set(recipes.flatMap(r=>Object.keys(r.ingredients)))],signatureIds:starterIds};
 }

@@ -4,7 +4,7 @@ import {ModelParts} from '../graphics/modelParts';
 import {getSurfaceMaterial,getSignTexture} from '../graphics/surfaceMaterials';
 import {RESTAURANT_IDENTITIES,RestaurantIdentity} from '../empire/restaurantIdentity';
 
-export function RestaurantIdentity3D({identity,isNight,level=1}:{identity:RestaurantIdentity;isNight:boolean;level?:number}){
+export function RestaurantIdentity3D({identity,isNight,level=1,terrace=false}:{identity:RestaurantIdentity;isNight:boolean;level?:number;terrace?:boolean}){
   const theme=RESTAURANT_IDENTITIES[identity];
   const floor=useMemo(()=>{
     const m=new ModelParts();
@@ -24,6 +24,12 @@ export function RestaurantIdentity3D({identity,isNight,level=1}:{identity:Restau
       m.box([15.5,1.2,-12],[5,2.4,3.4],'#785646');m.ellipsoid([15.5,3.1,-12],[2.5,2,1.7],'#af7857');m.box([15.5,2.65,-10.28],[2.8,1.3,.12],'#282421');m.box([15.5,2.1,-10.14],[2.6,.13,.4],'#bd7744');
       for(let i=0;i<5;i++)m.add(new THREE.CylinderGeometry(.5,.5,.08,12),'#d7b883',[-9+i*1.4,2.43,-10]);
       for(const x of [-13,-7,0,7]){m.box([x,3.5,-14.4],[3.2,.15,.75],'#6e5943');for(let j=0;j<4;j++)m.add(new THREE.CylinderGeometry(.2,.22,.75,8),'#d9cc98',[x-1+j*.65,3.9,-14.3]);}
+    }else if(identity==='indian'||identity==='japanese'){
+      const indian=identity==='indian';
+      m.box([-2,1.1,-10],[25,2.2,3.1],indian?'#864c36':'#4d4440');m.box([-2,2.28,-10],[25.3,.18,3.4],indian?'#c8a671':'#d6c7a9');
+      for(const x of [-12,-8,-4,0,4,8]){m.box([x,4.7,-14.6],[2.8,3,.12],indian?'#9d6843':'#ae9678');for(let y=3.5;y<6;y+=.5)m.box([x,y,-14.48],[2.8,.05,.07],indian?'#d7b375':'#423b32');}
+      if(indian){m.add(new THREE.CylinderGeometry(1.25,1.4,2.5,16),'#ac6e44',[16,1.3,-12]);m.add(new THREE.CylinderGeometry(.85,.85,.12,16),'#342b25',[16,2.6,-12]);for(let i=0;i<6;i++)m.add(new THREE.CylinderGeometry(.3,.35,.4,12),'#c3aa6c',[-11+i*1.2,2.6,-10]);}
+      else{m.box([-4,3,-10],[12,1.4,1.8],'#789c9e');m.box([-4,3,-9.05],[12,1.1,.05],'#b8d3cf');for(let i=0;i<8;i++)m.box([-9+i*1.4,2.5,-9],[.8,.2,.6],i%2?'#ce8b70':'#eee4cb');for(const x of [14,17])m.add(new THREE.CylinderGeometry(.9,1,1.1,16),'#a7b0ad',[x,1,-12]);}
     }else if(identity==='diner'){
       m.box([18.1,1.9,-10],[2.4,3.8,1.5],'#637e86');m.box([18.1,2.2,-9.2],[1.8,1.7,.06],'#394951');
       for(let i=0;i<5;i++)m.box([17.3+i*.4,1.1,-9.2],[.12,.6,.08],'#c9af6f');
@@ -52,8 +58,13 @@ export function RestaurantIdentity3D({identity,isNight,level=1}:{identity:Restau
     if(level>=4){m.box([7,2.65,-10],[3.2,.65,1.8],'#c1b99f');for(let i=0;i<4;i++)m.ellipsoid([6+i*.6,3.05,-10],[.23,.2,.23],identity==='bistro'?'#815a45':'#c69864');}
     if(level>=5){m.box([1,4.1,-12.5],[7,.16,1.1],'#a8aaa0');for(const x of [-2,4])m.box([x,3.2,-12.5],[.12,1.8,.12],'#777b74');}
     if(level>=6){for(const x of [-1,1,3]){m.add(new THREE.CylinderGeometry(.36,.5,.22,12),'#b49c69',[x,3.8,-12.4]);m.box([x,2.48,-12.4],[1.5,.06,.85],'#e5dfce');}m.box([-17,2.1,-11],[1.6,4.2,2.1],'#74827d');m.box([-17,2.3,-9.91],[1.4,3.2,.06],'#c6cecb');}
+    if(terrace){
+      m.box([0,-.02,25.4],[35,.12,4.2],'#afa38c');
+      for(const x of [-12,12]){m.box([x,.85,25.7],[6,.22,1.25],'#7d6045');m.box([x,1.6,26.3],[6,1.2,.18],'#82634a');for(const dx of [-2.5,2.5])m.box([x+dx,.4,25.7],[.18,.8,1],'#404b48');}
+      for(const x of [-17,-7,7,17]){m.box([x,.5,26],[1.1,1,1.2],'#86796a');for(let i=0;i<4;i++)m.ellipsoid([x,1.2+i*.27,26],[.55,.65,.55],'#59785b');}
+    }
     return m.finish();
-  },[identity,level]);
+  },[identity,level,terrace]);
   useEffect(()=>()=>floor.dispose(),[floor]);
   useEffect(()=>()=>decor.dispose(),[decor]);
   return <>

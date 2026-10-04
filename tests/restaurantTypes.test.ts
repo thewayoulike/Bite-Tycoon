@@ -15,7 +15,7 @@ const starter=()=>structuredClone(INITIAL_STATE);
 
 test('each restaurant type starts with its own six recipes and equal-value ingredient package',()=>{
  for(const choice of RESTAURANT_TYPES){const r=chooseRestaurantType(starter(),choice.id);
-  assert.equal(r.restaurantType,choice.id);assert.equal(r.recipes.length,24);assert.equal(r.activeMenu.length,6);assert.equal(r.recipes.filter(x=>x.unlocked).length,6);
+  assert.equal(r.restaurantType,choice.id);assert.equal(r.recipes.length,30);assert.equal(r.activeMenu.length,6);assert.equal(r.recipes.filter(x=>x.unlocked).length,6);
   assert.equal(r.money,INITIAL_STATE.money);assert.equal(r.restaurantLevel,1);
   const value=Object.values(r.inventoryBatches).flat().reduce((sum,b)=>sum+b.qty*b.costPerUnit,0);assert.ok(Math.abs(value-INITIAL_INVENTORY_VALUE)<.001);
   for(const recipe of r.recipes.filter(x=>x.unlocked))for(const [id,qty] of Object.entries(recipe.ingredients))assert.ok(r.inventory[id]>=qty);
@@ -41,12 +41,12 @@ test('existing businesses keep stock, recipes, prices, finances and table capaci
 test('levels need 50% higher service targets, quality and profitable weeks; repeat clicks do not buy locked levels',()=>{
  assert.deepEqual(RESTAURANT_LEVELS.map(l=>l.guests),[0,60,180,450,975,1800]);
  let r={...chooseRestaurantType(starter(),'diner'),money:50000};r.stats={...r.stats,customersServed:59};assert.equal(upgradeRestaurant(r),r);
- r={...r,stats:{...r.stats,customersServed:60}};let next=upgradeRestaurant(r);assert.equal(next.restaurantLevel,2);assert.equal(next.money,r.money-750);assert.equal(restaurantMenuLimit(next),8);assert.equal(upgradeRestaurant(next),next);
+ r={...r,stats:{...r.stats,customersServed:60}};let next=upgradeRestaurant(r);assert.equal(next.restaurantLevel,2);assert.equal(next.money,r.money-750);assert.equal(restaurantMenuLimit(next),10);assert.equal(upgradeRestaurant(next),next);
  next={...next,stats:{...next.stats,customersServed:180}};assert.match(restaurantUnlockBlocker(next)!,/80%/);
  next=upgradeRestaurant({...next,performance:{bestServiceRate:80,profitableStreak:1,lastWeek:2}});assert.equal(next.restaurantLevel,3);
  next={...next,stats:{...next.stats,customersServed:450}};assert.match(restaurantUnlockBlocker(next)!,/two consecutive/);
  next=upgradeRestaurant({...next,performance:{bestServiceRate:80,profitableStreak:2,lastWeek:3}});assert.equal(next.restaurantLevel,4);
- const twentyFour={...next,restaurantLevel:6,recipes:next.recipes.map(x=>({...x,unlocked:true}))};let full:GameState=twentyFour;for(const recipe of full.recipes)if(!full.activeMenu.includes(recipe.id))full=toggleMenuRecipe(full,recipe.id);assert.equal(full.activeMenu.length,24);
+ const twentyFour={...next,restaurantLevel:6,recipes:next.recipes.map(x=>({...x,unlocked:true}))};let full:GameState=twentyFour;for(const recipe of full.recipes)if(!full.activeMenu.includes(recipe.id))full=toggleMenuRecipe(full,recipe.id);assert.equal(full.activeMenu.length,30);
 });
 test('the 12th table has a safe purchase path even when a custom layout uses its space',()=>{
  const tables=TABLE_POSITIONS.slice(0,11).map((p,i)=>({...p,id:`table-${i}`,customerId:null,isDirty:false}));tables[3].y=storedPos(10);

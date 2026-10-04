@@ -12,7 +12,7 @@ import {hireStaff,serveReadyTable} from '../gameplay';
 import {RESTAURANT_IDENTITIES} from '../empire/restaurantIdentity';
 import {DEFAULT_RESTAURANT_TYPES,RestaurantAssignments,restaurantCatalog} from './restaurantCatalogs';
 
-export const MENU_CAPACITIES=[6,8,12,16,20,24];
+export const MENU_CAPACITIES=[6,10,15,20,25,30];
 export const HOTEL_FLOORS=[1,1,2,3,4,5];
 export const HOME_FLOORS=[1,2,4,6,8,10];
 export const MALL_OPEN_FLOORS=[1,1,2,3,4,5];

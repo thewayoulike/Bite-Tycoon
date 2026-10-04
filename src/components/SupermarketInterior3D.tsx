@@ -5,20 +5,9 @@ import {retailProduct,retailProductFloor} from '../empire/retail';
 import {ModelParts,Vec3} from '../graphics/modelParts';
 import {getSignTexture} from '../graphics/surfaceMaterials';
 
-/** Coordinates match the existing floor, cashier and clear entrance/checkout aisle. */
-export function supermarketDisplays(ids:string[]){
-  let grocery=0;
-  return ids.flatMap(id=>{
-    const product=retailProduct(id);if(!product||retailProductFloor(id)===1)return [];
-    const produce=['apples','bananas','carrots','tomatoes','lettuce','potatoes'].indexOf(id);
-    if(produce>=0)return [{id,kind:'produce',x:(produce<3?4.15:6.55)+(produce%3-1)*.65,z:3.3,side:1}];
-    if(id==='bread')return [{id,kind:'bakery',x:-6.1,z:-8.2,side:1}];
-    if(['milk','eggs','chicken','beef','fish'].includes(id))return [{id,kind:'chilled',x:[-2.7,-1.5,-.15,1.05,3][['milk','eggs','chicken','beef','fish'].indexOf(id)],z:-8.25,side:1}];
-    if(id==='frozen_vegetables')return [{id,kind:'frozen',x:6.35,z:-8.25,side:1}];
-    const index=grocery++,side=Math.floor(index/3)%2===0?1:-1;
-    return [{id,kind:'grocery',x:[-5,0,5][index%3]+side*.53,z:index<6?-.2:-3.8,side}];
-  });
-}
+import {supermarketDisplays,electronicsDisplays} from '../empire/supermarketLayout';
+export {supermarketDisplays} from '../empire/supermarketLayout';
+import {storeLevel,shelfQuantity,productUnlocked} from '../empire/supermarket';
 
 function DepartmentSign({text,position,width=3,color='#315e59'}:{text:string;position:Vec3;width?:number;color?:string}){
   return <group position={position}>
@@ -27,7 +16,7 @@ function DepartmentSign({text,position,width=3,color='#315e59'}:{text:string;pos
   </group>;
 }
 
-export function supermarketFixtureGeometry(){
+export function supermarketFixtureGeometry(level=3){
   const m=new ModelParts();
   // Low gondolas preserve sightlines, with 3m-wide aisles between their edges.
   for(const x of [-5,0,5]){
@@ -49,7 +38,7 @@ export function supermarketFixtureGeometry(){
     m.box([-6.1,y+.1,-7.62],[4,.16,.06],'#a5855f');
   }
   // Open-front chilled cabinets: visible stock, metal shelves and light strips.
-  for(const x of [-2.1,.45,3]){
+  for(const x of (level>=2?[-2.1,.45,3]:[-2.1])){
     m.box([x,1.12,-8.65],[2.3,2.24,.15],'#b5c4c6');
     m.box([x,.12,-8.2],[2.3,.24,1.15],'#52636b');
     for(const dx of [-1.12,1.12])m.box([x+dx,1.12,-8.2],[.09,2.24,1.15],'#d4dcdb');
@@ -58,11 +47,13 @@ export function supermarketFixtureGeometry(){
     m.box([x,2.12,-7.65],[2.12,.035,.045],'#fff8d6');
   }
   // Chest freezer and two produce bins, set back from the customer exit route.
+  if(level>=2){
   m.box([6.35,.5,-8.25],[2.65,1,1.55],'#d9dfdd');
   m.box([6.35,1.02,-8.25],[2.43,.04,1.34],'#718e98');
   for(const x of [5.07,7.63])m.box([x,1.17,-8.25],[.09,.3,1.55],'#d9dfdd');
   for(const z of [-8.98,-7.52])m.box([6.35,1.17,z],[2.65,.3,.09],'#d9dfdd');
   for(const x of [5.72,6.98])m.box([x,1.36,-7.69],[.36,.05,.04],'#e9eeeb');
+  }
   for(const x of [4.15,6.55]){
     m.box([x,.47,3.3],[2.15,.94,1.7],'#9c8058');
     m.box([x,.97,3.3],[2.08,.09,1.63],'#544c35');
@@ -94,13 +85,22 @@ export function supermarketFixtureGeometry(){
   for(let i=0;i<4;i++)m.box([-8.1,.2+i*.12,6.2],[.65,.17,.45],'#426d60');
   for(const x of [3.1,7.6])m.box([x,1.65,2.4],[.045,1.1,.045],'#8b9692');
   for(const x of [-5.95,-3.25])m.box([x,1.95,6.3],[.045,1.1,.045],'#8b9692');
+  // Receiving rack and its marked working space, expanded with Level 3.
+  const depth=level>=3?5:3;
+  m.box([7.9,.05,-4],[1.2,.1,depth],'#ac9674');
+  for(const y of [.2,1,1.8])m.box([7.9,y,-4],[1.1,.07,depth],'#9aa5a2');
+  for(const z of [-4-depth/2,-4+depth/2])for(const x of [7.4,8.4])m.box([x,1,z],[.05,2,.05],'#60716d');
+  if(level>=3){
+    m.box([4.1,.6,6.5],[3.5,1.2,1.3],'#315e59');m.box([4.1,1.25,6.5],[3.6,.12,1.4],'#dce0dc');
+    m.box([5,1.33,6.5],[1.25,.035,1.08],'#30383a');m.box([3.7,1.54,6.3],[.56,.4,.09],'#303d41');
+  }
   return m.finish();
 }
 
 function stockGeometry(b:Business){
   const m=new ModelParts();m.box([0,-.08,0],[.01,.01,.01],'#d4d2cd');
   for(const slot of supermarketDisplays(b.retail?.shelves??[])){
-    const product=retailProduct(slot.id)!,count=Math.min(slot.kind==='produce'||slot.kind==='chilled'?12:24,b.retail?.stock[slot.id]??0);
+    const product=retailProduct(slot.id)!,count=Math.min(slot.kind==='produce'||slot.kind==='chilled'?12:24,shelfQuantity(b,slot.id));
     for(let i=0;i<count;i++){
       let x=slot.x,y=.5,z=slot.z;
       if(slot.kind==='produce'){
@@ -128,34 +128,38 @@ function stockGeometry(b:Business){
 export function SupermarketLift3D(){return <group position={[8,0,8]}><mesh position={[0,1.35,0]}><boxGeometry args={[1.6,2.7,1.4]}/><meshStandardMaterial color="#a6b2b3" roughness={.35} metalness={.3}/></mesh><mesh position={[-.81,1.3,0]}><boxGeometry args={[.03,2.35,1.15]}/><meshStandardMaterial color="#d3d9d6" metalness={.5} roughness={.25}/></mesh><DepartmentSign text="LIFT" position={[0,2.95,.65]} width={1.6}/></group>;}
 
 export function SupermarketInterior3D({b}:{b:Business}){
-  const fixtures=useMemo(supermarketFixtureGeometry,[]),stock=useMemo(()=>stockGeometry(b),[b.retail]);
+  const level=storeLevel(b),stockKey=(b.retail?.shelves??[]).map(id=>id+':'+shelfQuantity(b,id)).join('|');
+  const fixtures=useMemo(()=>supermarketFixtureGeometry(level),[level]),stock=useMemo(()=>stockGeometry(b),[stockKey]);
   useEffect(()=>()=>fixtures.dispose(),[fixtures]);useEffect(()=>()=>stock.dispose(),[stock]);
   return <group name="supermarket-interior">
     <mesh geometry={fixtures} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.67}/></mesh>
     <mesh geometry={stock} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.7}/></mesh>
-    <mesh position={[6.35,1.32,-8.25]}><boxGeometry args={[2.44,.025,1.34]}/><meshStandardMaterial color="#b9d7db" transparent opacity={.22} roughness={.14} depthWrite={false}/></mesh>
+    {level>=2&&<mesh position={[6.35,1.32,-8.25]}><boxGeometry args={[2.44,.025,1.34]}/><meshStandardMaterial color="#b9d7db" transparent opacity={.22} roughness={.14} depthWrite={false}/></mesh>}
     <DepartmentSign text="BAKERY" position={[-6.1,2.57,-8.05]} width={4}/>
-    <DepartmentSign text="DAIRY · MEAT · FISH" position={[.45,2.57,-8.05]} width={7.35}/>
-    <DepartmentSign text="FROZEN" position={[6.35,1.68,-8.6]} width={2.5}/>
+    <DepartmentSign text={level>=2?"DAIRY · MEAT · FISH":"MILK"} position={[level>=2?.45:-2.1,2.57,-8.05]} width={level>=2?7.35:2.3}/>
+    {level>=2&&<DepartmentSign text="FROZEN" position={[6.35,1.68,-8.6]} width={2.5}/>}
     <DepartmentSign text="FRESH PRODUCE" position={[5.35,2.2,2.4]} width={4.7}/>
     {[-5,0,5].map((x,i)=><DepartmentSign key={x} text={`${i+1}  GROCERY AISLE`} position={[x,2.38,1.57]} width={2.45}/>)}
     <DepartmentSign text="CHECKOUT" position={[-4.6,2.6,6.3]} width={3}/>
+    {level>=3&&<DepartmentSign text="CHECKOUT 2" position={[4.1,2.6,6.3]} width={3}/>}
+    <DepartmentSign text={level>=3?"RECEIVING / BACKROOM":"RECEIVING"} position={[7.7,2.35,-4]} width={2.2}/>
+    {Array.from({length:Math.min(10,Math.ceil(Object.values(b.retail?.store?.receiving??{}).reduce((n,v)=>n+v,0)/6))},(_,i)=><mesh key={i} position={[7.9,.42+Math.floor(i/5)*.8,-5+(i%5)*.48]}><boxGeometry args={[.65,.4,.4]}/><meshStandardMaterial color="#b79971"/></mesh>)}
     <SupermarketLift3D/>
   </group>;
 }
 
-const electronicsDisplays:[string,number,number][]=[['tv',-5.4,-7.7],['console',.1,-7.7],['fridge_appliance',6.3,-7.7],['washing_machine',6.3,-3.8],['vacuum',6.3,.1],['smartphone',-5.4,-2.3],['laptop',-.9,-2.3],['tablet',2.3,-2.3],['headphones',-5.4,2.1],['microwave',-.7,2.1],['kettle',3.3,2.1],['toaster',3.3,4.4]];
 export function electronicsGeometry(b:Business){
   const m=new ModelParts();
   m.box([-4.6,.6,6.5],[5.6,1.2,1.3],'#3c4d68');m.box([-4.6,1.25,6.5],[5.8,.12,1.4],'#dedfda');
   m.box([-5.1,1.55,6.3],[.56,.42,.08],'#313d48');m.box([-5.1,1.55,6.35],[.45,.31,.015],'#8ba9bf');
   const selected=b.retail?.shelves??[];
   for(const [id,x,z] of electronicsDisplays){
+    if(!productUnlocked(b,id))continue;
     const appliance=['fridge_appliance','washing_machine','vacuum'].includes(id),base=appliance?.14:1.05;
     const wide=id==='tv'?4.4:id==='console'?3.2:appliance?2:2.4;
     m.box([x,base/2,z],[wide,base,appliance?1.8:1.5],appliance?'#8d999e':'#c5b8a2');
     m.box([x,base+.025,z],[wide+.08,.05,appliance?1.9:1.6],'#e4e3dc');
-    if(!selected.includes(id)||!(b.retail?.stock[id]??0))continue;
+    if(!selected.includes(id))continue;
     const tint=retailProduct(id)!.color;
     if(id==='tv'){
       m.box([x,base+.12,z],[1,.12,.48],'#3c454c');m.box([x,base+.3,z],[.08,.4,.08],'#4e5559');
@@ -180,19 +184,25 @@ export function electronicsGeometry(b:Business){
     }else if(id==='toaster'){
       m.box([x,base+.26,z],[.85,.48,.5],tint);for(const dx of [-.2,.2])m.box([x+dx,base+.51,z],[.09,.015,.34],'#3d474b');
     }else{
-      const phone=id==='smartphone',laptop=id==='laptop',count=Math.min(phone?3:1,b.retail!.stock[id]);
+      const phone=id==='smartphone',laptop=id==='laptop',count=phone?3:1;
       for(let i=0;i<count;i++){
         const px=x+(i-(count-1)/2)*.65,w=phone?.32:laptop?1.35:.65,h=phone?.65:laptop?.85:.95;
         m.box([px,base+.07,z],[w+.04,.09,.75],tint);m.box([px,base+h/2+.12,z-.2],[w,h,.06],'#333e4a');m.box([px,base+h/2+.12,z-.162],[w*.86,h*.88,.012],phone?'#709eb5':'#83a6a5');
       }
     }
   }
+  if(storeLevel(b)>=5){
+    for(const y of [.15,.9,1.65])m.box([-7.8,y,-3],[1.1,.08,3],'#6d7d83');
+    for(const z of [-4.5,-1.5])m.box([-7.8,1,z],[1.1,2,.08],'#6d7d83');
+    for(let i=0;i<Math.min(4,b.retail?.store?.deliveries.filter(d=>!d.done).length??0);i++)m.box([-7.8,.5+Math.floor(i/2)*.75,-3.6+(i%2)*1.2],[.85,.62,1],'#b9a384');
+  }
   return m.finish();
 }
 export function ElectronicsInterior3D({b}:{b:Business}){
-  const model=useMemo(()=>electronicsGeometry(b),[b.retail]);useEffect(()=>()=>model.dispose(),[model]);
-  return <group name="electronics-interior"><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5}/></mesh><DepartmentSign text="ELECTRONICS & HOME APPLIANCES" position={[-1,3.15,-8.9]} width={10} color="#3c4d68"/>
-    {electronicsDisplays.map(([id,x,z])=><DepartmentSign key={id} text={`${retailProduct(id)!.name.toUpperCase()}${b.retail?.shelves.includes(id)?(b.retail.stock[id]??0)>0?'':' · ORDER STOCK':' · CHOOSE STOCK'}`} position={[x,.72,z+.83]} width={id==='tv'?4:2.25} color="#3c4d68"/>)}
-    <DepartmentSign text="CHECKOUT" position={[-4.6,2.6,6.3]} width={3} color="#3c4d68"/><SupermarketLift3D/>
+  const model=useMemo(()=>electronicsGeometry(b),[storeLevel(b),b.retail?.shelves.join('|'),b.retail?.store?.deliveries.filter(d=>!d.done).length]);useEffect(()=>()=>model.dispose(),[model]);
+  return <group name="electronics-interior"><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5}/></mesh><DepartmentSign text={storeLevel(b)>=5?"ELECTRONICS & HOME APPLIANCES":"ELECTRONICS"} position={[-1,3.15,-8.9]} width={10} color="#3c4d68"/>
+    {electronicsDisplays.filter(([id])=>productUnlocked(b,id)).map(([id,x,z])=><DepartmentSign key={id} text={`${retailProduct(id)!.name.toUpperCase()}${b.retail?.shelves.includes(id)?(b.retail.stock[id]??0)>0?'':' · ORDER STOCK':' · CHOOSE STOCK'}`} position={[x,.72,z+.83]} width={id==='tv'?4:2.25} color="#3c4d68"/>)}
+    {storeLevel(b)>=5&&<DepartmentSign text="DISPATCH" position={[-7.8,2.4,-3]} width={2.3} color="#3c4d68"/>}
+    <DepartmentSign text={storeLevel(b)>=5?"SERVICE & RETURNS":"CHECKOUT"} position={[-4.6,2.6,6.3]} width={4} color="#3c4d68"/><SupermarketLift3D/>
   </group>;
 }

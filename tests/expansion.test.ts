@@ -72,11 +72,11 @@ test('sales and rent settle separately and delayed wages debit each employer onc
   assert.equal(next.businesses.diner.cash,before.diner);
   assert.equal(next.businesses.cafe.cash,before.cafe);
   next=nextDay(next);
-  assert.equal(next.businesses.diner.cash,before.diner-59+210);
-  assert.equal(next.businesses.cafe.cash,before.cafe-75-210);
+  assert.equal(next.businesses.diner.cash,before.diner-59+52.5);
+  assert.equal(next.businesses.cafe.cash,before.cafe-75-52.5);
   assert.equal(next.payroll.length,0);
   assert.deepEqual(nextDay(next).businesses,next.businesses);
-  assert.equal(next.loans[0].outstanding,active.loans[0].outstanding-210);
+  assert.equal(next.loans[0].outstanding,active.loans[0].outstanding-52.5);
   assert.equal(next.loans[0].repayment?.due,0);
 });
 
@@ -96,7 +96,7 @@ test('park care, supplies and hands-on tasks affect only the park account',()=>{
   const closed=finishWeek(helped),stocked=changeBusiness(closed,'park','stock');
   assert.equal(closed.businesses.park.stock,65);
   assert.equal(stocked.businesses.park.stock,100);
-  assert.equal(stocked.businesses.park.cash,closed.businesses.park.cash-21);
+  assert.equal(stocked.businesses.park.cash,closed.businesses.park.cash-201);
   assert.equal(stocked.businesses.diner,closed.businesses.diner);
   const repaired=changeBusiness(stocked,'park','care');
   assert.equal(repaired.businesses.park.condition,100);

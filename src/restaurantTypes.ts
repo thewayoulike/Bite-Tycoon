@@ -5,6 +5,7 @@ import {INITIAL_INVENTORY_VALUE,STARTING_INVENTORY} from './gameplay';
 import {RESTAURANT_LEVELS,restaurantLevel} from './restaurantProgression';
 import {RESTAURANT_IDENTITIES} from './empire/restaurantIdentity';
 import {typePreparationTime} from './restaurantPersonality';
+import {isResearchRecipe,isTypeRecipe,RESEARCH_MENU_LIMIT} from './restaurantMenu';
 
 export const validRestaurantType=(value:unknown):value is RestaurantType=>RESTAURANT_TYPES.some(t=>t.id===value);
 export const defaultRestaurantType=(id:string):RestaurantType=>id==='cafe'?'cafe':id==='bistro'?'bistro':'diner';
@@ -28,10 +29,20 @@ export function chooseRestaurantType(state:GameState,type:RestaurantType,opening
     inventoryBatches=Object.fromEntries(Object.entries(inventory).map(([id,qty])=>[id,[{qty,costPerUnit:INGREDIENTS[id].cost}]]));
   }
   const theme=RESTAURANT_IDENTITIES[type];
-  return {...state,restaurantType:type,restaurantIdentity:type,identityVersion:2,wallColor:theme.wall,frameColor:theme.frame,restaurantLevel:restaurantLevel(state),recipes:[...recipes,...legacy],legacyRecipeIds:legacy.map(r=>r.id),activeMenu:profile.starterIds,inventory,inventoryBatches};
+  return {...state,restaurantType:type,restaurantIdentity:type,identityVersion:2,wallColor:theme.wall,frameColor:theme.frame,restaurantLevel:restaurantLevel(state),recipes:[...recipes,...legacy],legacyRecipeIds:legacy.filter(r=>!isResearchRecipe(r.id)).map(r=>r.id),activeMenu:[...profile.starterIds,...state.activeMenu.filter(id=>isResearchRecipe(id)&&legacy.some(r=>r.id===id&&r.unlocked)).slice(0,RESEARCH_MENU_LIMIT)],inventory,inventoryBatches};
+}
+/** Extend existing catalogs without changing prices, stock, books or orders already in progress. */
+export function normalizeRestaurantCatalog(state:GameState):GameState {
+ if(!state.restaurantType)return state;
+ const profile=restaurantCatalog(state.restaurantType),ordered=[...profile.starterIds,...profile.recipes.map(r=>r.id).filter(id=>!profile.starterIds.includes(id))];
+ const recipes=profile.recipes.map((r,i)=>({...r,cookingTime:typePreparationTime(state.restaurantType!,i),unlocked:!!state.testingUnlocked||profile.starterIds.includes(r.id),...state.recipes.find(old=>old.id===r.id),requiredLevel:RESTAURANT_LEVELS.find(l=>ordered.indexOf(r.id)<l.slots)!.level}));
+ const retained=state.recipes.filter(r=>!isTypeRecipe(r.id,state.restaurantType!));
+ const allowed=new Set([...recipes,...retained.filter(r=>isResearchRecipe(r.id))].filter(r=>r.unlocked).map(r=>r.id));
+ const active=[...new Set(state.activeMenu)].filter(id=>allowed.has(id));
+ const native=active.filter(id=>!isResearchRecipe(id)).slice(0,30),research=active.filter(isResearchRecipe).slice(0,RESEARCH_MENU_LIMIT);
+ return {...state,recipes:[...recipes,...retained],legacyRecipeIds:retained.filter(r=>!isResearchRecipe(r.id)).map(r=>r.id),activeMenu:native.length||research.length?[...native,...research]:profile.starterIds};
 }
 export function restaurantPantryIds(state:GameState){
   if(!state.restaurantType)return undefined;
-  const legacy=new Set(state.legacyRecipeIds??[]);
-  return [...new Set([...restaurantCatalog(state.restaurantType).ingredientIds,...state.recipes.filter(r=>r.id.startsWith('custom_')||legacy.has(r.id)&&state.activeMenu.includes(r.id)).flatMap(r=>Object.keys(r.ingredients)),...Object.keys(state.inventory).filter(id=>state.inventory[id]>0)])];
+  return [...new Set([...restaurantCatalog(state.restaurantType).ingredientIds,...state.recipes.filter(r=>isResearchRecipe(r.id)).flatMap(r=>Object.keys(r.ingredients)),...Object.keys(state.inventory).filter(id=>state.inventory[id]>0)])];
 }

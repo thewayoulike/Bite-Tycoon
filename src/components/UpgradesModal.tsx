@@ -7,6 +7,7 @@ import {restaurantTableLimit} from '../restaurantProgression';
 import {serviceProfile} from '../restaurantPersonality';
 import {UnlockDetails,UnlockInfo} from './UnlockDetails';
 import './restaurantProgression.css';
+import {RestaurantPurchasingPlan} from './RestaurantPurchasingPlan';
 
 interface Props {
   state: GameState;
@@ -44,7 +45,7 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
           detail={`${count} / ${STAFF_LIMITS[type]} on staff · $${SALARIES[type]} per full week`}
           label={!unlocked ? `Serve ${STAFF_UNLOCKS[type]} guests (${served}/${STAFF_UNLOCKS[type]})` : count >= STAFF_LIMITS[type] ? 'Team complete' : `Hire ${type} · $${cost}`}
           disabled={!canHire(state, type) || state.money < cost}
-          unlock={{visible:type==='manager'?'Purchasing controls and automatic stock orders.':`One additional ${title.toLowerCase()} working in this restaurant.`,milestone:`${served} / ${STAFF_UNLOCKS[type]} guests served`,cost:`$${cost} hiring fee`,recurring:`+$${SALARIES[type]} per full week`,needs:type==='manager'?'Set a purchasing budget, stock target and reserve.':type==='chef'?'Stock the active menu; shares the kitchen preparation stations.':'Works with the current tables and kitchen team.',next:count+1>=STAFF_LIMITS[type]?'Role fully staffed. Review workload before expanding.':'Watch service speed and waiting guests before hiring again.'}}
+          unlock={{visible:type==='manager'?'Purchasing controls and automatic stock orders.':`One additional ${title.toLowerCase()} working in this restaurant.`,milestone:`${served} / ${STAFF_UNLOCKS[type]} guests served`,cost:`$${cost} hiring fee`,recurring:`+$${SALARIES[type]} per full week`,addedWages:SALARIES[type],needs:type==='manager'?'Set a purchasing budget, stock target and reserve.':type==='chef'?'Stock the active menu; shares the kitchen preparation stations.':'Works with the current tables and kitchen team.',next:count+1>=STAFF_LIMITS[type]?'Role fully staffed. Review workload before expanding.':'Watch service speed and waiting guests before hiring again.'}}
           onClick={() => type === 'manager' ? onHireManager() : onBuyUpgrade(type)} />;
       })}
     </div>
@@ -52,11 +53,13 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
       <h3 className="font-bold">Purchasing rules</h3>
       <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={state.manager.enabled} onChange={e => onUpdateManager({ enabled: e.target.checked })} /> Automatic purchasing enabled</label>
       <div className="grid sm:grid-cols-3 gap-3">
-        <label className="text-sm">Weekly budget<select aria-label="Manager weekly budget" className="block w-full border rounded p-2 mt-1" value={state.manager.budget} onChange={e => onUpdateManager({ budget: Number(e.target.value) })}>{RESTAURANT_MANAGER_BUDGETS.map(n => <option key={n} value={n}>${n}</option>)}</select></label>
-        <label className="text-sm">Stock target per ingredient<select aria-label="Manager stock target" className="block w-full border rounded p-2 mt-1" value={state.manager.target} onChange={e => onUpdateManager({ target: Number(e.target.value) })}>{[20,30,50].map(n => <option key={n} value={n}>{n} units</option>)}</select></label>
-        <label className="text-sm">Keep this much cash<select aria-label="Manager cash reserve" className="block w-full border rounded p-2 mt-1" value={state.manager.reserve} onChange={e => onUpdateManager({ reserve: Number(e.target.value) })}>{[100,150,300,500].map(n => <option key={n} value={n}>${n}</option>)}</select></label>
+        <label className="text-sm">Weekly budget<select aria-label="Manager weekly budget" className="block w-full border rounded p-2 mt-1" value={state.manager.budget} onChange={e => onUpdateManager({ budget: Number(e.target.value) })}>{[...new Set([...RESTAURANT_MANAGER_BUDGETS,state.manager.budget])].sort((a,b)=>a-b).map(n => <option key={n} value={n}>${n}</option>)}</select></label>
+        <label className="text-sm">Custom weekly budget<input className="block w-full border rounded p-2 mt-1" type="number" min={0} max={20000} aria-label="Custom restaurant purchasing budget" value={state.manager.budget} onChange={e=>onUpdateManager({budget:Number(e.target.value)})}/></label>
+        <label className="text-sm">Stock coverage<select aria-label="Manager stock coverage" className="block w-full border rounded p-2 mt-1" value={state.manager.target} onChange={e => onUpdateManager({ target: Number(e.target.value) })}>{[20,30,50].map(n => <option key={n} value={n}>{n/10} game days</option>)}</select></label>
+        <label className="text-sm">Extra cash buffer<select aria-label="Manager cash reserve" className="block w-full border rounded p-2 mt-1" value={state.manager.reserve} onChange={e => onUpdateManager({ reserve: Number(e.target.value) })}>{[100,150,300,500].map(n => <option key={n} value={n}>${n}</option>)}</select></label>
       </div>
-      <p className="text-sm text-stone-600">${state.manager.spent.toFixed(2)} / ${state.manager.budget} spent this week. Reorders below half the target; only active-menu ingredients. Wages are paid separately from this budget.</p>
+      <p className="text-sm text-stone-600">${state.manager.spent.toFixed(2)} / ${state.manager.budget} spent this week. Uses each item’s minimum / target / maximum; only active-menu ingredients. Incoming deliveries count toward targets. Wages are paid separately from this budget.</p>
+      <p className="text-sm">Upcoming obligations: ${(state.cashProtection?.total??0).toFixed(2)} + your ${state.manager.reserve} buffer. Available to purchase: ${Math.max(0,state.money-state.manager.reserve-(state.cashProtection?.total??0)).toFixed(2)}. Check Loans for arrears and payment dates.</p><RestaurantPurchasingPlan state={state}/>
     </section>}
     <h3 className="font-bold">Capacity and equipment</h3>
     <div className="grid md:grid-cols-3 gap-3">

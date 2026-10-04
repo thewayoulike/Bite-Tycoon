@@ -1,8 +1,12 @@
+import {scheduledMenu} from './career/restaurant';
+import {manageRestaurantStockroom} from './inventory/restaurantStockroom';
 import type { GameState, WeekSummary } from './hooks/useGameLoop';
 import { INGREDIENTS, Recipe } from './data/recipes';
 import {restaurantMenuLimit} from './restaurantProgression';
 import {serviceProfile} from './restaurantPersonality';
 import {freshnessModifier} from './restaurantOperations';
+import {visibleRestaurantRecipes,menuRecipeBlocker,MenuState} from './restaurantMenu';
+import {restaurantStockPlan} from './restaurantPurchasing';
 
 export const SHIFT_SECONDS = 180;
 export const MENU_LIMIT = 6;
@@ -24,15 +28,16 @@ export const UPGRADE_COSTS = {
   spawnRate: (level: number) => Math.round(140 * 1.7 ** level),
 };
 
-export function activeRecipes(state: Pick<GameState, 'recipes' | 'activeMenu'>) {
-  return state.recipes.filter(r => r.unlocked && state.activeMenu.includes(r.id));
+export function activeRecipes(state: MenuState) {
+  const menu='time' in state?scheduledMenu(state as GameState):state.activeMenu;
+  return visibleRestaurantRecipes(state).filter(r => r.unlocked && menu.includes(r.id));
 }
 
 export function demandFor(recipe: Recipe) {
   return Math.exp(-2.5 * Math.max(0, recipe.price / Math.max(1, recipe.basePrice) - 1));
 }
 
-export function menuDemand(state: Pick<GameState, 'recipes' | 'activeMenu'>) {
+export function menuDemand(state: MenuState) {
   const menu = activeRecipes(state);
   return menu.length ? menu.reduce((sum, r) => sum + demandFor(r), 0) / menu.length : 0;
 }
@@ -72,52 +77,44 @@ export function nextMilestone(state: GameState) {
 
 export function toggleMenuRecipe(state: GameState, id: string, menuLimit=restaurantMenuLimit(state)): GameState {
   const selected = state.activeMenu.includes(id);
-  if (!state.recipes.some(r => r.id === id && r.unlocked)) return state;
-  if (selected ? state.activeMenu.length <= 1 : state.activeMenu.length >= menuLimit) return state;
+  if (menuRecipeBlocker(state,id,menuLimit)) return state;
   const next = { ...state, activeMenu: selected ? state.activeMenu.filter(item => item !== id) : [...state.activeMenu, id] };
   return selected ? next : applyManagerPurchases(next, id);
 }
 
 export function purchasingPlan(state: GameState, addedRecipeId?: string) {
   if (!state.staff.hasManager || !state.manager.enabled || (!addedRecipeId && state.phase === 'planning')) return [];
-  let budget = Math.max(0, Math.min(state.manager.budget - state.manager.spent, state.money - state.manager.reserve));
-  if (addedRecipeId) {
-    const recipe = activeRecipes(state).find(r => r.id === addedRecipeId);
-    if (!recipe) return [];
-    const purchases = Object.entries(recipe.ingredients).filter(([id]) => INGREDIENTS[id]).map(([id, required]) => ({
-      id, required, qty: 0, cost: 0, unitCost: INGREDIENTS[id].cost,
-      target: Math.max(state.manager.target, required), stock: state.inventory[id] || 0,
-    }));
-    // Make one complete serving possible first, then spread the remaining budget
-    // across ingredients. One expensive ingredient must not consume the entire budget.
-    for (const item of purchases) {
-      const qty = Math.min(Math.max(0, item.required - item.stock), Math.floor((budget + 1e-8) / item.unitCost));
-      item.qty += qty; item.cost += qty * item.unitCost; budget -= qty * item.unitCost;
-    }
-    let bought = true;
-    while (bought) {
-      bought = false;
-      for (const item of purchases) if (item.stock + item.qty < item.target && item.unitCost <= budget + 1e-8) {
-        item.qty++; item.cost += item.unitCost; budget -= item.unitCost; bought = true;
-      }
-    }
-    return purchases.filter(item => item.qty > 0).map(({id,qty,cost,unitCost}) => ({id,qty,cost,unitCost}));
+  const obligations=state.cashProtection?.total??state.pendingPayroll.reduce((n,p)=>n+p.amount,0)+state.weekStats.wages;
+  let budget = Math.max(0, Math.min(state.manager.budget - state.manager.spent, state.money - state.manager.reserve-obligations));
+  const menu=activeRecipes(state),added=menu.find(r=>r.id===addedRecipeId);
+  if(addedRecipeId&&!added)return [];
+  const forecast=restaurantStockPlan(state);
+  const purchases=Object.entries(forecast.ingredients).filter(([id,target])=>INGREDIENTS[id]&&
+    (added?!!added.ingredients[id]&&(state.inventory[id]??0)<target.target:(state.inventory[id]??0)<target.reorderAt))
+    .map(([id,target])=>({id,...target,stock:state.inventory[id]??0,qty:0,cost:0,unitCost:INGREDIENTS[id].cost}));
+  const buy=(item:typeof purchases[number],quantity:number)=>{
+    const qty=Math.min(Math.max(0,quantity),item.target-item.stock-item.qty,Math.floor((budget+1e-8)/item.unitCost));
+    if(qty<=0)return false;
+    item.qty+=qty;item.cost+=qty*item.unitCost;budget-=qty*item.unitCost;return true;
+  };
+  // Complete meals first. Avoid spending the budget on a single shared ingredient.
+  const priority=added?[added]:[...menu].sort((a,b)=>(forecast.dishes.find(d=>d.id===b.id)?.weeklyDemand??0)-(forecast.dishes.find(d=>d.id===a.id)?.weeklyDemand??0));
+  for(const recipe of priority)for(const [id,required] of Object.entries(recipe.ingredients)){
+    const item=purchases.find(p=>p.id===id);
+    if(item)buy(item,required-item.stock-item.qty);
   }
-  const needed = [...new Set(activeRecipes(state).flatMap(r => Object.keys(r.ingredients)))];
-  // Most depleted ingredients get first access to a limited purchasing budget.
-  return needed.sort((a, b) => (state.inventory[a] || 0) - (state.inventory[b] || 0)).flatMap(id => {
-    const stock = state.inventory[id] || 0;
-    if (stock >= state.manager.target / 2) return [];
-    const unitCost = INGREDIENTS[id].cost;
-    const qty = Math.min(state.manager.target - stock, Math.floor((budget + 1e-8) / unitCost));
-    if (qty <= 0) return [];
-    budget -= qty * unitCost;
-    return [{ id, qty, cost: qty * unitCost, unitCost }];
-  });
+  let bought=true;
+  while(bought){
+    bought=false;
+    purchases.sort((a,b)=>(a.stock+a.qty)/a.target-(b.stock+b.qty)/b.target);
+    for(const item of purchases)if(buy(item,1))bought=true;
+  }
+  return purchases.filter(item=>item.qty>0).map(({id,qty,cost,unitCost})=>({id,qty,cost,unitCost}));
 }
 
 /** Uses the same accounting for menu changes and ongoing manager replenishment. */
 export function applyManagerPurchases(state: GameState, addedRecipeId?: string): GameState {
+  if(state.stockroom)return manageRestaurantStockroom(state,!!addedRecipeId);
   const plan = purchasingPlan(state, addedRecipeId);
   if (!plan.length) return state;
   const next = { ...state, manager: { ...state.manager }, inventory: { ...state.inventory },
@@ -134,10 +131,10 @@ export function applyManagerPurchases(state: GameState, addedRecipeId?: string):
 }
 
 export function finishShift(state: GameState): GameState {
-  let spoiledCost = 0;
+  let spoiledCost = state.weekStats.spoilage??0;
   const inventory = { ...state.inventory };
   const inventoryBatches = { ...state.inventoryBatches };
-  for (const id of Object.keys(inventory)) {
+  for (const id of state.stockroom?[]:Object.keys(inventory)) {
     let remaining = inventory[id] > 5 ? Math.floor(inventory[id] * 0.05) : 0;
     inventory[id] -= remaining;
     inventoryBatches[id] = (inventoryBatches[id] || []).flatMap(batch => {
@@ -164,9 +161,10 @@ export function finishShift(state: GameState): GameState {
   };
   return {
     ...state, inventory, inventoryBatches,
+    lastWeekItemSales: {...Object.fromEntries(activeRecipes(state).map(r=>[r.id,0])),...state.weekStats.itemsSold},
     pendingPayroll: [...state.pendingPayroll, { amount: wages, dueWeek: state.week + 1 }], phase: 'planning', isRestaurantOpen: false,
     week: state.week + 1, time: 0, weekSummary: summary, priorityTableId: null,
-    stats: { ...state.stats, salaryCosts: state.stats.salaryCosts + wages, spoilageCosts: state.stats.spoilageCosts + spoiledCost, totalExpenses: state.stats.totalExpenses + wages + spoiledCost },
+    stats: { ...state.stats, salaryCosts: state.stats.salaryCosts + wages, spoilageCosts: state.stats.spoilageCosts + (state.stockroom?0:spoiledCost), totalExpenses: state.stats.totalExpenses + wages + (state.stockroom?0:spoiledCost) },
     weekStats: { revenue: 0, tips: 0, served: 0, lost: 0, itemsSold: {}, foodCost: 0, wages: 0, fees: 0 },
     manager: { ...state.manager, spent: 0 },
     tables: state.tables.map(t => ({ ...t, customerId: null, isDirty: false })),
@@ -211,7 +209,7 @@ export function changeManagerSettings(state: GameState, changes: Partial<GameSta
     ...state.manager,
     enabled: typeof changes.enabled === 'boolean' ? changes.enabled : state.manager.enabled,
     target: [20, 30, 50].includes(changes.target) ? changes.target : state.manager.target,
-    budget: RESTAURANT_MANAGER_BUDGETS.includes(changes.budget!) ? changes.budget! : state.manager.budget,
+    budget: Number.isInteger(changes.budget)&&changes.budget!>=0&&changes.budget!<=20000 ? changes.budget! : state.manager.budget,
     reserve: [100, 150, 300, 500].includes(changes.reserve) ? changes.reserve : state.manager.reserve,
   } };
 }
@@ -219,9 +217,21 @@ export function changeManagerSettings(state: GameState, changes: Partial<GameSta
 export function payDueWages(state: GameState): GameState {
   const due = state.pendingPayroll.filter(p => state.week > p.dueWeek || (state.week === p.dueWeek && state.time >= 300 / 7));
   if (!due.length) return state;
-  const amount = due.reduce((sum, p) => sum + p.amount, 0);
-  return { ...state, money: state.money - amount, pendingPayroll: state.pendingPayroll.filter(p => !due.includes(p)),
-    floatingEvents: [...state.floatingEvents, { id: `payroll_${state.week}`, x: 0, z: 0, text: `Weekly wages paid: $${amount.toFixed(2)}`, type: 'info', createdAt: Date.now() }] };
+  const day=(state.week-1)*7+Math.min(7,Math.floor(state.time*7/100)+1);
+  if(state.lastPayrollAttemptDay===day)return state;
+  let available=Math.max(0,Math.floor((state.money+1e-8)*100)/100),amount=0;
+  const pendingPayroll=state.pendingPayroll.flatMap(p=>{
+    if(!due.includes(p))return [p];
+    const paid=Math.min(p.amount,available);available-=paid;amount+=paid;
+    const balance=Math.round((p.amount-paid)*100)/100;return balance>0?[{...p,amount:balance}]:[];
+  });
+  const overdue=pendingPayroll.filter(p=>state.week>p.dueWeek||(state.week===p.dueWeek&&state.time>=300/7)).reduce((sum,p)=>sum+p.amount,0);
+  // Currency arithmetic can leave a sub-cent floating-point remainder at zero.
+  const remainingCash=state.money-amount;
+  const money=remainingCash<0&&remainingCash>-1e-8?0:remainingCash;
+  const text=overdue>0?`${amount?'Wages paid: $'+amount.toFixed(2)+' · ':''}$${overdue.toFixed(2)} wages still owed · retry next game day`:'Weekly wages paid: $'+amount.toFixed(2);
+  return { ...state, money, pendingPayroll,lastPayrollAttemptDay:day,
+    floatingEvents: [...state.floatingEvents, { id: 'payroll_'+day, x: 0, z: 0, text, type: 'info', createdAt: Date.now() }] };
 }
 
 export function serveReadyTable(state: GameState, orderId: string): GameState {

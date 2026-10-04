@@ -103,6 +103,12 @@ export function lodgingFurnitureGeometry(layout:LodgingLayout){
     }else if(kind==='luggage'||kind==='cart'){
       if(kind==='cart'){box(0,.18,0,w,.12,d,'#9c917d');for(const a of [-w*.4,w*.4]){branch([a,.15,-d*.4],[a,h,-d*.4],.03,'#b2a17c');branch([a,h,-d*.4],[a,h,d*.3],.03,'#b2a17c');}}
       round(0,kind==='cart'?.65:h/2,0,w*.8,kind==='cart'?.8:h*.8,d*.75,'#5f6c76');box(0,kind==='cart'?1.1:h*.94,0,w*.35,.07,.05,'#3f484d');
+    }else if(kind==='bikerack'){
+      for(const k of [-.7,.7]){for(const a of [-.58,.58])m.add(new THREE.TorusGeometry(.31,.035,6,18),'#3a4346',at(a,.37,k),[1,1,1],[0,yaw,0]);branch([-.58,.37,k],[0,.86,k],.03,'#70858b');branch([0,.86,k],[.58,.37,k],.03,'#70858b');branch([-.58,.37,k],[.25,.4,k],.03,'#70858b');branch([.25,.4,k],[0,.86,k],.03,'#70858b');branch([.58,.37,k],[.45,1.08,k],.035,'#4e626a');box(-.06,.97,k,.25,.06,.18,'#424a4d');box(.44,1.1,k,.09,.05,.4,'#424a4d');}
+    }else if(kind==='washer'){
+      round(0,h/2,0,w,h,d,'#d9dddb');box(0,h*.83,d/2+.014,w*.85,.18,.025,'#8d999b');
+      m.add(new THREE.CylinderGeometry(w*.31,w*.31,.035,20),'#4d606b',at(0,h*.42,d/2+.03),[1,1,1],[Math.PI/2,yaw,0]);
+      m.add(new THREE.CylinderGeometry(w*.23,w*.23,.038,20),'#8fadb8',at(0,h*.42,d/2+.052),[1,1,1],[Math.PI/2,yaw,0]);
     }else if(kind==='treadmill'){
       box(0,.15,0,w,.27,d,'#717b7f');box(0,.29,0,w*.7,.02,d*.85,'#303a3e');for(const a of [-w*.42,w*.42])branch([a,.1,-d*.35],[a,h,-d*.35],.045,'#a5adae');box(0,h,-d*.35,w,.18,.36,'#4e5d63');
     }

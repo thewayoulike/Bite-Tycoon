@@ -40,7 +40,7 @@ test('expanded sample has the real property floors and does not mutate the start
   const beforeVersion=proposalVersion(sample,false),afterVersion=proposalVersion(sample,true);
   assert.equal(beforeVersion.restaurants.diner.activeMenu.length,6);
   assert.equal(beforeVersion.restaurants.diner.recipes.length,116);
-  assert.equal(afterVersion.restaurants.diner.recipes.length,24);
+  assert.equal(afterVersion.restaurants.diner.recipes.length,30);
   assert.ok(afterVersion.restaurants.diner.activeMenu.length>6);
   assert.equal(beforeVersion.restaurants.diner.money,afterVersion.restaurants.diner.money);
   assert.deepEqual(beforeVersion.district,afterVersion.district);
@@ -52,7 +52,7 @@ test('restaurant types have distinct complete catalogs and matching ingredient r
   const seen=new Set<string>();
   for(const type of RESTAURANT_TYPES){
     const profile=restaurantCatalog(type.id);
-    assert.equal(profile.recipes.length,24);
+    assert.equal(profile.recipes.length,30);
     for(const recipe of profile.recipes){
       assert.ok(!seen.has(recipe.name),`${recipe.name} is copied across types`);
       seen.add(recipe.name);

@@ -1,4 +1,6 @@
 import test from 'node:test';
+import type {ExpansionState} from '../src/prototype/expansionModel';
+function prepared(s:ExpansionState){const b=s.businesses.park;return {...s,week:3,businesses:{...s.businesses,park:{...b,hires:{...b.hires,security:1,cleaner:1},venue:{...b.venue!,units:b.venue!.units.map(u=>({...u,occupied:true}))},plaza:{...b.plaza!,depth:{...b.plaza!.depth!,satisfaction:90,history:[1,2].map(week=>({week,occupancy:100,profit:100,satisfaction:90,footfall:[],complete:true}))}}}}};}
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {INITIAL_STATE,advanceGame} from '../src/hooks/useGameLoop';
@@ -40,10 +42,10 @@ test('floor progression creates distinct new shops, rejects repeated and unaffor
  let s=fresh().district,b=s.businesses.park;
  assert.equal(managePlaza(s,'park',{type:'floor',floor:2}).businesses.park,b);
  s={...s,businesses:{...s.businesses,park:{...b,plaza:{...b.plaza!,leasesSigned:4}}}};
- const cost=plazaFloorCost(s.businesses.park);s=managePlaza(s,'park',{type:'floor',floor:2});assert.equal(s.businesses.park.plaza!.openFloors,2);assert.equal(s.businesses.park.venue!.units.length,8);near(s.businesses.park.cash,b.cash-cost);
+ s=prepared(s);const cost=plazaFloorCost(s.businesses.park);s=managePlaza(s,'park',{type:'floor',floor:2});assert.equal(s.businesses.park.plaza!.openFloors,2);assert.equal(s.businesses.park.venue!.units.length,8);near(s.businesses.park.cash,b.cash-cost);
  assert.equal(managePlaza(s,'park',{type:'floor',floor:2}).businesses.park,s.businesses.park);
  const poor={...s,businesses:{...s.businesses,park:{...s.businesses.park,cash:0,plaza:{...s.businesses.park.plaza!,leasesSigned:8}}}};assert.equal(managePlaza(poor,'park',{type:'floor',floor:3}).businesses.park,poor.businesses.park);
- s={...s,businesses:{...s.businesses,park:{...s.businesses.park,plaza:{...s.businesses.park.plaza!,leasesSigned:8}}}};s=managePlaza(s,'park',{type:'floor',floor:3});assert.equal(s.businesses.park.venue!.units.length,12);assert.equal(managePlaza(s,'park',{type:'floor',floor:3}),s);
+ s={...s,businesses:{...s.businesses,park:{...s.businesses.park,plaza:{...s.businesses.park.plaza!,leasesSigned:8}}}};s=prepared(s);s=managePlaza(s,'park',{type:'floor',floor:3});assert.equal(s.businesses.park.venue!.units.length,12);assert.equal(managePlaza(s,'park',{type:'floor',floor:3}),s);
  const f=venueFinancials(p,s.businesses.park,s);near(f.profit,0);near(f.assets,f.liabilities+f.equity);
 });
 
@@ -91,12 +93,13 @@ test('all five mall floors and four facilities unlock in order, charge once, and
  assert.equal(managePlaza(s,'park',{type:'facility',facility:'play'}).businesses.park,b);
  assert.equal(managePlaza(s,'park',{type:'floor',floor:3}),s);
  for(let count=2;count<=PLAZA_FLOORS;count++){
-  const before=s.businesses.park,cost=plazaFloorCost(before);s=managePlaza(s,'park',{type:'floor',floor:count});
+  s=prepared(s);const before=s.businesses.park,cost=plazaFloorCost(before);s=managePlaza(s,'park',{type:'floor',floor:count});
   near(s.businesses.park.cash,before.cash-cost);assert.equal(s.businesses.park.venue!.units.length,count*4);assert.equal(managePlaza(s,'park',{type:'floor',floor:count}),s);
   assert.deepEqual(s.businesses.park.venue!.units.slice((count-1)*4).map(u=>u.shopType),MALL_FLOORS[count-1].shops);
  }
  assert.equal(managePlaza(s,'park',{type:'floor',floor:6}),s);
  for(const facility of MALL_FACILITIES){const before=s.businesses.park.cash;s=managePlaza(s,'park',{type:'facility',facility:facility.id});near(s.businesses.park.cash,before-facility.cost);assert.equal(managePlaza(s,'park',{type:'facility',facility:facility.id}),s);}
+ s={...s,businesses:{...s.businesses,park:{...s.businesses.park,hires:{...s.businesses.park.hires,attendant:1,operator:1,cleaner:2},plaza:{...s.businesses.park.plaza!,depth:{...s.businesses.park.plaza!.depth!,legacyFacilities:['play','foodcourt','cinema','roofgarden']}}}}};
  b=s.businesses.park;const f=venueFinancials(p,b,s);near(f.profit,0);near(f.assets,f.liabilities+f.equity);assert.equal(mallWeeklyUpkeep(b),335);near(mallAppeal(b),1.74);
  const running=startPlazaWeek({...b,venue:{...b.venue!,running:true}},1);near(running.cash,b.cash-335);near(running.books!.maintenance,b.books!.maintenance+335);assert.equal(startPlazaWeek(running,1).cash,running.cash);
  const f2=venueFinancials(p,running,{...s,businesses:{...s.businesses,park:running}});near(f2.assets,f2.liabilities+f2.equity);near(f2.profit,-335);
