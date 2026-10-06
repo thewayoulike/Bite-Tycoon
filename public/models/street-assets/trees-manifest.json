@@ -1,0 +1,38 @@
+[
+  {
+    "id": "oak",
+    "lod": 0,
+    "height": 5.5,
+    "triangles": 11566
+  },
+  {
+    "id": "oak",
+    "lod": 1,
+    "height": 5.5,
+    "triangles": 5342
+  },
+  {
+    "id": "aspen",
+    "lod": 0,
+    "height": 6.1,
+    "triangles": 3696
+  },
+  {
+    "id": "aspen",
+    "lod": 1,
+    "height": 6.1,
+    "triangles": 2120
+  },
+  {
+    "id": "ash",
+    "lod": 0,
+    "height": 5.8,
+    "triangles": 18720
+  },
+  {
+    "id": "ash",
+    "lod": 1,
+    "height": 5.8,
+    "triangles": 10500
+  }
+]

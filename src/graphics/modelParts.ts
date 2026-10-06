@@ -31,6 +31,15 @@ export class ModelParts {
     this.add(geometry, color, start.map((v, i) => (v + end[i]) / 2) as Vec3);
   }
   finish() {
+    // A district may have no remaining surfaces after its houses become GLB instances.
+    if (!this.parts.length) {
+      const empty = new THREE.BufferGeometry();
+      for (const attribute of ['position', 'normal', 'color']) {
+        empty.setAttribute(attribute, new THREE.Float32BufferAttribute([], 3));
+      }
+      empty.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 0);
+      return empty;
+    }
     const result = mergeGeometries(this.parts)!;
     this.parts.forEach(part => part.dispose());
     result.computeBoundingSphere();

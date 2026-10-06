@@ -104,7 +104,7 @@ return <>
     <Roads wet={wet} snow={snow}/><OuterRoads3D wet={wet} snow={snow}/>
     <CitySkyline3D isNight={isNight} snow={snow}/>
     <SharedBlocks/><StreetscapeDetails3D isNight={isNight}/>
-    <NeighborhoodDistricts3D isNight={isNight}/>
+    <NeighborhoodDistricts3D isNight={isNight} snow={snow}/>
     <PublicGarden labels={labels} gameSpeed={gameSpeed} isNight={isNight}/>
     {PROPERTIES.filter(p=>p.id!==interiorId).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)}/>)}
     {[-25,0,25].flatMap(x=>[-25,0,25].filter(z=>!(x===0&&(z===0||z===-25))).map((z,i)=><StylizedTree3D key={`${x}:${z}`} position={[x+8.65,.1,z+6.5]} seed={i} scale={.75}/>))}

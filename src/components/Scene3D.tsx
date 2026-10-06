@@ -2,7 +2,7 @@ import React, { useRef, useMemo, useState, useEffect, Suspense, memo } from 'rea
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Box, Cylinder, Sphere, Plane, Html, Cone, Sky, Grid, Torus } from '@react-three/drei';
 import { GameState } from '../hooks/useGameLoop';
-import { RealCharacter3D } from './RealCharacter3D';
+import { RealCharacter3D, CharacterQualityContext } from './RealCharacter3D';
 import { diningCastId } from '../characters/gameCast';
 import { FoodIllustration } from './FoodIllustration';
 import { OutdoorReflections3D } from './OutdoorReflections3D';
@@ -600,8 +600,10 @@ export const Scene3D = ({ state, actions }: { state: GameState, actions: any }) 
 
         {!isNight && <Sky sunPosition={[10, 20, 10]} />}
 
-        <AttractiveCityScenery3D isNight={isNight} gameSpeed={state.gameSpeed} />
-        <RestaurantContents3D state={state} actions={actions} cutaway={cutaway} isNight={isNight}/>
+        <CharacterQualityContext.Provider value={fastGraphics}>
+          <AttractiveCityScenery3D isNight={isNight} gameSpeed={state.gameSpeed} />
+          <RestaurantContents3D state={state} actions={actions} cutaway={cutaway} isNight={isNight}/>
+        </CharacterQualityContext.Provider>
       </Canvas>
     </div>
   );

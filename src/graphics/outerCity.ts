@@ -4,9 +4,10 @@ import {ModelParts,seededRandom} from './modelParts';
 export const CITY_EDGE=187.5;
 export const OUTER_LOTS=Array.from({length:15},(_,i)=>(i-7)*25).flatMap(x=>Array.from({length:15},(_,i)=>(i-7)*25).filter(z=>Math.abs(x)>50||Math.abs(z)>50).map(z=>({x,z,zone:x<0||z>50?'homes' as const:'mixed' as const})));
 export const OUTER_ROADS=Array.from({length:16},(_,i)=>-CITY_EDGE+i*25).filter(v=>Math.abs(v)>63);
+export const isOuterPark=(x:number,z:number)=>(Math.abs(x*3+z)/25)%17===0;
 
 /** Batched scenery: hundreds of addresses, four material draws per city quadrant. */
-export function buildOuterCity(quadrant:number){
+export function buildOuterCity(quadrant:number,modeledHomes=false){
  const solid=new ModelParts(),glass=new ModelParts(),lit=new ModelParts(),land=new ModelParts(),random=seededRandom(934+quadrant);
  const walls=['#a69580','#96705b','#b3ab9b','#826c5e','#ae9c86','#9a8c80'];
  function tree(x:number,z:number){
@@ -20,40 +21,43 @@ export function buildOuterCity(quadrant:number){
   for(const dx of [-.83,.83])for(const dz of [-1.1,1.1])solid.box([x+dx,.35,z+dz],[.16,.6,.55],'#303232');
  }
  function building(x:number,z:number,w:number,d:number,floors:number,house:boolean,shop:boolean){
+  // Keep the same random sequence for all other scenery when the houses are replaced.
+  const discard={box(..._args:Parameters<ModelParts['box']>){}};
+  const bodySolid=house&&modeledHomes?discard:solid,bodyGlass=house&&modeledHomes?discard:glass,bodyLit=house&&modeledHomes?discard:lit;
   const h=floors*2.9+.35,color=walls[Math.floor(random()*walls.length)];
-  solid.box([x,h/2+.16,z],[w,h,d],color);
-  solid.box([x,.32,z],[w+.12,.32,d+.12],'#b9b1a1');
+  bodySolid.box([x,h/2+.16,z],[w,h,d],color);
+  bodySolid.box([x,.32,z],[w+.12,.32,d+.12],'#b9b1a1');
   for(let f=0;f<floors;f++)for(const side of [-1,1]){
    const y=1.8+f*2.9;
    for(let dx=-w/2+1.25;dx<w/2-.7;dx+=2.3){
-    solid.box([x+dx,y,z+side*(d/2+.04)],[1.25,1.68,.12],'#c3b8a5');
-    (random()<.24?lit:glass).box([x+dx,y+.02,z+side*(d/2+.11)],[1.02,1.4,.045],random()<.3?'#6a7980':'#465966');
+    bodySolid.box([x+dx,y,z+side*(d/2+.04)],[1.25,1.68,.12],'#c3b8a5');
+    (random()<.24?bodyLit:bodyGlass).box([x+dx,y+.02,z+side*(d/2+.11)],[1.02,1.4,.045],random()<.3?'#6a7980':'#465966');
    }
    for(let dz=-d/2+1.4;dz<d/2-.8;dz+=2.7){
-    (random()<.2?lit:glass).box([x+side*(w/2+.02),y,z+dz],[.06,1.4,1.15],'#526570');
+    (random()<.2?bodyLit:bodyGlass).box([x+side*(w/2+.02),y,z+dz],[.06,1.4,1.15],'#526570');
    }
-   if(!house)solid.box([x,y+1.3,z+side*(d/2+.06)],[w,.12,.15],'#b4a997');
+   if(!house)bodySolid.box([x,y+1.3,z+side*(d/2+.06)],[w,.12,.15],'#b4a997');
   }
   if(house){
    const rise=1.75,half=w/2+.3,roof=Math.sqrt(half*half+rise*rise);
-   for(const side of [-1,1])solid.box([x+side*half/2,h+.16+rise/2,z],[roof,.17,d+.65],'#514f4c',[0,0,-side*Math.atan2(rise,half)]);
-   solid.box([x+w*.25,h+1.3,z-1],[.55,1.8,.65],'#7c5c4d');
+   for(const side of [-1,1])bodySolid.box([x+side*half/2,h+.16+rise/2,z],[roof,.17,d+.65],'#514f4c',[0,0,-side*Math.atan2(rise,half)]);
+   bodySolid.box([x+w*.25,h+1.3,z-1],[.55,1.8,.65],'#7c5c4d');
   }else{
-   solid.box([x,h+.22,z],[w+.4,.24,d+.4],'#8d8b82');
-   solid.box([x+1,h+.64,z-1],[2,.6,2.3],'#777d7b');
-   for(const side of [-1,1])solid.box([x+side*w/2,h+.52,z],[.16,.7,d],'#aea99c');
+   bodySolid.box([x,h+.22,z],[w+.4,.24,d+.4],'#8d8b82');
+   bodySolid.box([x+1,h+.64,z-1],[2,.6,2.3],'#777d7b');
+   for(const side of [-1,1])bodySolid.box([x+side*w/2,h+.52,z],[.16,.7,d],'#aea99c');
   }
-  glass.box([x,1.28,z+d/2+.1],[.96,2.2,.08],'#3a484e');
-  solid.box([x,.2,z+d/2+.55],[1.75,.18,.95],'#c7bcac');
+  bodyGlass.box([x,1.28,z+d/2+.1],[.96,2.2,.08],'#3a484e');
+  bodySolid.box([x,.2,z+d/2+.55],[1.75,.18,.95],'#c7bcac');
   if(shop){
-   for(const side of [-1,1])glass.box([x+side*w*.28,1.5,z+d/2+.13],[w*.28,2.05,.08],'#576c70');
-   solid.box([x,2.85,z+d/2+.18],[w-.4,.45,.25],['#485f5a','#86594a','#796f55'][Math.floor(random()*3)]);
-   solid.box([x,2.6,z+d/2+.8],[w-.5,.12,1.35],'#a29173',[.08,0,0]);
+   for(const side of [-1,1])bodyGlass.box([x+side*w*.28,1.5,z+d/2+.13],[w*.28,2.05,.08],'#576c70');
+   bodySolid.box([x,2.85,z+d/2+.18],[w-.4,.45,.25],['#485f5a','#86594a','#796f55'][Math.floor(random()*3)]);
+   bodySolid.box([x,2.6,z+d/2+.8],[w-.5,.12,1.35],'#a29173',[.08,0,0]);
   }
  }
  for(const {x,z,zone} of OUTER_LOTS.filter(l=>(l.x<0?1:0)+(l.z<0?2:0)===quadrant)){
   solid.box([x,.1,z],[18.5,.2,18.5],'#aca69a');
-  const park=(Math.abs(x*3+z)/25)%17===0;
+  const park=isOuterPark(x,z);
   if(park){
    land.box([x,.22,z],[15,.06,15],'#7f8565');
    solid.box([x,.26,z],[2.2,.05,16],'#c3b7a2');solid.box([x,.26,z],[16,.05,2.2],'#c3b7a2');

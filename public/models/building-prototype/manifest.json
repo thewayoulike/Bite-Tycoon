@@ -1,0 +1,13 @@
+[
+  {
+    "id": "house",
+    "width": 10,
+    "depth": 9,
+    "floorHeight": 2.9,
+    "defaultFloors": 2,
+    "maxFloors": 2,
+    "trianglesInKit": 3978,
+    "meshesInKit": 76,
+    "bytes": 3820332
+  }
+]

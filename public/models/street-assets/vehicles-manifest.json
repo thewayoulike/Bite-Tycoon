@@ -1,0 +1,29 @@
+[
+  {
+    "id": "sedan",
+    "length": 4.631206274032593,
+    "height": 1.5169999599456787,
+    "widthIncludingMirrors": 2.190000057220459,
+    "wheelRadius": 0.35,
+    "triangles": 11900,
+    "drawMeshes": 10
+  },
+  {
+    "id": "hatchback",
+    "length": 4.131206274032593,
+    "height": 1.5169999599456787,
+    "widthIncludingMirrors": 2.190000057220459,
+    "wheelRadius": 0.35,
+    "triangles": 11900,
+    "drawMeshes": 10
+  },
+  {
+    "id": "suv",
+    "length": 4.631206274032593,
+    "height": 1.846000075340271,
+    "widthIncludingMirrors": 2.330000162124634,
+    "wheelRadius": 0.39,
+    "triangles": 12212,
+    "drawMeshes": 10
+  }
+]

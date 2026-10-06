@@ -4,6 +4,8 @@ import {CITY_LOTS,CityLot} from '../graphics/cityDistrictLayout';
 import {ModelParts} from '../graphics/modelParts';
 import {getSignTexture,getSurfaceMaterial} from '../graphics/surfaceMaterials';
 import {StylizedTree3D,RoundedCarBody3D} from './StreetAssets3D';
+import {ResidentialHouses3D,useResidentialHouseParts} from './ResidentialHouses3D';
+import {DISTRICT_HOUSES} from '../graphics/residentialLayout';
 
 const houseColors=['#a77760','#c7bdae','#897d70','#b59c81','#927260'];
 const shopColors=['#3f535d','#66735d','#80594c','#6f6661','#4b6470','#685c51'];
@@ -41,7 +43,7 @@ function pitchedRoof(m:ModelParts,x:number,height:number,z:number,w:number,d:num
  m.box([x+2,height+2.49,z-1.8],[.76,.12,.88],'#b1a894');
 }
 
-const CityLot3D=memo(function CityLot3D({lot,index,isNight}:{lot:CityLot;index:number;isNight:boolean}){
+const CityLot3D=memo(function CityLot3D({lot,index,isNight,modeledHomes}:{lot:CityLot;index:number;isNight:boolean;modeledHomes:boolean}){
  const homes=lot.kind==='homes',park=lot.kind==='playground'||lot.kind==='square';
  const model=useMemo(()=>{
   const m=new ModelParts(),glass=new ModelParts(),lit=new ModelParts();
@@ -49,6 +51,7 @@ const CityLot3D=memo(function CityLot3D({lot,index,isNight}:{lot:CityLot;index:n
   m.box([0,.15,0],[.1,.1,.1],'#aaa69a');glass.box([7.4,1,-7.5],[.42,.65,.04],'#637980');lit.box([7.4,1.4,-7.5],[.46,.1,.12],'#dfcaa4');
   if(homes){
    for(const [i,x] of [-4.1,4.1].entries()){
+    if(!modeledHomes){
     const height=5.45+(index%2)*.35;
     pitchedRoof(m,x,height,-1,7,8, index%2?'#626367':'#63554d');
     m.box([x,.31,-1],[7.14,.4,8.14],'#9e9487');
@@ -62,6 +65,7 @@ const CityLot3D=memo(function CityLot3D({lot,index,isNight}:{lot:CityLot;index:n
     m.box([x,2.9,3.65],[2.4,.13,1.5],'#645d54');
     for(const dx of [-1.05,1.05])m.box([x+dx,1.4,4.2],[.11,2.8,.11],'#cfc5b3');
     for(let k=0;k<3;k++)m.box([x,.16+k*.12,4.6-k*.35],[2.4,.16,.9],'#b1a89a');
+    }
     m.box([x,.15,6.6],[1.45,.035,3.6],'#b9b2a3');
     m.box([x-2.5,.23,6.2],[2,.12,3.8],'#657051');
     for(const z of [-8.5,-5.8])fence(m,x-3.5,z,7);
@@ -145,14 +149,14 @@ const CityLot3D=memo(function CityLot3D({lot,index,isNight}:{lot:CityLot;index:n
    lit.box([5.5,1.6,front+.14],[1.1,1.4,.012],'#b7a78b');
   }
   return {solid:m.finish(),glass:glass.finish(),lit:lit.finish()};
- },[lot,index,homes,park]);
+ },[lot,index,homes,park,modeledHomes]);
  useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
  const retail=lot.kind==='shops',supermarket=lot.kind==='supermarket',garage=lot.kind==='garage'||lot.kind==='firestation';
  const height=retail?6.6:supermarket?4.5:garage?4.8:lot.kind==='offices'?12.6:7.2;
  const wall=lot.kind==='clinic'?'#c8c4ba':lot.kind==='offices'?'#9a9c99':lot.kind==='firestation'?'#955c48':lot.kind==='library'?'#a3947e':retail?'#ab8e74':'#9d7962';
  return <group position={lot.position} rotation={[0,lot.rotation??0,0]} name={`city-scenery-${lot.id}`}>
   {(homes||park)&&<mesh position={[0,.125,0]} receiveShadow material={getSurfaceMaterial(lot.kind==='square'?'concrete':'grass',lot.kind==='square'?'#bcb4a5':'#788068',8,8)}><boxGeometry args={[17.9,.09,17.9]}/></mesh>}
-  {homes?[-4.1,4.1].map((x,i)=><mesh key={x} position={[x,(5.45+(index%2)*.35)/2,-1]} material={getSurfaceMaterial('brick',houseColors[(index+i)%houseColors.length],2.4,2)} castShadow receiveShadow><boxGeometry args={[7,5.45+(index%2)*.35,8]}/></mesh>):!park&&<mesh position={[0,height/2,supermarket?-2.3:0]} material={getSurfaceMaterial(lot.kind==='clinic'||lot.kind==='offices'?'concrete':'brick',wall,4,height/2)} castShadow receiveShadow><boxGeometry args={[16,height,supermarket?11:12]}/></mesh>}
+  {homes?(!modeledHomes&&[-4.1,4.1].map((x,i)=><mesh key={x} position={[x,(5.45+(index%2)*.35)/2,-1]} material={getSurfaceMaterial('brick',houseColors[(index+i)%houseColors.length],2.4,2)} castShadow receiveShadow><boxGeometry args={[7,5.45+(index%2)*.35,8]}/></mesh>)):!park&&<mesh position={[0,height/2,supermarket?-2.3:0]} material={getSurfaceMaterial(lot.kind==='clinic'||lot.kind==='offices'?'concrete':'brick',wall,4,height/2)} castShadow receiveShadow><boxGeometry args={[16,height,supermarket?11:12]}/></mesh>}
   <mesh geometry={model.solid} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.86}/></mesh>
   <mesh geometry={model.glass}><meshStandardMaterial vertexColors roughness={.25} metalness={.3} envMapIntensity={.6}/></mesh>
   <mesh geometry={model.lit}><meshStandardMaterial vertexColors emissive={isNight?'#e6bd84':'#000000'} emissiveIntensity={isNight?.7:0}/></mesh>
@@ -163,6 +167,7 @@ const CityLot3D=memo(function CityLot3D({lot,index,isNight}:{lot:CityLot;index:n
  </group>;
 });
 
-export const NeighborhoodDistricts3D=memo(function NeighborhoodDistricts3D({isNight}:{isNight:boolean}){
- return <group name="residential-commercial-civic-districts">{CITY_LOTS.map((lot,index)=><CityLot3D key={lot.id} lot={lot} index={index} isNight={isNight}/>)}</group>;
+export const NeighborhoodDistricts3D=memo(function NeighborhoodDistricts3D({isNight,snow=0}:{isNight:boolean;snow?:number}){
+ const houses=useResidentialHouseParts();
+ return <group name="residential-commercial-civic-districts">{CITY_LOTS.map((lot,index)=><CityLot3D key={lot.id} lot={lot} index={index} isNight={isNight} modeledHomes={!!houses}/>) }{houses&&<ResidentialHouses3D parts={houses} placements={DISTRICT_HOUSES} isNight={isNight} snow={snow}/>}</group>;
 });

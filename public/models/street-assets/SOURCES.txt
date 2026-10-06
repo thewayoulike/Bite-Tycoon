@@ -1,0 +1,32 @@
+Bite Tycoon street scenery
+
+VEHICLES
+Original, unbranded sedan, hatchback and SUV created for this project in Blender.
+No downloaded vehicle assets or manufacturer logos are used.
+Rebuild: run tools/build-street-vehicles.py with Blender 4.2 in background mode.
+The script also saves an editable .blend in artifacts/street-build/.
+
+TREES
+Generated offline using EZ-Tree 1.1.0 by Daniel Greenheck (MIT).
+https://github.com/dgreenheck/ez-tree
+https://www.npmjs.com/package/@dgreenheck/ez-tree/v/1.1.0
+License is included as EZ-TREE-LICENSE.txt.
+Presets: oak_medium, aspen_small, ash_medium; custom seeds, metre scale,
+leaf density, softened leaf normals, and two levels of detail.
+Leaf textures come from the EZ-Tree package. Bark sources credited by EZ-Tree:
+  Oak / ash: Bark Brown 02 by Rob Tuytel, Poly Haven (CC0).
+  https://polyhaven.com/a/bark_brown_02
+  Aspen: Birch Tree Bark, TextureCan (CC0).
+  https://www.texturecan.com/details/221/
+  https://www.texturecan.com/terms/
+Runtime assets embed the source textures; no outside service is needed to play.
+
+Rebuild trees: npm pack @dgreenheck/ez-tree@1.1.0 into artifacts/street-build,
+extract the package there, then run node tools/build-street-trees.mjs.
+The generator is a build tool only; it is not a game dependency.
+
+OPTIMIZATION
+Shared geometry, materials and textures across instances; one draw per tree part.
+Detailed trees switch to lower detail beyond 42 scene units, with hysteresis.
+Fast graphics always uses the simpler trees. No extra lights are added per car.
+Old procedural models remain available if loading the GLB files fails.

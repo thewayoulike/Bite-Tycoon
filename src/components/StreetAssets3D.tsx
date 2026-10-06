@@ -1,67 +1,77 @@
-import {useContext} from 'react';
-import {WeatherMotionContext} from './Weather3D';
-import { memo, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import {memo, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import {useFrame} from '@react-three/fiber';
+import {Detailed} from '@react-three/drei';
 import * as THREE from 'three';
-import { getCarModel, getTreeModel } from '../graphics/streetModels';
-import type { Vec3 } from '../graphics/modelParts';
+import {WeatherMotionContext} from './Weather3D';
+import {CharacterQualityContext} from './RealCharacter3D';
+import {StylizedTree3D as FallbackTree, RoundedCarBody3D as FallbackCar} from './StreetAssetsFallback3D';
+import {chooseVehicleStyle, createVehicleInstance, getTreeParts, loadStreetLibrary, streetLibraries, treeLeafMaterial, type StreetLibrary} from '../graphics/streetAssetLibrary';
+import type {Vec3} from '../graphics/modelParts';
 
-const barkMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
-const leafMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .92, side: THREE.DoubleSide });
-const trimMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .4, metalness: .36 });
-const glassMaterial = new THREE.MeshStandardMaterial({ color: '#294b5b', roughness: .17, metalness: .42 });
+function useStreetLibrary(kind: StreetLibrary) {
+  const [library, setLibrary] = useState(() => streetLibraries[kind] ?? null);
+  useEffect(() => {
+    let mounted = true;
+    void loadStreetLibrary(kind).then(result => { if (mounted && result) setLibrary(result); });
+    return () => { mounted = false; };
+  }, [kind]);
+  return library;
+}
 
-export const StylizedTree3D = memo(function StylizedTree3D({ position, seed = 0, blossom = false, scale = 1, gameSpeed = 1 }: {
-  position: Vec3; seed?: number; blossom?: boolean; scale?: number; gameSpeed?: number;
+type TreeProps = {position: Vec3; seed?: number; blossom?: boolean; scale?: number; gameSpeed?: number};
+function TreeDetail({library, species, lod, blossom, phase, wind, animationSpeed, shadows}: {
+  library: THREE.Group; species: string; lod: number; blossom: boolean; phase: number; wind: number; animationSpeed: number; shadows: boolean;
 }) {
-  const weather=useContext(WeatherMotionContext);
-  const wind=weather?weather.wind/8:1,animationSpeed=weather?.speed??gameSpeed;
-  const crown = useRef<THREE.Group>(null), elapsed = useRef(seed * 1.8);
-  const model = useMemo(() => getTreeModel(seed, blossom), [seed, blossom]);
+  const crown = useRef<THREE.Group>(null), elapsed = useRef(phase);
+  const {bark, leaves} = useMemo(() => getTreeParts(library, species, lod), [library, species, lod]);
   useFrame((_, delta) => {
     if (!crown.current || animationSpeed === 0) return;
     elapsed.current += Math.min(delta, .06) * animationSpeed;
-    crown.current.rotation.z = Math.sin(elapsed.current * .75) * .008*wind;
-    crown.current.rotation.x = Math.cos(elapsed.current * .6) * .006*wind;
+    crown.current.rotation.z = Math.sin(elapsed.current * .75) * .009 * wind;
+    crown.current.rotation.x = Math.cos(elapsed.current * .6) * .006 * wind;
   });
-  return <group position={position} scale={[scale, scale * (.95 + seed % 3 * .05), scale]} rotation={[0,seed*.63,0]} name="street-tree" dispose={null}>
-    <mesh geometry={model.bark} material={barkMaterial} castShadow receiveShadow />
-    <group ref={crown} position={[0,1.8,0]}>
-      <mesh geometry={model.leaves} material={leafMaterial} castShadow receiveShadow />
+  return <group dispose={null}>
+    <mesh geometry={bark.geometry} material={bark.material} castShadow={shadows} receiveShadow />
+    <group ref={crown} position={[0, 1.8, 0]}>
+      <mesh position={[0, -1.8, 0]} geometry={leaves.geometry} material={treeLeafMaterial(leaves.material, blossom)} castShadow={shadows} receiveShadow />
     </group>
+  </group>;
+}
+
+export const StylizedTree3D = memo(function StylizedTree3D(props: TreeProps) {
+  const {position, seed = 0, blossom = false, scale = 1, gameSpeed = 1} = props;
+  const library = useStreetLibrary('trees'), fast = useContext(CharacterQualityContext), weather = useContext(WeatherMotionContext);
+  const variant = Math.abs(Math.floor(seed)), species = blossom ? 'oak' : ['oak', 'aspen', 'ash'][variant % 3];
+  if (!library) return <FallbackTree {...props} />;
+  const detail = {library, species, blossom, phase: seed * 1.8, wind: weather ? weather.wind / 8 : 1, animationSpeed: weather?.speed ?? gameSpeed};
+  return <group name="street-tree" position={position} scale={[scale, scale * (.96 + variant % 3 * .04), scale]} rotation={[0, seed * .63, 0]} dispose={null}>
+    {fast ? <TreeDetail {...detail} lod={1} shadows={false} /> : <Detailed distances={[0, 42]} hysteresis={.12}>
+      <TreeDetail {...detail} lod={0} shadows />
+      <TreeDetail {...detail} lod={1} shadows />
+    </Detailed>}
   </group>;
 });
 
-export const RoundedCarBody3D = memo(function RoundedCarBody3D({ color, isTaxi = false, isNight, speed, gameSpeed }: {
-  color: string; isTaxi?: boolean; isNight: boolean; speed: number; gameSpeed: number;
-}) {
-  const wheels = useRef<THREE.Group>(null);
-  const wagon = speed % 3 === 0 && !isTaxi;
-  const model = useMemo(() => getCarModel(wagon), [wagon]);
-  const paint = useMemo(() => new THREE.Color(isTaxi ? '#e6b647' : color).lerp(new THREE.Color('#7e8584'), .14), [color,isTaxi]);
+type CarProps = {color: string; isTaxi?: boolean; isNight: boolean; speed: number; gameSpeed: number};
+function ModelCar({library, color, isTaxi = false, isNight, speed, gameSpeed}: CarProps & {library: THREE.Group}) {
+  const style = chooseVehicleStyle(color, speed, isTaxi), fast = useContext(CharacterQualityContext);
+  const car = useMemo(() => createVehicleInstance(library, style, isTaxi ? '#dba62c' : color, isNight), [library, style, color, isTaxi, isNight]);
+  useEffect(() => { car.root.traverse(node => { if ((node as THREE.Mesh).isMesh) node.castShadow = !fast; }); }, [car, fast]);
   useFrame((_, delta) => {
-    if (!wheels.current || gameSpeed === 0) return;
-    const angle = speed * .28 * Math.min(delta,.06) * gameSpeed / .428;
-    wheels.current.children.forEach(wheel => { wheel.rotation.x += angle; });
+    if (!gameSpeed || !speed) return;
+    const angle = speed * .28 * Math.min(delta, .06) * gameSpeed / car.radius;
+    for (const wheel of car.wheels) wheel.rotateOnWorldAxis(X_AXIS, angle);
   });
-  return <group name="street-car">
-    <mesh geometry={model.body} castShadow receiveShadow dispose={null}>
-      <meshStandardMaterial color={paint} roughness={.28} metalness={.36} />
-    </mesh>
-    <mesh geometry={model.roof} castShadow dispose={null}>
-      <meshStandardMaterial color={isTaxi || wagon ? paint : '#d8dcd7'} roughness={.28} metalness={.36} />
-    </mesh>
-    <mesh geometry={model.cabin} material={glassMaterial} dispose={null} />
-    <mesh geometry={model.trim} material={trimMaterial} castShadow dispose={null} />
-    <group ref={wheels}>
-      {[-1,1].flatMap(side => [-1.36,1.36].map(z => <mesh key={`${side}:${z}`} position={[side*.97,.43,z]}
-        geometry={model.wheel} material={trimMaterial} castShadow dispose={null} />))}
-    </group>
-    <mesh geometry={model.headlights} dispose={null}><meshStandardMaterial vertexColors emissive="#ecf6e9" emissiveIntensity={isNight ? 1.8 : .16} roughness={.25} /></mesh>
-    <mesh geometry={model.taillights} dispose={null}><meshStandardMaterial vertexColors emissive="#e13d2f" emissiveIntensity={isNight ? 1.2 : .18} roughness={.35} /></mesh>
-    {isTaxi && <group position={[0,1.98,-.22]}>
-      <mesh><boxGeometry args={[.65,.19,.27]} /><meshStandardMaterial color="#f1e9ca" emissive="#ffce73" emissiveIntensity={isNight ? .7 : .05} /></mesh>
-      <mesh position={[0,0,.142]}><boxGeometry args={[.4,.04,.012]} /><meshStandardMaterial color="#29373b" /></mesh>
+  return <group name={`street-car-${style}`} dispose={null}>
+    <primitive object={car.root} />
+    {isTaxi && <group position={[0, 1.60, -.18]}>
+      <mesh><boxGeometry args={[.57, .17, .25]} /><meshStandardMaterial color="#f1e9ca" emissive="#ffce73" emissiveIntensity={isNight ? .7 : .05} /></mesh>
+      <mesh position={[0, 0, .132]}><boxGeometry args={[.37, .035, .012]} /><meshStandardMaterial color="#29373b" /></mesh>
     </group>}
   </group>;
+}
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+export const RoundedCarBody3D = memo(function RoundedCarBody3D(props: CarProps) {
+  const library = useStreetLibrary('vehicles');
+  return library ? <ModelCar {...props} library={library} /> : <FallbackCar {...props} />;
 });
