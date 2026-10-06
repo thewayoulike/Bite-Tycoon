@@ -10,6 +10,8 @@ import {DISTRICT_HOUSES,OUTER_HOUSES} from '../src/graphics/residentialLayout';
 import {CITY_LOTS} from '../src/graphics/cityDistrictLayout';
 import {OUTER_LOTS,isOuterPark,buildOuterCity} from '../src/graphics/outerCity';
 import {createHash} from 'node:crypto';
+import {buildResidentialHouseDetails} from '../src/graphics/residentialHouseDetails';
+import {HOUSE_PALETTES,houseAppearanceAt,houseMaterialTint} from '../src/graphics/residentialAppearance';
 
 // Three's Node file-loader path reports the same progress event as a browser.
 if(typeof ProgressEvent==='undefined') Object.defineProperty(globalThis,'ProgressEvent',{value:class extends Event {
@@ -84,10 +86,12 @@ test('old prototype links resolve to the selected house and clamp floor values s
 test('the real house exterior is batched for the city and fits every paired residential plot',async()=>{
   const source=await geometryScene('house'),parts=compileResidentialHouse(source);
   assert.ok(parts.length<=16,'a batch has at most sixteen material draws, not a draw per house');
+  parts.push(...buildResidentialHouseDetails());
+  assert.ok(parts.length<=23,'paint colors reuse the same batches, with only a few detail batches');
   const full=new THREE.Box3(),matrix=new THREE.Matrix4(),rotation=new THREE.Quaternion();
   let triangles=0;
   for(const p of parts){full.union(p.geometry.boundingBox!);triangles+=p.geometry.getAttribute('position').count/3;}
-  assert.ok(triangles<2200,'interior furniture is excluded from city scenery');
+  assert.ok(triangles<4500,'exterior variations stay compact and exclude interior furniture');
   const houses=CITY_LOTS.filter(l=>l.kind==='homes');assert.equal(DISTRICT_HOUSES.length,houses.length*2);
   for(const lot of houses){
     const pair=DISTRICT_HOUSES.filter(p=>Math.hypot(p.position[0]-lot.position[0],p.position[2]-lot.position[2])<10);
@@ -99,6 +103,32 @@ test('the real house exterior is batched for the city and fits every paired resi
   assert.equal(OUTER_HOUSES.flat().length,OUTER_LOTS.filter(l=>l.zone==='homes'&&!isOuterPark(l.x,l.z)).length*2);
   for(const p of OUTER_HOUSES.flat())assert.ok(p.scale[1]*2.55>2.2,'doors keep adult headroom');
   parts.forEach(p=>p.geometry.dispose());
+});
+
+test('residential paint and details vary by home, persist by plot and keep adjacent homes distinct',()=>{
+  const all=[...DISTRICT_HOUSES,...OUTER_HOUSES.flat()];
+  assert.equal(new Set(all.map(h=>h.palette)).size,HOUSE_PALETTES.length);
+  assert.deepEqual([...new Set(all.map(h=>h.style))].sort(),[0,1,2]);
+  for(const group of [DISTRICT_HOUSES,...OUTER_HOUSES])for(let i=0;i<group.length;i+=2){
+    assert.notEqual(group[i].palette,group[i+1].palette);
+    assert.notEqual(group[i].style,group[i+1].style);
+  }
+  for(const lot of CITY_LOTS.filter(l=>l.kind==='homes'))for(const side of [0,1]){
+    assert.deepEqual(houseAppearanceAt(lot.position[0],lot.position[2],side),houseAppearanceAt(lot.position[0],lot.position[2],side));
+  }
+  const material=new THREE.MeshStandardMaterial({color:'#ffffff'});material.name='cedar';material.map=new THREE.Texture();
+  const original=material.color.clone();
+  const colors=HOUSE_PALETTES.map((palette,index)=>{
+    const tint=houseMaterialTint(material,index),result=tint.clone().multiply(new THREE.Color('#878d84'));
+    assert.ok([tint.r,tint.g,tint.b].every(Number.isFinite));
+    assert.equal(result.getHexString(),new THREE.Color(palette.siding).getHexString());
+    return result.getHexString();
+  });
+  assert.equal(new Set(colors).size,HOUSE_PALETTES.length);
+  assert.deepEqual(material.color,original,'instance colors must not repaint the shared model');
+  const details=buildResidentialHouseDetails();
+  assert.ok(details.every(part=>part.styles?.length&&part.styles.every(style=>style===1||style===2)));
+  details.forEach(part=>{part.geometry.dispose();part.material.dispose();});material.map.dispose();material.dispose();
 });
 test('replacing residential geometry preserves commercial buildings, parks and deterministic scenery',()=>{
   const commercialDigest=(geometry:THREE.BufferGeometry)=>{

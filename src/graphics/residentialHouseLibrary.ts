@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {assembleBuilding} from './buildingAssembly';
+import {buildResidentialHouseDetails} from './residentialHouseDetails';
+import type {HouseStyle} from './residentialAppearance';
 
 export const RESIDENTIAL_HOUSE={width:10,depth:9,floorHeight:2.9,floors:2};
-export type HousePart={geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial};
+export type HousePart={geometry:THREE.BufferGeometry;material:THREE.MeshStandardMaterial;styles?:HouseStyle[]};
 export let residentialHouseParts:HousePart[]|null=null;
 let request:Promise<HousePart[]|null>|undefined;
 
@@ -33,6 +35,6 @@ export function compileResidentialHouse(source:THREE.Object3D):HousePart[] {
 }
 export function loadResidentialHouse() {
   return request??=new GLTFLoader().loadAsync('/models/building-prototype/house.glb?v=1').then(gltf=>{
-    residentialHouseParts=compileResidentialHouse(gltf.scene);return residentialHouseParts;
+    residentialHouseParts=[...compileResidentialHouse(gltf.scene),...buildResidentialHouseDetails()];return residentialHouseParts;
   }).catch(error=>{console.warn('Residential house could not load; keeping the existing houses.',error);return null;});
 }
