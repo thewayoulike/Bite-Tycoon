@@ -15,6 +15,7 @@ export {TABLE_POSITIONS,mapPos} from '../restaurantLayout';
 import { RECIPES, INGREDIENTS, Recipe, Ingredient } from '../data/recipes';
 import { sounds } from '../utils/audio';
 import {advanceEmpire, applyDistrictUpdate, createEmpire, districtView, EmpireState, parseEmpireSave, SAVE_KEY, setEmpireSpeed, startEmpireWeek, unlockTestDistrict, updateRestaurant} from '../empire/empire';
+import {decideSave, leaderAction, readLeaderLock} from '../empire/sessionGuard';
 import type {ExpansionState} from '../prototype/expansionModel';
 import {propertyById} from '../prototype/expansionModel';
 import {protectedObligations} from '../empire/cashProtection';
@@ -97,6 +98,8 @@ export interface Order {
   progress: number;
   isOnFire: boolean;
   price: number;
+  /** Ingredients taken for this ticket, returned if the guest leaves before it is served. */
+  stock?: { id: string; qty: number; cost: number }[];
 }
 
 export interface WaiterEntity {
@@ -285,6 +288,57 @@ export function consumeFIFO(batches: StockBatch[], amount: number) {
   return { remainingBatches: newBatches, costConsumed };
 }
 
+type UsedStock = { id: string; qty: number; cost: number };
+
+/** A VIP pays this share of the menu price on top of the bill, not a second full price. */
+const VIP_PREMIUM = 0.25;
+function vipItemBonus(price: number, isVIP: boolean) {
+  return isVIP ? Math.round(price * VIP_PREMIUM * 100) / 100 : 0;
+}
+
+function drawIngredients(inventory: Record<string, number>, batches: Record<string, StockBatch[]>, ingredients: Record<string, number>): { cost: number; stock: UsedStock[] } | null {
+  for (const [id, qty] of Object.entries(ingredients)) {
+    if ((inventory[id] || 0) < qty) return null;
+  }
+  const stock: UsedStock[] = [];
+  let cost = 0;
+  for (const [id, qty] of Object.entries(ingredients)) {
+    inventory[id] -= qty;
+    const res = consumeFIFO(batches[id] || [], qty);
+    batches[id] = res.remainingBatches;
+    stock.push({ id, qty, cost: res.costConsumed });
+    cost += res.costConsumed;
+  }
+  return { cost, stock };
+}
+
+function refundUnserved(state: GameState, tickets: Order[]) {
+  let cost = 0;
+  for (const order of tickets) {
+    for (const line of order.stock ?? []) {
+      if (line.qty <= 0) continue;
+      state.inventory[line.id] = (state.inventory[line.id] ?? 0) + line.qty;
+      state.inventoryBatches[line.id] = [...(state.inventoryBatches[line.id] ?? []), { qty: line.qty, costPerUnit: line.cost / line.qty }];
+      cost += line.cost;
+    }
+  }
+  if (cost && state.weekStats) state.weekStats.foodCost = Math.max(0, (state.weekStats.foodCost ?? 0) - cost);
+}
+
+/** Delivery and pickup guests wait this long, in simulated seconds, before the ticket is cancelled. */
+const ONLINE_PATIENCE = 90;
+
+function kitchenCannotCook(state: GameState, order: Order, hour: number) {
+  if (order.state === 'ready') return false;
+  if (order.isOnFire || !state.chefEntities.length) return true;
+  const recipe = state.recipes.find(r => r.id === order.recipeId) ?? state.recipes[0];
+  if (!recipe) return true;
+  const station = recipeStation(recipe);
+  if (restaurantDepth(state).stations[station] < 20) return true;
+  if (state.crew && !state.crew.some(e => e.role === 'chef' && available(e, hour) && (e.station === 'all' || e.station === station))) return true;
+  return false;
+}
+
 export function advanceGame(prevState: GameState, delta: number, weather:WeatherDemand={visits:1,delivery:1}): GameState {
   if (prevState.phase === 'planning' || prevState.weekSummary || delta <= 0) return prevState;
   let newState = {
@@ -366,25 +420,20 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
             const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (newState.inventory[ing] || 0) >= qty));
             if (availableRecipes.length > 0) {
               const randomRecipe = chooseServiceRecipe(newState,availableRecipes);
-
-              // FIX: Online Orders use FIFO math to consume ingredients!
-              Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
-                newState.inventory[ing] -= qty;
-                const res = consumeFIFO(newState.inventoryBatches[ing] || [], qty);
-                newState.inventoryBatches[ing] = res.remainingBatches;
-              newState.weekStats.foodCost += res.costConsumed;
-              });
+              const drawn = drawIngredients(newState.inventory, newState.inventoryBatches, randomRecipe.ingredients);
+              if (!drawn) continue;
+              newState.weekStats.foodCost += drawn.cost;
 
               const finalPrice = randomRecipe.price;
               orders.push({
                 id: `o_${Date.now()}_${Math.random()}`, customerId: vcId, tableId: pseudoTableId,
-                recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: finalPrice
+                recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: finalPrice, stock: drawn.stock
               });
               bill += finalPrice;
               orderedCount++;
             }
          }
-         if (orderedCount > 0) customers.push({ id: vcId, state: 'waiting_food', patience: 9999, maxPatience: 9999, tableId: pseudoTableId, actionTimer: 0, currentBill: bill, isVIP: false, vipBonus: 0, partySize: 1,...(appToRoll==='pickup'?{pickupElapsed:0,pickupSlot:[0,1,2].find(slot=>!customers.some(c=>isPickup(c.tableId)&&c.pickupSlot===slot))??0}:{}) });
+         if (orderedCount > 0) customers.push({ id: vcId, state: 'waiting_food', patience: ONLINE_PATIENCE, maxPatience: ONLINE_PATIENCE, tableId: pseudoTableId, actionTimer: 0, currentBill: bill, isVIP: false, vipBonus: 0, partySize: 1,...(appToRoll==='pickup'?{pickupElapsed:0,pickupSlot:[0,1,2].find(slot=>!customers.some(c=>isPickup(c.tableId)&&c.pickupSlot===slot))??0}:{}) });
       }
     }
   }
@@ -400,6 +449,16 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
       if (newC.actionTimer <= 0) newC.state = 'waiting_order';
     } else if (newC.state === 'leaving') {
       newC.actionTimer -= delta;
+    } else if (newC.state === 'waiting_food' && newC.tableId.startsWith('online_')) {
+      if (newC.patience > ONLINE_PATIENCE) newC.patience = ONLINE_PATIENCE;
+      newC.patience -= delta;
+      if (newC.patience <= 0) {
+        newC.state = 'leaving';
+        newC.actionTimer = 0;
+        lostThisTick += 1;
+        refundUnserved(newState, orders.filter(o => o.customerId === newC.id));
+        orders = orders.filter(o => o.customerId !== newC.id);
+      }
     } else if ((newC.state === 'waiting_order' || newC.state === 'waiting_food') && !newC.tableId.startsWith('online_')) {
       newC.patience -= (newC.state === 'waiting_food' ? 2 : 3) * delta;
       if (newC.patience <= 0) {
@@ -407,6 +466,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
         const table = tables.find(t => t.id === newC.tableId);
         newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
         lostThisTick += (newC.partySize || 1);
+        refundUnserved(newState, orders.filter(o => o.customerId === newC.id));
         orders = orders.filter(o => o.customerId !== newC.id);
         tables = tables.map(t => t.id === newC.tableId ? { ...t, isDirty: true } : t);
       }
@@ -453,10 +513,11 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
          const gross = newC.currentBill || 0;
          const fee = gross * feePercent;
          earnedThisTick += gross; feesThisTick += fee;
+         servedThisTick += 1;
          if(appName!=='pickup'){
            newState.stats.onlineEarned = (newState.stats.onlineEarned || 0) + gross;
            newState.stats.onlineFees = (newState.stats.onlineFees || 0) + fee;
-         }else{servedThisTick++;}
+         }
 
          orders.filter(o => o.tableId === newC.tableId).forEach(o => {
             newState.stats.itemsSold[o.recipeId] = (newState.stats.itemsSold[o.recipeId] || 0) + 1;
@@ -577,18 +638,13 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
             const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (newState.inventory[ing] || 0) >= qty));
             if (availableRecipes.length > 0) {
               const randomRecipe = chooseServiceRecipe(newState,availableRecipes);
-
-              // FIX: Waiters use FIFO math to consume ingredients!
-              Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
-                newState.inventory[ing] -= qty;
-                const res = consumeFIFO(newState.inventoryBatches[ing] || [], qty);
-                newState.inventoryBatches[ing] = res.remainingBatches;
-              newState.weekStats.foodCost += res.costConsumed;
-              });
+              const drawn = drawIngredients(newState.inventory, newState.inventoryBatches, randomRecipe.ingredients);
+              if (!drawn) continue;
+              newState.weekStats.foodCost += drawn.cost;
 
               const basePrice = randomRecipe.price;
-              const itemBonus = targetCustomer.isVIP ? basePrice * 2 : 0;
-              orders.push({ id: `o_${Date.now()}_${Math.random()}`, customerId: targetCustomer.id, tableId: targetCustomer.tableId, recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: basePrice });
+              const itemBonus = vipItemBonus(basePrice, targetCustomer.isVIP);
+              orders.push({ id: `o_${Date.now()}_${Math.random()}`, customerId: targetCustomer.id, tableId: targetCustomer.tableId, recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: basePrice, stock: drawn.stock });
               bill += basePrice; bonus += itemBonus; orderedCount++;
             }
           }
@@ -717,6 +773,22 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
 
   newState = applyManagerPurchases(newState);
 
+  // A ticket the kitchen cannot finish must not hold the restaurant in closing, or the whole neighborhood waits with it.
+  if (newState.phase === 'closing') {
+    const stuck = new Set(orders.filter(o => o.tableId.startsWith('online_') && kitchenCannotCook({...newState, chefEntities}, o, crewHour)).map(o => o.customerId));
+    if (stuck.size) {
+      for (const id of stuck) {
+        const guest = customers.find(c => c.id === id && c.state === 'waiting_food');
+        if (guest) lostThisTick += guest.partySize || 1;
+      }
+      refundUnserved(newState, orders.filter(o => stuck.has(o.customerId)));
+      customers = customers.filter(c => !stuck.has(c.id) || c.state !== 'waiting_food');
+      orders = orders.filter(o => !stuck.has(o.customerId));
+      const cancelledAt = Date.now();
+      newFloatingEvents.push({ id: `online_cancel_${cancelledAt}`, x: 0, z: 0, text: 'Delivery cancelled', subtext: 'The kitchen could not finish it', type: 'info', createdAt: cancelledAt });
+    }
+  }
+
   newState.tables = tables; newState.customers = customers; newState.orders = orders;
   newState.waiterEntities = waiterEntities; newState.chefEntities = chefEntities; newState.cleanerEntities = cleanerEntities;
 
@@ -770,18 +842,13 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
     const availableRecipes = unlockedRecipes.filter(r => Object.entries(r.ingredients).every(([ing, qty]) => (tempInv[ing] || 0) >= qty));
     if (availableRecipes.length > 0) {
       const randomRecipe = chooseServiceRecipe(prev,availableRecipes);
-
-      // FIX: Manual Orders use FIFO math!
-      Object.entries(randomRecipe.ingredients).forEach(([ing, qty]) => {
-        tempInv[ing] -= qty;
-        const res = consumeFIFO(tempBatches[ing] || [], qty);
-        tempBatches[ing] = res.remainingBatches;
-        foodCost += res.costConsumed;
-      });
+      const drawn = drawIngredients(tempInv, tempBatches, randomRecipe.ingredients);
+      if (!drawn) continue;
+      foodCost += drawn.cost;
 
       const basePrice = randomRecipe.price;
-      const itemBonus = customer.isVIP ? basePrice * 2 : 0;
-      newOrders.push({ id: `o_${Date.now()}_${Math.random()}`, customerId: customer.id, tableId: customer.tableId, recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: basePrice });
+      const itemBonus = vipItemBonus(basePrice, customer.isVIP);
+      newOrders.push({ id: `o_${Date.now()}_${Math.random()}`, customerId: customer.id, tableId: customer.tableId, recipeId: randomRecipe.id, state: 'pending', progress: 0, isOnFire: false, price: basePrice, stock: drawn.stock });
       bill += basePrice;
       bonus += itemBonus;
     }
@@ -807,14 +874,52 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
 }
 
 export type GameOptions={saveKey?:string;startingState?:GameState;startingEmpire?:EmpireState;persist?:boolean;menuLimit?:number};
+
+function tabId() {
+  const key = 'bite-tycoon-tab';
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const created = globalThis.crypto?.randomUUID?.() ?? `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return 'local-tab';
+  }
+}
+
+function loadPersistedEmpire(saveKey: string, fresh: () => EmpireState) {
+  if (typeof localStorage === 'undefined') return { empire: fresh(), writeKey: saveKey, kept: false };
+  let primary: string | null = null;
+  let play: string | null = null;
+  try {
+    primary = localStorage.getItem(saveKey);
+    play = localStorage.getItem(`${saveKey}-play`);
+  } catch {
+    return { empire: fresh(), writeKey: saveKey, kept: false };
+  }
+  const decision = decideSave(primary, play, parseEmpireSave);
+  if (!decision.keepPrimary) return { empire: decision.value ?? fresh(), writeKey: saveKey, kept: false };
+  try {
+    const backupKey = `${saveKey}-unreadable`;
+    if (primary && localStorage.getItem(backupKey) === null) localStorage.setItem(backupKey, primary);
+  } catch { /* the original key stays untouched either way */ }
+  return { empire: decision.value ?? fresh(), writeKey: `${saveKey}-play`, kept: true };
+}
+
 export function useGameLoop(enabled=true,options:GameOptions={}) {
   const saveKey=options.saveKey??SAVE_KEY;
-  const [empire, setEmpire] = useState<EmpireState>(() => {
-    const fresh=()=>options.startingEmpire?structuredClone(options.startingEmpire):createEmpire(structuredClone(options.startingState??INITIAL_STATE));
-    if(options.persist===false)return fresh();
-    try { return parseEmpireSave(localStorage.getItem(saveKey)) ?? fresh(); }
-    catch { return fresh(); }
-  });
+  const boot = useRef<{ empire: EmpireState; writeKey: string; kept: boolean } | null>(null);
+  if (boot.current === null) {
+    const fresh = () => options.startingEmpire ? structuredClone(options.startingEmpire) : createEmpire(structuredClone(options.startingState ?? INITIAL_STATE));
+    boot.current = options.persist === false ? { empire: fresh(), writeKey: saveKey, kept: false } : loadPersistedEmpire(saveKey, fresh);
+  }
+  const writeKeyRef = useRef(boot.current.writeKey);
+  const tabRef = useRef(tabId());
+  const leaderRef = useRef(false);
+  const [saveKept] = useState(boot.current.kept);
+  const [watching, setWatching] = useState(false);
+  const [empire, setEmpire] = useState<EmpireState>(boot.current.empire);
   useEffect(()=>setEmpire(prev=>({...prev,restaurants:Object.fromEntries(Object.entries(prev.restaurants).map(([id,r])=>[id,normalizeTableLayout(r)]))})),[]);
   const [saveError,setSaveError]=useState(false);
   const selected=empire.restaurants[empire.activeRestaurantId];
@@ -823,31 +928,57 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   const lastTickRef = useRef<number>(Date.now());
   const stateRef = useRef(empire);
   const lastSavedRef = useRef(JSON.stringify(empire));
+  const lockKey = `${saveKey}-leader`;
 
   useEffect(() => {
     stateRef.current = empire;
   }, [empire]);
 
+  const releaseLeader = useCallback(() => {
+    try {
+      if (readLeaderLock(localStorage.getItem(lockKey))?.id === tabRef.current) localStorage.removeItem(lockKey);
+    } catch { /* a locked browser can still play this tab */ }
+  }, [lockKey]);
+
+  const claimLeader = useCallback((now: number) => {
+    try {
+      localStorage.setItem(lockKey, JSON.stringify({ id: tabRef.current, at: now }));
+      return readLeaderLock(localStorage.getItem(lockKey))?.id === tabRef.current;
+    } catch {
+      return true;
+    }
+  }, [lockKey]);
+
   useEffect(()=>{
     // Review sessions must neither read, write nor subscribe to the player's save.
     if(options.persist===false)return;
     const save=()=>{
+      if (!leaderRef.current) return;
       const value=JSON.stringify(stateRef.current);
-      // An idle second tab must not overwrite progress made in the active game.
       if(value===lastSavedRef.current)return;
-      try{localStorage.setItem(saveKey,value);lastSavedRef.current=value;setSaveError(false);}catch{setSaveError(true);}
+      try{localStorage.setItem(writeKeyRef.current,value);lastSavedRef.current=value;setSaveError(false);}catch{setSaveError(true);}
     };
     const sync=(event:StorageEvent)=>{
-      if(event.key!==saveKey||event.newValue===lastSavedRef.current)return;
+      if(event.key!==writeKeyRef.current||!event.newValue||event.newValue===lastSavedRef.current||leaderRef.current)return;
       const saved=parseEmpireSave(event.newValue);if(!saved)return;
-      lastSavedRef.current=event.newValue!;stateRef.current=saved;setEmpire(saved);
+      lastSavedRef.current=event.newValue;stateRef.current=saved;setEmpire(saved);
+    };
+    const onPageHide=()=>{
+      save();
+      releaseLeader();
+      leaderRef.current=false;
+      setWatching(false);
+    };
+    const onVisibility=()=>{
+      lastTickRef.current=Date.now();
+      if(document.hidden)onPageHide();
     };
     const timer=setInterval(save,2000);
-    window.addEventListener('pagehide',save);
+    window.addEventListener('pagehide',onPageHide);
     window.addEventListener('storage',sync);
-    document.addEventListener('visibilitychange',save);
-    return()=>{clearInterval(timer);save();window.removeEventListener('pagehide',save);window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',save);};
-  },[saveKey,options.persist]);
+    document.addEventListener('visibilitychange',onVisibility);
+    return()=>{clearInterval(timer);save();releaseLeader();leaderRef.current=false;window.removeEventListener('pagehide',onPageHide);window.removeEventListener('storage',sync);document.removeEventListener('visibilitychange',onVisibility);};
+  },[saveKey,options.persist,releaseLeader]);
 
   const gameTick = useCallback(() => {
     const now = Date.now();
@@ -856,11 +987,47 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
       lastTickRef.current = now;
       return; // Paused!
     }
+    const hidden = typeof document !== 'undefined' && document.hidden;
+    if (options.persist !== false && typeof localStorage !== 'undefined') {
+      let lock = null as ReturnType<typeof readLeaderLock>;
+      try { lock = readLeaderLock(localStorage.getItem(lockKey)); } catch { lock = null; }
+      const action = leaderAction(lock, tabRef.current, now, hidden);
+      if (action === 'yield') {
+        releaseLeader();
+        leaderRef.current = false;
+        setWatching(!hidden);
+        lastTickRef.current = now;
+        return;
+      }
+      setWatching(false);
+      const became = !leaderRef.current;
+      if (action === 'claim' && !claimLeader(now)) {
+        leaderRef.current = false;
+        setWatching(true);
+        lastTickRef.current = now;
+        return;
+      }
+      leaderRef.current = true;
+      if (became) {
+        try {
+          const raw = localStorage.getItem(writeKeyRef.current);
+          if (raw && raw !== lastSavedRef.current) {
+            const saved = parseEmpireSave(raw);
+            if (saved) { lastSavedRef.current = raw; stateRef.current = saved; setEmpire(saved); }
+          }
+        } catch { /* keep the game already in memory */ }
+        lastTickRef.current = now;
+        return;
+      }
+    } else if (hidden) {
+      lastTickRef.current = now;
+      return;
+    }
     const delta = Math.min((now - lastTickRef.current) / 1000, 0.5) * currentSpeed;
     lastTickRef.current = now;
 
     setEmpire(prev => advanceEmpire(prev, delta, advanceGame));
-  }, [enabled]);
+  }, [enabled, options.persist, lockKey, claimLeader, releaseLeader]);
 
   useEffect(() => {
     const intervalId = setInterval(gameTick, 100);
@@ -1076,6 +1243,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     empire,
     district:districtView(empire),
     saveError,
+    saveKept,
+    watching,
     actions: {
       updateEmpire:(update:(e:EmpireState)=>EmpireState)=>setEmpire(update),
       changeServicePlan:(changes:Partial<RestaurantServicePlan>)=>setState(prev=>changeServicePlan(prev,changes)),

@@ -153,11 +153,12 @@ export function finishShift(state: GameState): GameState {
     foodCost, wages, fees, spoilage: spoiledCost, profit, payrollDueWeek: state.week + 1,
     starRating: served + lost ? Math.round(50 * served / (served + lost)) / 10 : 0,
     topDish: state.recipes.find(r => r.id === topId)?.name,
-    feedback: lost > served * 0.2 ? 'Too many guests left. Prioritize waiting tables, simplify the menu, or add kitchen help.'
+    feedback: (lost > served * 0.2 ? 'Too many guests left. Prioritize waiting tables, simplify the menu, or add kitchen help.'
       : menuDemand(state) < 0.6 ? 'High menu prices reduced demand. Try lowering a popular dish next shift.'
       : spoiledCost > revenue * 0.15 ? 'Unused stock ate into your profit. Buy smaller batches or lower the manager’s stock target.'
       : profit < 0 ? 'Costs exceeded sales. Review wages and food margins before expanding.'
-      : 'Service is working. Try a new dish or more tables when your team has spare capacity.',
+      : 'Service is working. Try a new dish or more tables when your team has spare capacity.')
+      + (lost > 0 ? ' Unfinished orders returned their ingredients.' : ''),
   };
   return {
     ...state, inventory, inventoryBatches,

@@ -53,7 +53,7 @@ console.warn = (...args) => {
 export type ProposalNavigation={propertyId:string;screen:string;request:number;floor:number;restaurantProfiles?:Record<string,{name:string;ingredientIds:string[];signatureIds:string[]}>};
 export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false,proposal}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean;proposal?:ProposalNavigation}={}) {
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>(prototype?'playing':'menu');
-  const { state, actions, empire, district, saveError } = useGameLoop(gamePhase==='playing',gameOptions);
+  const { state, actions, empire, district, saveError, saveKept, watching } = useGameLoop(gamePhase==='playing',gameOptions);
   const [showDesk,setShowDesk]=useState(false);
   const [deskPane,setDeskPane]=useState<'guide'|'storage'>('guide');
   const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
@@ -434,7 +434,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </div>
         <button className="text-left text-sm mt-1 text-emerald-800 font-semibold" onClick={() => setActiveTab('upgrades')}>{milestone.text} · {milestone.current}/{milestone.target}</button>
         {payroll && <p className="text-xs text-stone-600 mt-1">Wages owed: ${payroll.amount.toFixed(2)} · paid after Day 3, Week {payroll.dueWeek}</p>}
-        <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {gameOptions?.persist===false?'sample session · not saved':saveError?'saving unavailable':'autosaved'}</p>
+        <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {gameOptions?.persist===false?'sample session · not saved':watching?'another tab is playing this save':saveError?'saving unavailable':saveKept?'previous save kept · this session is stored separately':'autosaved'}</p>
       </div>}
 
       {!focusedRestaurant&&!selectedProperty&&!nonFood&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}

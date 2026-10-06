@@ -149,14 +149,18 @@ export function advanceVenues(state:ExpansionState,delta:number):ExpansionState 
   let next={...state,businesses:{...state.businesses}};
   for(const [id,b] of Object.entries(state.businesses)){
     const p=propertyById(id)!;if(!isVenue(p))continue;
-    const date=Math.min(7,Math.floor(((b.venue?.clock??0)+delta)*7/180)+1);
-    const hour=(8+(b.venue?.clock??0)*7*24/180)%24;
-    const staffed={...b,crew:advanceCrew(ensureCrew(p,b),Math.min(delta,Math.max(0,180-(b.venue?.clock??0))),hour,{service:b.venue?.visitors.some(v=>v.state==='waiting')?'Serving arrivals':'Ready',care:'Stock and cleaning rounds',maintenance:b.venue?.units.some(u=>(u.condition??100)<90)?'Repair rounds':'Ready',manager:'Checking purchasing targets',concierge:'Helping visitors',security:'Patrolling shared areas',attendant:'Supervising play',operator:'Operating facilities',electronics:b.venue?.visitors.length?'Advising shoppers':'Ready',receiving:Object.values(b.retail?.store?.receiving??{}).some(n=>n>0)?'Handling deliveries':'Ready',handling:b.retail?.store?.deliveries?.length?'Dispatching orders':'Ready',cleaner:'Cleaning shared spaces',laundry:'Sorting and washing linen',supervisor:'Resident service rounds',specialist:'Preparing fresh counter'})};
+    // The shared week is 180 simulated seconds. A restaurant still closing must not keep the hotel, shop, or mall earning past that.
+    const clock=b.venue?.clock??0,step=Math.min(delta,Math.max(0,180-clock));
+    const date=Math.min(7,Math.floor((clock+step)*7/180)+1);
+    const hour=(8+clock*7*24/180)%24;
+    const staffed={...b,crew:advanceCrew(ensureCrew(p,b),step,hour,{service:b.venue?.visitors.some(v=>v.state==='waiting')?'Serving arrivals':'Ready',care:'Stock and cleaning rounds',maintenance:b.venue?.units.some(u=>(u.condition??100)<90)?'Repair rounds':'Ready',manager:'Checking purchasing targets',concierge:'Helping visitors',security:'Patrolling shared areas',attendant:'Supervising play',operator:'Operating facilities',electronics:b.venue?.visitors.length?'Advising shoppers':'Ready',receiving:Object.values(b.retail?.store?.receiving??{}).some(n=>n>0)?'Handling deliveries':'Ready',handling:b.retail?.store?.deliveries?.length?'Dispatching orders':'Ready',cleaner:'Cleaning shared spaces',laundry:'Sorting and washing linen',supervisor:'Resident service rounds',specialist:'Preparing fresh counter'})};
     const stocked=advanceRetailEvents(advanceBusinessStockroom(p,staffed,state.week,date),state.week,date);
-    next.businesses[id]=advanceVenue(p,stocked,delta,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits*promotionDemand(stocked));
-    next.businesses[id]=advanceServices(p,next.businesses[id],delta,state.week,date);
-    next.businesses[id]=advanceTenantTrade(next.businesses[id],delta,state.week);
-    next=autoStockBusiness(next,id);
+    next.businesses[id]=advanceVenue(p,stocked,step,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits*promotionDemand(stocked));
+    if(step>0){
+      next.businesses[id]=advanceServices(p,next.businesses[id],step,state.week,date);
+      next.businesses[id]=advanceTenantTrade(next.businesses[id],step,state.week);
+      next=autoStockBusiness(next,id);
+    }
   }
   return next;
 }

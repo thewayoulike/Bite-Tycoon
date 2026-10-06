@@ -37,6 +37,16 @@ export interface EmpireState {
 }
 export const isRestaurant = (id:string) => ['restaurant','cafe'].includes(propertyById(id)?.kind ?? '');
 const cashEntry=(b:Business,week:number,day:number,label:string,amount:number):Business=>({...b,ledger:[...b.ledger,{week,day,label,amount}].slice(-60)});
+const ledgerSum=(entries:{amount:number}[])=>Math.round(entries.reduce((n,e)=>n+e.amount,0)*100)/100;
+/** Week-end restaurant lines that make the stored ledger add up to cash. Sales and fees are named; the last line is the unrecorded purchases and upkeep, and it also absorbs any history the 60-line cap dropped. */
+export function reconcileRestaurantLedger(account:Business,week:number,summary:{revenue:number;fees:number}):Business{
+  const sales=Math.round(summary.revenue*100)/100,fees=Math.round(summary.fees*100)/100;
+  const named=[...(sales?[{week,day:7,label:'Weekly restaurant sales',amount:sales}]:[]),...(fees?[{week,day:7,label:'Delivery commissions',amount:-fees}]:[])];
+  const base=[...account.ledger,...named].slice(-59);
+  const plug=Math.round((account.cash-ledgerSum(base))*100)/100;
+  const ledger=plug?[...base,{week,day:7,label:plug<0?'Ingredient purchases and upkeep':'Other restaurant receipts',amount:plug}].slice(-60):base.slice(-60);
+  return {...account,ledger};
+}
 
 export function createEmpire(diner:GameState):EmpireState {
   diner=ensureRestaurantStockroom(configureRestaurantIdentity(diner,'diner'));
@@ -170,7 +180,7 @@ export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameSt
       const profitableStreak=summary.profit-rent>0?(empire.restaurants[id].performance?.profitableStreak??0)+1:0;
       restaurants[id]={...r,money:r.money-cashPaid,performance:{bestServiceRate:Math.max(r.performance?.bestServiceRate??0,summary.served+summary.lost?100*summary.served/(summary.served+summary.lost):0),profitableStreak,lastWeek:district.week},stats:{...r.stats,rentCosts:(r.stats.rentCosts??0)+rent,totalExpenses:r.stats.totalExpenses+rent},weekSummary:{...summary,profit:summary.profit-rent,propertyRent:rent}};
       let account={...leased,cash:restaurants[id].money};
-      account=cashEntry(account,district.week,7,'Weekly restaurant sales (already collected)',summary.revenue);
+      account=reconcileRestaurantLedger(account,district.week,summary);
       businesses[id]=account;
     }
     let closingState={...district,day:7,businesses:{...businesses,...closed.businesses}};

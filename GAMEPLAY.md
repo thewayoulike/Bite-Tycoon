@@ -8,7 +8,7 @@ Wages accrue while the week is in service, prorated for midweek hires. At week e
 
 Players choose one to six active dishes from their unlocked collection. Unlocking a recipe does not automatically add it to the menu. Menu prices are the actual charged prices; the old automatic price-bonus upgrade is removed. Higher prices reduce traffic and selection weight. Orders consume FIFO ingredients and retain their agreed price even if the menu changes.
 
-The chef handles cooking without repeated Cook clicks. Players can prioritize a table, manually take orders, serve complete tables, and clean. Customers waiting too long for food now leave and cancel their tickets. Random cooking fires are disabled. Idle staff recover stamina, with explicit breaks still available.
+The chef handles cooking without repeated Cook clicks. Players can prioritize a table, manually take orders, serve complete tables, and clean. Customers waiting too long for food leave and cancel their tickets, and those ingredients go back into stock. A finished delivery counts as one guest. A VIP party pays a 25% premium on the menu price. Random cooking fires are disabled. Idle staff recover stamina, with explicit breaks still available.
 
 Purchasing managers obey an enabled switch, weekly budget, stock target and cash reserve. They buy only active-menu ingredients, refill below half the target, prioritize depleted stock and stop at the budget or reserve. Manual pantry purchases remain available.
 
@@ -16,4 +16,4 @@ Purchasing managers obey an enabled switch, weekly budget, stock target and cash
 
 `npm test` runs deterministic state-transition and balance tests for staffing, active menus, demand, purchasing limits, walkouts, complete-table serving, priorities, weekly settlement and delayed payroll. An attentive simulated opening week earned the first waiter, served 19 guests with no walkouts and made about $187 operating profit with the fixed test seed. This is a balance baseline, not evidence of player enjoyment.
 
-A browser smoke check covered onboarding, locked hires, menu toggles, price-demand feedback, desktop/mobile layouts, a complete unattended week, the report and next-week planning. Further human playtesting should tune early pacing, hiring costs and the usefulness of priority decisions. Long-term balancing, save games and richer customer preferences remain future work.
+A browser smoke check covered onboarding, locked hires, menu toggles, price-demand feedback, desktop/mobile layouts, a complete unattended week, the report and next-week planning. Further human playtesting should tune early pacing, hiring costs and the usefulness of priority decisions. The career game saves in this browser. A second tab watches that save and does not play it or overwrite it.

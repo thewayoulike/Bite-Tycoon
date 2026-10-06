@@ -2,15 +2,17 @@ import {useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import type {GameState,Table} from '../hooks/useGameLoop';
 import {layoutProblem,mapPos,ROOM,storedPos,TABLE_POSITIONS} from '../restaurantLayout';
+import {useDialogFocus} from '../ui/dialogFocus';
 import './tableLayout.css';
 
 export function TableLayoutEditor({state,onSave,onClose}:{state:GameState;onSave:(tables:Table[])=>void;onClose:()=>void}){
  const [tables,setTables]=useState(()=>state.tables.map(t=>({...t}))),[selected,setSelected]=useState(state.tables[0]?.id);
  const svg=useRef<SVGSVGElement>(null),dragging=useRef<string|null>(null);
+ const dialog=useDialogFocus<HTMLElement>(onClose);
  const problem=layoutProblem(tables),current=tables.find(t=>t.id===selected);
  const move=(id:string,x:number,z:number)=>setTables(list=>list.map(t=>t.id===id?{...t,x:storedPos(Math.round(x*2)/2),y:storedPos(Math.round(z*2)/2)}:t));
  const nudge=(x:number,z:number)=>{if(current)move(current.id,mapPos(current.x)+x,mapPos(current.y)+z);};
- return createPortal(<div className="table-layout-backdrop game-ui"><section className="table-layout-dialog" role="dialog" aria-modal="true" aria-labelledby="table-layout-title">
+ return createPortal(<div className="table-layout-backdrop game-ui" onKeyDown={dialog.onKeyDown}><section ref={dialog.ref} tabIndex={-1} className="table-layout-dialog" role="dialog" aria-modal="true" aria-labelledby="table-layout-title">
   <header><div><h2 id="table-layout-title">Arrange dining room</h2><p>Bite Tycoon management console</p></div><button aria-label="Close table layout" onClick={onClose}>×</button></header>
   <div className="table-layout-body">
    <svg ref={svg} viewBox="-20 -15 40 38" role="group" aria-label="Restaurant floor plan" className="table-floor-plan"

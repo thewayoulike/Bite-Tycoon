@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {advanceGame,INITIAL_STATE,GameState} from '../src/hooks/useGameLoop';
-import {advanceEmpire,applyDistrictUpdate,businessFinance,createEmpire,districtView,parseEmpireSave,setEmpireSpeed,startEmpireWeek,unlockTestDistrict,updateRestaurant} from '../src/empire/empire';
-import {acquire,lendCash,repayLoan,PROPERTIES} from '../src/prototype/expansionModel';
+import {advanceEmpire,applyDistrictUpdate,businessFinance,createEmpire,districtView,parseEmpireSave,reconcileRestaurantLedger,setEmpireSpeed,startEmpireWeek,unlockTestDistrict,updateRestaurant} from '../src/empire/empire';
+import {acquire,createBusiness,lendCash,repayLoan,PROPERTIES} from '../src/prototype/expansionModel';
 import {canHire,weeklyWages} from '../src/gameplay';
 const fresh=(money=1200)=>createEmpire({...structuredClone(INITIAL_STATE),money});
 const funded=()=>applyDistrictUpdate(fresh(8500),s=>acquire(s,'cafe','leased'),INITIAL_STATE);
@@ -165,4 +165,16 @@ test('saved expansion restores restaurant inventories, local balances and loan d
   assert.equal(parseEmpireSave(JSON.stringify({...empire,version:9})),null);
   assert.equal(parseEmpireSave(JSON.stringify({...empire,activeRestaurantId:'missing'})),null);
   assert.equal(parseEmpireSave(JSON.stringify({...empire,restaurants:{diner:{...empire.restaurants.diner,money:null}}})),null);
+});
+
+test('restaurant week ledger names sales and fees and still adds up to cash',()=>{
+  const account={...createBusiness('owned',1000),ledger:[{week:1,day:1,label:'Opening cash',amount:1000}]};
+  const next=reconcileRestaurantLedger({...account,cash:1045},1,{revenue:80,fees:10});
+  const sum=next.ledger.reduce((n,e)=>n+e.amount,0);
+  assert.ok(Math.abs(sum-next.cash)<0.001);
+  assert.equal(next.ledger.find(e=>e.label==='Weekly restaurant sales')?.amount,80);
+  assert.equal(next.ledger.find(e=>e.label==='Delivery commissions')?.amount,-10);
+  assert.equal(next.ledger.find(e=>e.label==='Ingredient purchases and upkeep')?.amount,-25);
+  const already=reconcileRestaurantLedger({...account,cash:1080,ledger:[...account.ledger,{week:1,day:4,label:'Catering paid',amount:30}]},1,{revenue:80,fees:0});
+  assert.ok(Math.abs(already.ledger.reduce((n,e)=>n+e.amount,0)-already.cash)<0.001);
 });

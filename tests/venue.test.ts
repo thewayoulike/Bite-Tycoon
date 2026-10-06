@@ -29,3 +29,13 @@ test('daylight repeats every game day with a visible night period',()=>{
  assert.equal(worldTime(8).isNight,true);assert.equal(worldTime(100/7).isNight,false);
  assert.equal(worldTime(100/7).day,2);
 });
+test('businesses stop earning once the shared week clock is full',()=>{
+ let s=startEmpireWeek(unlockTestDistrict(createEmpire(structuredClone(INITIAL_STATE)),INITIAL_STATE)).district;
+ for(let second=0;second<180;second++)s=advanceVenues(s,1);
+ const hotel=s.businesses.hotel.cash,clock=s.businesses.hotel.venue!.clock;
+ const sales=Object.values(s.businesses.park.tenantTrading??{}).reduce((n,t)=>n+t.sales,0);
+ s=advanceVenues(s,80);
+ assert.equal(s.businesses.hotel.venue!.clock,clock);
+ assert.equal(s.businesses.hotel.cash,hotel);
+ assert.equal(Object.values(s.businesses.park.tenantTrading??{}).reduce((n,t)=>n+t.sales,0),sales);
+});

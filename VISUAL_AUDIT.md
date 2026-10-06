@@ -1,5 +1,7 @@
 # UI and 3D audit — September 14, 2026
 
+Update, October 5, 2026: the career game saves in this browser, with a visible save status. The weekly report, property panel, table layout, and planning desk keep keyboard focus inside the dialog. Order tickets use dish illustrations. Staff routes already walk around tables. The frame-rate numbers below are from September 14 and were not re-measured.
+
 Scope: source review of the scene, character rig, furniture, effects, main UI, all seven management panels and daily summary. Live checks covered onboarding, the restaurant, all seven management panels and a 390 × 844 viewport. This is a visual/usability audit, not a complete economic simulation or performance certification.
 
 ## Implemented

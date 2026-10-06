@@ -671,30 +671,19 @@ return <>
 
               {!allReady && <button className="w-full mb-2 rounded border border-amber-500 bg-amber-50 text-amber-900 text-[10px] font-bold py-1" aria-pressed={state.priorityTableId === tableId} onClick={() => actions.prioritizeTable(tableId)}>{state.priorityTableId === tableId ? '★ Kitchen priority' : 'Prioritize this table'}</button>}
 
-              {anyOnFire ? (
-                 <button
-                   onClick={() => tableOrders.forEach(o => { if(o.isOnFire) actions.extinguishFire(o.id) })}
-                   className="w-full py-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-900 transition-all shadow-sm"
-                 >
-                   🧯 EXTINGUISH!
-                 </button>
-              ) : (
-                <>
-                  {!allReady && <span className="block text-center text-[10px] text-stone-600 py-1">Your chef is preparing this order</span>}
-                  {allReady && !isOnline && (
-                    <button
-                      onClick={() => tableOrders.forEach(o => { if(o.state === 'ready') actions.serveFood(o.id) })}
-                      className="w-full py-1.5 bg-green-500 hover:bg-green-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all animate-pulse shadow-sm"
-                    >
-                      SERVE TABLE
-                    </button>
-                  )}
-                  {allReady && isOnline && (
-                    <span className="w-full py-1.5 bg-blue-500 text-white rounded text-[10px] font-black border-2 border-stone-800 text-center animate-pulse shadow-sm">
-                      {appName==='pickup'?'READY TO COLLECT':'DRIVER ARRIVING...'}
-                    </span>
-                  )}
-                </>
+              {!allReady && <span className="block text-center text-[10px] text-stone-600 py-1">Your chef is preparing this order</span>}
+              {allReady && !isOnline && (
+                <button
+                  onClick={() => tableOrders.forEach(o => { if(o.state === 'ready') actions.serveFood(o.id) })}
+                  className="w-full py-1.5 bg-green-500 hover:bg-green-400 active:scale-95 text-white rounded text-[10px] font-black border-2 border-stone-800 transition-all animate-pulse shadow-sm"
+                >
+                  SERVE TABLE
+                </button>
+              )}
+              {allReady && isOnline && (
+                <span className="w-full py-1.5 bg-blue-500 text-white rounded text-[10px] font-black border-2 border-stone-800 text-center animate-pulse shadow-sm">
+                  {appName==='pickup'?'READY TO COLLECT':'DRIVER ARRIVING...'}
+                </span>
               )}
             </div>
           );

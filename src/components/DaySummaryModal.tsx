@@ -1,10 +1,12 @@
 import React from 'react';
 import { WeekSummary } from '../hooks/useGameLoop';
+import { useDialogFocus } from '../ui/dialogFocus';
 
 export function WeekSummaryModal({ summary, onClose }: { summary: WeekSummary; onClose: () => void }) {
+  const dialog = useDialogFocus<HTMLElement>(onClose);
   const money = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-  return <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <section role="dialog" aria-modal="true" aria-labelledby="weekly-report-title" className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-4">
+  return <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onKeyDown={dialog.onKeyDown}>
+    <section ref={dialog.ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="weekly-report-title" className="mc-panel w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-4">
       <div><p className="text-sm text-stone-600">Service finished · game paused</p><h2 id="weekly-report-title" className="text-2xl font-bold">Week {summary.week} report</h2></div>
       <div className={`rounded-xl p-4 ${summary.profit >= 0 ? 'bg-emerald-100' : 'bg-amber-100'}`}>
         <p className="text-sm">Profit after this week’s operating costs and depreciation</p>

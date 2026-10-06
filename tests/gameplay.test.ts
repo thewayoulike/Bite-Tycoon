@@ -128,6 +128,41 @@ test('menu restocking requires enabled manager, available budget, cash and a fre
   assert.ok(stocked.money>=state.manager.reserve);
 });
 
+test('a walkout before the meal is served puts the ingredients back', () => {
+  const state = fresh();
+  state.phase = 'service';
+  state.isRestaurantOpen = false;
+  const waiting = customer({ state: 'waiting_order', patience: 100, maxPatience: 100, partySize: 1 });
+  state.customers = [waiting];
+  const beforeQty = { ...state.inventory };
+  const beforeCost = state.weekStats.foodCost;
+  const ordered = takeCustomerOrder(state, waiting.id);
+  assert.ok(ordered.orders.length > 0);
+  assert.ok(ordered.orders.every(o => (o.stock?.length ?? 0) > 0));
+  assert.ok(ordered.weekStats.foodCost > beforeCost);
+  const impatient = { ...ordered, customers: ordered.customers.map(c => ({ ...c, patience: 0.05 })) };
+  const next = advanceGame(impatient, 0.1);
+  assert.equal(next.orders.length, 0);
+  assert.equal(next.customers[0].state, 'leaving');
+  assert.equal(next.money, ordered.money);
+  assert.ok(Math.abs(next.weekStats.foodCost - beforeCost) < 1e-8);
+  for (const id of new Set([...Object.keys(beforeQty), ...Object.keys(next.inventory)])) {
+    assert.equal(next.inventory[id] ?? 0, beforeQty[id] ?? 0, id);
+  }
+});
+
+test('a VIP premium is a quarter of the menu price', () => {
+  const state = fresh();
+  const waiting = customer({ state: 'waiting_order', isVIP: true, partySize: 1 });
+  state.customers = [waiting];
+  const ordered = takeCustomerOrder(state, waiting.id);
+  const menu = ordered.orders.reduce((n, o) => n + o.price, 0);
+  const premium = ordered.orders.reduce((n, o) => n + Math.round(o.price * 25) / 100, 0);
+  assert.ok(menu > 0);
+  assert.equal(ordered.customers[0].vipBonus, premium);
+  assert.ok(premium < menu);
+});
+
 test('food walkouts cancel outstanding tickets and record the loss', () => {
   const state = fresh(); state.phase = 'service';
   state.customers = [customer({ patience: 0.05 })]; state.orders = [order()];

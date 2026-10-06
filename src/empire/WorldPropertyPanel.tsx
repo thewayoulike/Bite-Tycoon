@@ -1,5 +1,6 @@
 import {internalRentForWeek} from '../career/mallCompanies';
 import {useState} from 'react';
+import {useDialogFocus} from '../ui/dialogFocus';
 import {ArrowUpRight,Check,MapPin,X} from 'lucide-react';
 import type {GameState} from '../hooks/useGameLoop';
 import {weeklyWages} from '../gameplay';
@@ -25,7 +26,8 @@ export function WorldPropertyPanel({id,state,restaurants,onChange,onEnter,onClos
   const cost=(tenure==='owned'?p.buy:p.deposit)+OPENING_CASH;
   const planning=Object.values(restaurants).every(r=>r.phase==='planning');
   const sectionTitle:Record<ManagementTab,string>={run:'Operations',prices:p.kind==='shop'?'Products & prices':p.kind==='hotel'?'Rooms & rates':p.kind==='apartments'?'Homes & rents':p.kind==='plaza'?'Shops & rents':'Offers & prices',bookings:p.kind==='plaza'?'Tenants & leases':p.kind==='apartments'?'Applications & leases':'Bookings',staff:'Staff',inventory:'Inventory',upgrades:'Upgrades',reports:'Financials',finance:'Loans'};
-  return <aside className={`expansion-app in-world-panel ${business?"venue-management-window restaurant-console":""}`} role="dialog" aria-modal={!!business} aria-label={`${p.name} management`}>
+  const dialog=useDialogFocus<HTMLElement>();
+  return <aside ref={dialog.ref} tabIndex={-1} onKeyDown={dialog.onKeyDown} className={`expansion-app in-world-panel ${business?"venue-management-window restaurant-console":""}`} role="dialog" aria-modal={!!business} aria-label={`${p.name} management`}>
     <div className="world-panel-heading"><div><span className="eyebrow">{p.kind==='plaza'?'SHOPPING MALL':p.kind==='cafe'?'CAFÉ':p.kind.toUpperCase()}{business?` · ${p.name}`:''}</span><h2>{business?sectionTitle[initialTab]:p.name}</h2></div><button className="world-panel-close" aria-label="Close building panel" onClick={onClose}><X size={18}/></button></div>
     {business&&initialTab==='run'&&<button className="world-enter-business" onClick={()=>onEnter(id,'restaurant')}>{inside?'Back to the floor':p.kind==='park'?'Enter & run park':'Enter & run business'}<ArrowUpRight size={16}/></button>}
     <div className="world-panel-body">
@@ -53,7 +55,8 @@ export function WorldWeekReport({state,restaurants={},onClose}:{state:ExpansionS
  const eliminated=closed?(state.closedWeek?.internalRent??0):internalRentForWeek(state,state.week);
  const total=(key:'revenue'|'cogs'|'wages'|'other'|'profit'|'cash')=>rows.reduce((sum,r)=>sum+(r[key]??0),0)-(['revenue','other'].includes(key)?eliminated:0);
  const closingWeek=state.closedWeek?.week??state.week-1;
- return <div className="expansion-app world-report-backdrop"><section className="district-report weekly-district-report" role="dialog" aria-modal="true" aria-labelledby="world-report-title">
+ const dialog=useDialogFocus<HTMLElement>();
+ return <div className="expansion-app world-report-backdrop" onKeyDown={dialog.onKeyDown}><section ref={dialog.ref} tabIndex={-1} className="district-report weekly-district-report" role="dialog" aria-modal="true" aria-labelledby="world-report-title">
   <button className="report-close" aria-label="Close district report" onClick={onClose}><X size={18}/></button><p className="eyebrow">SEPARATE BUSINESS ACCOUNTS</p><h2 id="world-report-title">{closed?`Week ${closingWeek} · closing summary`:`Week ${state.week}, Day ${state.day} · live district P&L`}</h2>
   <div className="pc-subtabs financial-period-tabs" role="tablist" aria-label="District report period"><button role="tab" aria-selected={!closed} onClick={()=>setPeriod('week')}>This week · {state.week}</button><button role="tab" aria-selected={closed} disabled={!state.closedWeek&&!state.report.length} onClick={()=>setPeriod('last')}>Last closing summary</button></div>
   <p className="report-period-caption">{closed?'Saved at week close; these figures stay fixed as the next week runs. ':'All owned and rented properties. '}{!legacy&&'Select a business for its detailed P&L below. '}Totals compare performance; each business keeps its own cash.</p>
