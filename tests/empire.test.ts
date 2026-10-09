@@ -105,7 +105,8 @@ test('shared calendar runs independent kitchens and blocks midweek acquisitions'
 
 test('live week settlement does not invent diner revenue or double-charge property costs',()=>{
   let empire=applyDistrictUpdate(fresh(20000),s=>acquire(s,'cafe','leased'),INITIAL_STATE);
-  empire=applyDistrictUpdate(empire,s=>acquire(s,'hotel','leased'),INITIAL_STATE);
+  // A pre-existing hotel lease is grandfathered; new hotel leases are prohibited.
+  empire=applyDistrictUpdate(empire,s=>({...s,businesses:{...s.businesses,hotel:createBusiness('leased',300)}}),INITIAL_STATE);
   empire=startEmpireWeek(empire);
   empire={...empire,restaurants:Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,{...r,time:99.9,isRestaurantOpen:false,weekStats:{...r.weekStats,wages:weeklyWages(r.staff)*.999}}]))};
   const hotel=empire.district.businesses.hotel;

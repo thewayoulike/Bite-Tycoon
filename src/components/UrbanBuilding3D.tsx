@@ -5,6 +5,7 @@ import type {Property} from '../prototype/expansionModel';
 import {ModelParts,seededRandom} from '../graphics/modelParts';
 import {getSurfaceMaterial,getSignTexture,getContactShadow} from '../graphics/surfaceMaterials';
 import {urbanBuildingProfile} from '../graphics/propertyArchitecture';
+import {SnowSurfaceMaterial} from './SnowSurfaceMaterial';
 
 type Props={p:Property;selected:boolean;owned:boolean;onSelect:()=>void;interactive?:boolean;labels?:boolean;isNight?:boolean;floorsOverride?:number;background?:boolean;cutawayFloor?:number};
 /** Recessed bays, thin frames, shopfronts and roof equipment, batched by material. */
@@ -98,14 +99,14 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
   return {stone:stone.finish(),metal:metal.finish(),glass:glass.finish(),rooms:rooms.finish(),lit:lit.finish()};
  },[seed,floors,height,modern,hotel,residential,mansard,p.id,style,cutaway,groundHeight]);
  useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
- return <group position={p.position} scale={scale} onClick={e=>{if(interactive){e.stopPropagation();onSelect();}}}>
+ return <group position={p.position} scale={scale} onClick={e=>{if(interactive){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
   <mesh position={[0,.102,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[17.2,16]}/><meshBasicMaterial map={getContactShadow()} transparent opacity={.48} depthWrite={false}/></mesh>
   <mesh position={[0,height/2,0]} material={getSurfaceMaterial(style.surface,style.wall,3.6,height/2.4)} castShadow receiveShadow><boxGeometry args={[13.4,height,12.2]}/></mesh>
-  {!cutaway&&<mesh position={[0,height+.04,0]} material={getSurfaceMaterial('asphalt','#555354',4,4)} receiveShadow><boxGeometry args={[13.2,.1,12]}/></mesh>}
-  {mansard&&!cutaway&&<group position={[0,height+1.3,0]} scale={[9.48,1,8.63]}><mesh rotation={[0,Math.PI/4,0]} castShadow receiveShadow material={getSurfaceMaterial('asphalt','#44494d',6,2)}><cylinderGeometry args={[.64,1,2.2,4,1,true]}/></mesh></group>}
-  {mansard&&<mesh position={[0,height+2.41,0]}><boxGeometry args={[8.58,.08,7.82]}/><meshStandardMaterial color="#4e5354" roughness={.9}/></mesh>}
-  <mesh geometry={model.stone} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.89}/></mesh>
-  <mesh geometry={model.metal} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5} metalness={.28}/></mesh>
+  {!cutaway&&<mesh position={[0,height+.04,0]} receiveShadow><boxGeometry args={[13.2,.1,12]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#555354',4,4).map}/></mesh>}
+  {mansard&&!cutaway&&<group position={[0,height+1.3,0]} scale={[9.48,1,8.63]}><mesh rotation={[0,Math.PI/4,0]} castShadow receiveShadow><cylinderGeometry args={[.64,1,2.2,4,1,true]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#44494d',6,2).map}/></mesh></group>}
+  {mansard&&<mesh position={[0,height+2.41,0]}><boxGeometry args={[8.58,.08,7.82]}/><SnowSurfaceMaterial vertexColors={false} color="#4e5354" roughness={.9}/></mesh>}
+  <mesh geometry={model.stone} castShadow receiveShadow><SnowSurfaceMaterial roughness={.89}/></mesh>
+  <mesh geometry={model.metal} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.28}/></mesh>
   <mesh geometry={model.rooms}><meshStandardMaterial vertexColors roughness={.87}/></mesh>
   <mesh geometry={model.glass}><meshStandardMaterial vertexColors roughness={.24} metalness={.35} envMapIntensity={.65}/></mesh>
   <mesh geometry={model.lit}><meshStandardMaterial vertexColors roughness={.8} emissive={isNight?'#efc28b':'#000000'} emissiveIntensity={isNight?.65:0}/></mesh>

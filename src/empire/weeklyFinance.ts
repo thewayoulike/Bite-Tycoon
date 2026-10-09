@@ -1,3 +1,4 @@
+import {leaseReserve} from './propertyMarket';
 import {transitValue} from '../inventory/stockroom';
 import type {GameState} from '../hooks/useGameLoop';
 import type {Business,ExpansionState,Property} from '../prototype/expansionModel';
@@ -43,5 +44,5 @@ export function weeklyProfitLoss(p:Property,b:Business,state:ExpansionState,r?:G
  const amounts=subtract(cumulativeProfitLoss(p,opened,state,r),snapshot.opening);
  for(const key of Object.keys(amounts) as (keyof ProfitLossTotals)[])if(Math.abs(amounts[key])<1e-8)amounts[key]=0;
  const overhead=amounts.wages+amounts.hiring+amounts.maintenance+amounts.fees+amounts.spoilage+amounts.rent+(amounts.depreciation??0);
- return {...amounts,id:p.id,name:p.name,week:state.week,day:state.day,partial:snapshot.partial,startDay:snapshot.startDay,grossProfit:amounts.revenue-amounts.cogs,overhead,expenses:amounts.cogs+overhead,profit:amounts.revenue-amounts.cogs-overhead,cash:r?.money??b.cash,rentDue:b.tenure==='leased'?Math.max(0,p.rent-amounts.rent):0};
+ return {...amounts,id:p.id,name:p.name,week:state.week,day:state.day,partial:snapshot.partial,startDay:snapshot.startDay,grossProfit:amounts.revenue-amounts.cogs,overhead,expenses:amounts.cogs+overhead,profit:amounts.revenue-amounts.cogs-overhead,cash:r?.money??b.cash,rentDue:b.leaseTerms?leaseReserve(p,b,state):b.tenure==='leased'?Math.max(0,p.rent-amounts.rent):0};
 }

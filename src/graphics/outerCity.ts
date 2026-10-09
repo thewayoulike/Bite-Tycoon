@@ -1,29 +1,46 @@
 import * as THREE from 'three';
 import {ModelParts,seededRandom} from './modelParts';
+import {outerCityZone,isOuterPark} from './cityZoning';
+import {commercialParcelAt} from './commercialParcels';
+import {addIndustrialLot} from './industrialScenery';
 
-export const CITY_EDGE=187.5;
-export const OUTER_LOTS=Array.from({length:15},(_,i)=>(i-7)*25).flatMap(x=>Array.from({length:15},(_,i)=>(i-7)*25).filter(z=>Math.abs(x)>50||Math.abs(z)>50).map(z=>({x,z,zone:x<0||z>50?'homes' as const:'mixed' as const})));
-export const OUTER_ROADS=Array.from({length:16},(_,i)=>-CITY_EDGE+i*25).filter(v=>Math.abs(v)>63);
-export const isOuterPark=(x:number,z:number)=>(Math.abs(x*3+z)/25)%17===0;
+export const CITY_EDGE=262.5;
+export const OUTER_LOTS=Array.from({length:21},(_,i)=>(i-10)*25).flatMap(x=>Array.from({length:21},(_,i)=>(i-10)*25).filter(z=>Math.abs(x)>50||Math.abs(z)>50).map(z=>({x,z,zone:outerCityZone(x,z)})));
+export const OUTER_ROADS=Array.from({length:22},(_,i)=>-CITY_EDGE+i*25).filter(v=>Math.abs(v)>63);
+export {isOuterPark} from './cityZoning';
+export type OuterTreePlacement={x:number;z:number;seed:number;scale:number};
+export type OuterCarPlacement={x:number;z:number;color:string;style:'sedan'|'hatchback'|'suv'|'truck'};
+export type OuterStreetModels={trees:boolean;cars:boolean;placements:{trees:OuterTreePlacement[];cars:OuterCarPlacement[]}};
 
 /** Batched scenery: hundreds of addresses, four material draws per city quadrant. */
-export function buildOuterCity(quadrant:number,modeledHomes=false){
+export function buildOuterCity(quadrant:number,modeledHomes=false,street?:OuterStreetModels,market?:{developed:ReadonlySet<string>}){
  const solid=new ModelParts(),glass=new ModelParts(),lit=new ModelParts(),land=new ModelParts(),random=seededRandom(934+quadrant);
+ let cleared=false;
  const walls=['#a69580','#96705b','#b3ab9b','#826c5e','#ae9c86','#9a8c80'];
  function tree(x:number,z:number){
+  const seed=Math.abs(Math.round(x*17+z*31));
+  street?.placements.trees.push({x,z,seed,scale:.72+(seed%4)*.045});
+  if(!street?.trees){
   solid.branch([x,.2,z],[x,2.6,z],.14,.09,'#665549',5);
   for(let i=0;i<3;i++)land.add(new THREE.IcosahedronGeometry(1,1),['#687450','#7c815c','#596848'][i],[x+(i-1)*.6,3+i*.35,z+i*.15],[1.05,1.35,.95]);
+  }
   solid.box([x,.22,z],[2,.18,2],'#9b9588');
  }
- function car(x:number,z:number){
-  solid.box([x,.65,z],[1.65,.85,3.5],['#82776a','#455563','#845951','#c1bcb1'][Math.floor(random()*4)]);
+ function car(x:number,z:number,appearance?:Pick<OuterCarPlacement,'color'|'style'>){
+  const color=appearance?.color??['#82776a','#455563','#845951','#c1bcb1'][Math.floor(random()*4)];
+  const style=appearance?.style??(['sedan','hatchback','suv'] as const)[Math.abs(Math.round(x+z))%3];
+  if(cleared)return;
+  street?.placements.cars.push({x,z,color,style});
+  if(street?.cars||style==='truck')return;
+  solid.box([x,.65,z],[1.65,.85,3.5],color);
   glass.box([x,1.15,z-.2],[1.42,.6,1.85],'#3a4850');
   for(const dx of [-.83,.83])for(const dz of [-1.1,1.1])solid.box([x+dx,.35,z+dz],[.16,.6,.55],'#303232');
  }
  function building(x:number,z:number,w:number,d:number,floors:number,house:boolean,shop:boolean){
   // Keep the same random sequence for all other scenery when the houses are replaced.
   const discard={box(..._args:Parameters<ModelParts['box']>){}};
-  const bodySolid=house&&modeledHomes?discard:solid,bodyGlass=house&&modeledHomes?discard:glass,bodyLit=house&&modeledHomes?discard:lit;
+  const hidden=cleared||(house&&modeledHomes);
+  const bodySolid=hidden?discard:solid,bodyGlass=hidden?discard:glass,bodyLit=hidden?discard:lit;
   const h=floors*2.9+.35,color=walls[Math.floor(random()*walls.length)];
   bodySolid.box([x,h/2+.16,z],[w,h,d],color);
   bodySolid.box([x,.32,z],[w+.12,.32,d+.12],'#b9b1a1');
@@ -56,6 +73,8 @@ export function buildOuterCity(quadrant:number,modeledHomes=false){
   }
  }
  for(const {x,z,zone} of OUTER_LOTS.filter(l=>(l.x<0?1:0)+(l.z<0?2:0)===quadrant)){
+  const parcel=market&&commercialParcelAt(x,z);
+  cleared=!!parcel&&(parcel.vacant||market!.developed.has(parcel.id));
   solid.box([x,.1,z],[18.5,.2,18.5],'#aca69a');
   const park=isOuterPark(x,z);
   if(park){
@@ -73,12 +92,20 @@ export function buildOuterCity(quadrant:number,modeledHomes=false){
     solid.box([bx,.6,z-7.1],[6.9,.9,.1],'#867b66');
    }
    tree(x+7.7,z+7.5);
+  }else if(zone==='industry'){
+   addIndustrialLot(solid,glass,land,x,z);
+   car(x-3.5,z+6.5,{style:'truck',color:['#626e7d','#69847e','#c1bcb1'][Math.abs(x/25+z/25)%3]});
+  }else if(zone==='civic'){
+   building(x,z-2,14,10,2,false,false);
+   solid.box([x,6.65,z+3.25],[11,.55,.28],'#65716c');
+   for(const dx of [-6,6])tree(x+dx,z+6.5);
+   solid.box([x,.26,z+6],[2,.06,5],'#c5bbac');
   }else{
-   const floors=2+Math.floor(random()*4);
+   const floors=(x>=100&&Math.abs(z)<100?5:2)+Math.floor(random()*3);
    building(x-4.3,z-1.8,7.8,10,floors,false,true);
    building(x+4.3,z-1.8,7.8,10,Math.max(2,floors-1),false,true);
-   solid.box([x,.23,z+6.3],[16,.045,4],'#737473');
-   for(const dx of [-5,-2,1,4])solid.box([x+dx,.26,z+6.3],[.08,.02,3.5],'#d0c7ab');
+   if(!cleared){solid.box([x,.23,z+6.3],[16,.045,4],'#737473');
+   for(const dx of [-5,-2,1,4])solid.box([x+dx,.26,z+6.3],[.08,.02,3.5],'#d0c7ab');}
    car(x-3.4,z+6.1);if(random()>.4)car(x+2.5,z+6.1);
    tree(x+8,z+6.6);
   }

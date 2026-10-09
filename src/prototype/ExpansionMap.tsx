@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import {propertyById} from './expansionModel';
+import {type MarketState} from '../empire/propertyMarket';
 import { PROPERTIES, PUBLIC_GARDEN, Property, Business,createBusiness } from './expansionModel';
 import {PlazaBuilding3D} from '../components/ShoppingPlaza3D';
 import {BusinessContents3D} from './BusinessInterior';
@@ -17,8 +19,15 @@ import {UrbanBuilding3D as Building} from '../components/UrbanBuilding3D';
 import {StreetscapeDetails3D} from '../components/StreetscapeDetails3D';
 import {NaturalSky3D} from '../components/NaturalSky3D';
 import {CitySkyline3D} from '../components/CitySkyline3D';
+import {CommercialPlots3D} from '../components/CommercialPlots3D';
 import {NeighborhoodDistricts3D} from '../components/NeighborhoodDistricts3D';
 import {CITY_AVENUES,CITY_CROSS_STREETS} from '../graphics/cityDistrictLayout';
+import {CITY_VIEWS,MAP_MOUSE_BUTTONS,MAP_TOUCHES,constrainCityPan} from '../graphics/cityNavigation';
+import {CityRailway3D} from '../components/CityRailway3D';
+import {IndustrialSmoke3D} from '../components/IndustrialSmoke3D';
+import {CityRoadMaterial} from '../components/CityRoadMaterial';
+import {CitySnowContext,SnowSurfaceMaterial} from '../components/SnowSurfaceMaterial';
+import {cityCameraNear} from '../graphics/sceneryPerformance';
 
 // Two lots share each long block; keep full-size playable interiors.
 const AVENUES=CITY_AVENUES;
@@ -46,12 +55,11 @@ function Car({bounds=[-39,39,-64,64],offset=0,color='#597978',gameSpeed=1,isNigh
 }
 function MapControls({revision}:{revision:number}){
   const controls=useRef<React.ElementRef<typeof OrbitControls>>(null),{camera}=useThree();
-  useEffect(()=>{camera.position.set(82,64,116);controls.current?.target.set(0,2,0);controls.current?.update();},[revision,camera]);
-  return <OrbitControls ref={controls} target={[0,2,0]} minDistance={25} maxDistance={190} minPolarAngle={.25} maxPolarAngle={1.25} enablePan/>;
+  useEffect(()=>{camera.position.set(...CITY_VIEWS.town.position);controls.current?.target.set(...CITY_VIEWS.town.target);controls.current?.update();},[revision,camera]);
+  useFrame(()=>{if(controls.current){constrainCityPan(camera.position,controls.current.target);if(camera instanceof THREE.PerspectiveCamera){const near=Math.round(cityCameraNear(camera.position.distanceTo(controls.current.target))*10)/10;if(camera.near!==near){camera.near=near;camera.updateProjectionMatrix();}}}});
+  return <OrbitControls ref={controls} mouseButtons={MAP_MOUSE_BUTTONS} touches={MAP_TOUCHES} screenSpacePanning={false} minDistance={12} maxDistance={580} minPolarAngle={.25} maxPolarAngle={1.25} enablePan/>;
 }
 function Roads({wet=0,snow=0}:{wet?:number;snow?:number}){
-  const materials=useMemo(()=>[getSurfaceMaterial('asphalt',snow?'#818990':wet?'#353e47':'#494c51',3,35),getSurfaceMaterial('asphalt',snow?'#818990':wet?'#353e47':'#494c51',35,3)].map(base=>{const m=base.clone();m.roughness=wet?.23:.92;m.metalness=wet?.3:0;return m;}),[wet,snow]);
-  useEffect(()=>()=>materials.forEach(m=>m.dispose()),[materials]);
   const markings=useMemo(()=>{const m=new ModelParts();
     for(const z of CROSS_STREETS)for(let x=-60;x<=60;x+=5){
       if(AVENUES.some(c=>Math.abs(c-x)<5))continue;
@@ -66,8 +74,8 @@ function Roads({wet=0,snow=0}:{wet?:number;snow?:number}){
       if(z===-12.5||Math.abs(x+side*5)<65.75)m.box([x+side*5,.045,z-2.6+i*.9],[2,.016,.5],'#e4e5d9');
     }return m.finish();},[]);
   useEffect(()=>()=>markings.dispose(),[markings]);
-  return <group>{AVENUES.map(x=><mesh key={'avenue'+x} position={[x,.015,0]} rotation={[-Math.PI/2,0,0]} receiveShadow material={materials[0]}><planeGeometry args={[6.5,131.5]}/></mesh>)}
-    {CROSS_STREETS.map(z=><mesh key={'cross'+z} position={[0,.018,z]} rotation={[-Math.PI/2,0,0]} receiveShadow material={materials[1]}><planeGeometry args={[131.5,6.5]}/></mesh>)}
+  return <group>{AVENUES.map(x=><mesh key={'avenue'+x} position={[x,.0255,0]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[6.5,131.5]}/><CityRoadMaterial wet={wet} snow={snow}/></mesh>)}
+    {CROSS_STREETS.map(z=><mesh key={'cross'+z} position={[0,.0255,z]} rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[131.5,6.5]}/><CityRoadMaterial wet={wet} snow={snow}/></mesh>)}
     <mesh geometry={markings}><meshStandardMaterial vertexColors roughness={.9}/></mesh>
   </group>;
 }
@@ -83,14 +91,14 @@ function SharedBlocks(){
       }
     }return m.finish();},[]);
   useEffect(()=>()=>courtyard.dispose(),[courtyard]);
-  return <group>{BLOCK_COLUMNS.flatMap(x=>[-37.5,12.5,50].map(z=><mesh key={x+':'+z} position={[x,.045,z]} receiveShadow material={getSurfaceMaterial('concrete','#b3afa7',14,z===50?14:34)}><boxGeometry args={[18.5,.085,z===50?18.5:43.5]}/></mesh>))}
-    <mesh geometry={courtyard} receiveShadow><meshStandardMaterial vertexColors roughness={.9}/></mesh>
+  return <group>{BLOCK_COLUMNS.flatMap(x=>[-37.5,12.5,50].map(z=><mesh key={x+':'+z} position={[x,.045,z]} receiveShadow><boxGeometry args={[18.5,.085,z===50?18.5:43.5]}/><SnowSurfaceMaterial vertexColors={false} color="#aca69a"/></mesh>))}
+    <mesh geometry={courtyard} receiveShadow><SnowSurfaceMaterial/></mesh>
   </group>;
 }
 export function ExpansionMap({selected,businesses,onSelect}:{selected:string;businesses:Record<string,Business>;onSelect:(id:string)=>void}) {
   const[revision,setRevision]=useState(0);
   return <><button className="map-reset" onClick={()=>setRevision(n=>n+1)}>Reset map</button><Canvas shadows={{type:THREE.PCFSoftShadowMap}} dpr={[1,1.5]} camera={{position:[48,28,78],fov:46,far:1000}}>
-    <NaturalSky3D daylight={1} isNight={false}/><fog attach="fog" args={['#e1e5e5',180,360]}/>
+    <NaturalSky3D daylight={1} isNight={false}/><fog attach="fog" args={['#e1e5e5',360,900]}/>
     <hemisphereLight intensity={.9} color="#dce7f5" groundColor="#8e8277"/><directionalLight position={[-30,60,30]} intensity={2.7} castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-65} shadow-camera-right={65} shadow-camera-top={65} shadow-camera-bottom={-65} shadow-normalBias={.035} shadow-bias={-.00015}/>
     <OutdoorReflections3D isNight={false}/>
     <DistrictScenery selected={selected} businesses={businesses} onSelect={onSelect}/>
@@ -98,18 +106,30 @@ export function ExpansionMap({selected,businesses,onSelect}:{selected:string;bus
   </Canvas></>;
 }
 
-export function DistrictScenery({selected,businesses,onSelect,interiorId=null,labels=true,gameSpeed=1,isNight=false,restaurants={},wet=0,snow=0}:{wet?:number;snow?:number;restaurants?:Record<string,GameState>;selected:string;businesses:Record<string,Business>;onSelect:(id:string)=>void;interiorId?:string|null;labels?:boolean;gameSpeed?:number;isNight?:boolean}){
-return <>
+export function DistrictScenery({market,selected,businesses,onSelect,interiorId=null,labels=true,gameSpeed=1,isNight=false,restaurants={},wet=0,snow=0}:{market?:MarketState;wet?:number;snow?:number;restaurants?:Record<string,GameState>;selected:string;businesses:Record<string,Business>;onSelect:(id:string)=>void;interiorId?:string|null;labels?:boolean;gameSpeed?:number;isNight?:boolean}){
+const [nearCenter,setNearCenter]=useState(false),previousNear=useRef(false);
+useFrame(({camera})=>{const near=camera.position.length()<230;if(near!==previousNear.current){previousNear.current=near;setNearCenter(near);}});
+const businessLabels=labels&&nearCenter;
+const developmentKey=Object.keys(market?.parcels??{}).sort().join('|');
+return <CitySnowContext.Provider value={snow}>
     <mesh rotation={[-Math.PI/2,0,0]} receiveShadow material={getSurfaceMaterial('grass',snow?'#d8dedf':'#868679',100,100)}><planeGeometry args={[1000,1000]}/></mesh>
     <Roads wet={wet} snow={snow}/><OuterRoads3D wet={wet} snow={snow}/>
-    <CitySkyline3D isNight={isNight} snow={snow}/>
+    <CitySkyline3D isNight={isNight} snow={snow} market={!!market} developmentKey={developmentKey} onSelect={onSelect}/>
+    <CityRailway3D gameSpeed={gameSpeed} labels={labels}/>
+    <IndustrialSmoke3D isNight={isNight}/>
+    {labels&&[
+      {name:'Cedar residential district',note:'Homes · gardens · local streets',position:[-145,12,25]},
+      {name:'Market commercial district',note:market?'Commercial sites · click to buy & build':'Shops · offices · main streets',position:[145,25,30]},
+      {name:'Northgate industrial district',note:'Future industrial expansion · scenery only',position:[165,12,-168]},
+    ].map(area=><Html key={area.name} position={area.position as [number,number,number]} center zIndexRange={[2,0]} style={{pointerEvents:'none'}}><div className="city-district-label"><strong>{area.name}</strong><small>{area.note}</small></div></Html>)}
     <SharedBlocks/><StreetscapeDetails3D isNight={isNight}/>
-    <NeighborhoodDistricts3D isNight={isNight} snow={snow}/>
-    <PublicGarden labels={labels} gameSpeed={gameSpeed} isNight={isNight}/>
-    {PROPERTIES.filter(p=>p.id!==interiorId).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels} onSelect={()=>onSelect(p.id)}/>)}
+    <NeighborhoodDistricts3D isNight={isNight} snow={snow} developments={!!market} developmentKey={developmentKey} onSelect={onSelect}/>
+    {market&&<CommercialPlots3D developmentKey={developmentKey} onSelect={onSelect} labels={labels}/>}
+    <PublicGarden labels={businessLabels} gameSpeed={gameSpeed} isNight={isNight}/>
+    {[...PROPERTIES,...Object.values(market?.parcels??{}).map(id=>propertyById(id!)!)].filter(p=>p.id!==interiorId).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)}/>)}
     {[-25,0,25].flatMap(x=>[-25,0,25].filter(z=>!(x===0&&(z===0||z===-25))).map((z,i)=><StylizedTree3D key={`${x}:${z}`} position={[x+8.65,.1,z+6.5]} seed={i} scale={.75}/>))}
     <Car isNight={isNight} gameSpeed={gameSpeed}/><Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-14,14,-14,39]} offset={45} color="#b88d62"/><Car isNight={isNight} gameSpeed={gameSpeed} offset={85} color="#92534b"/>
     <Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-64,64,-64,64]} offset={140} color="#bab7ae"/><Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-61,61,-61,61]} offset={40} color="#626d78"/>
     <PedestrianCrowd3D routes={routes} gameSpeed={gameSpeed} count={12} size={.75}/>{[-25,0,25].flatMap(x=>[-25,0,25].filter(z=>!(x===0&&z===-25)).map(z=><group key={`lamp-${x}-${z}`} position={[x-8,.1,z+8]}><mesh position={[0,1.8,0]} castShadow><cylinderGeometry args={[.06,.1,3.6,8]}/><meshStandardMaterial color="#434950"/></mesh><mesh position={[0,3.65,0]}><sphereGeometry args={[.24,10,8]}/><meshStandardMaterial color="#e9d5ac" emissive="#ffd48c" emissiveIntensity={isNight?2:0}/></mesh>{isNight&&<mesh position={[0,.005,0]} rotation={[-Math.PI/2,0,0]}><circleGeometry args={[2.4,20]}/><meshBasicMaterial color="#d9ad69" transparent opacity={.12} depthWrite={false}/></mesh>}</group>))}
-</>;
+</CitySnowContext.Provider>;
 }

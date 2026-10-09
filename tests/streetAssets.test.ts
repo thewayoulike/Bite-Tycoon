@@ -4,6 +4,41 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {chooseVehicleStyle, createVehicleInstance, type VehicleStyle} from '../src/graphics/streetAssetLibrary';
+import {outerCarBatches} from '../src/graphics/outerStreetAssets';
+import {getDeliveryTruck} from '../src/graphics/deliveryTruck';
+
+test('factory delivery trucks fit the loading yard, share geometry and have six grounded wheels',()=>{
+  const source=getDeliveryTruck();assert.equal(source,getDeliveryTruck(),'build the truck only once');
+  const wheels:THREE.Object3D[]=[];source.traverse(o=>{if(o.userData.wheel)wheels.push(o);});
+  assert.equal(wheels.length,6);
+  for(const wheel of wheels){const box=new THREE.Box3().setFromObject(wheel);assert.ok(Math.abs(box.min.y)<.015);}
+  const placements=[{style:'truck' as const,x:121.5,z:-143.5,color:'#69847e'}];
+  const batches=outerCarBatches(new THREE.Group(),placements);
+  const bounds=new THREE.Box3();let triangles=0;
+  assert.ok(batches.filter(b=>b.lod===0).length<=5,'all nearby factory trucks share five instanced material draws');
+  for(const batch of batches.filter(b=>b.lod===0)){
+    batch.geometry.computeBoundingBox();bounds.union(batch.geometry.boundingBox!.clone().applyMatrix4(batch.instances[0].matrix));
+    triangles+=(batch.geometry.index?.count??batch.geometry.getAttribute('position').count)/3;
+    assert.ok(batch.geometry.getAttribute('position').array.every(Number.isFinite));
+    if(batch.material.name==='paint')assert.equal(batch.instances[0].color!.getHexString(),'69847e');
+  }
+  assert.ok(bounds.min.x>116.25&&bounds.max.x<133.75,'truck stays in the factory plot');
+  assert.ok(bounds.min.z>-145.1&&bounds.max.z<-141.25,'truck clears loading platforms, bollards and the pavement');
+  assert.ok(Math.abs(bounds.min.y-.26)<.015,'tires touch the yard');
+  const size=bounds.getSize(new THREE.Vector3());
+  assert.ok(size.x>6&&size.x<7&&size.y>3&&size.z>2.4,'truck has a full-height cargo body and is parked across the yard');
+  assert.ok(triangles<40000,'truck detail stays within the scenery budget');
+  for(const far of batches.filter(b=>b.lod===1)){
+    const colors=far.geometry.getAttribute('color');
+    assert.ok(colors,'distant trucks retain their vertex paint, cargo and wheel colors');
+    assert.equal(colors.count,far.geometry.getAttribute('position').count);
+    assert.ok(colors.array.every(Number.isFinite));
+    const original=batches.find(b=>b.material===far.material&&b.lod===0)!.geometry.getAttribute('color');
+    const palette=new Set(Array.from({length:original.count},(_,i)=>[original.getX(i),original.getY(i),original.getZ(i)].map(n=>n.toFixed(4)).join(':')));
+    for(let i=0;i<colors.count;i++)assert.ok(palette.has([colors.getX(i),colors.getY(i),colors.getZ(i)].map(n=>n.toFixed(4)).join(':')),'cargo colors cannot disappear or blend into black');
+  }
+  batches.forEach(b=>{b.geometry.dispose();b.material.dispose();});
+});
 
 function asset(name: string) {
   const bytes = readFileSync(new URL(`../public/models/street-assets/${name}.glb`, import.meta.url));
@@ -85,4 +120,37 @@ test('traffic with the same speed still gets different car bodies and taxis stay
   const colors = ['#31566c', '#c6bda9', '#e1e2df'];
   assert.equal(new Set(colors.map(c => chooseVehicleStyle(c, 4))).size, 3);
   for (const color of colors) assert.equal(chooseVehicleStyle(color, 4, true), 'sedan');
+});
+
+test('instanced parked models keep curved bodies and wheels aligned inside parking spaces',async()=>{
+  const {bytes}=asset('vehicles');
+  const {scene}=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength) as ArrayBuffer,'');
+  const spots=(['sedan','hatchback','suv'] as const).map((style,i)=>({style,x:100+i*25,z:106.1,color:'#845951'}));
+  const batches=outerCarBatches(scene,spots);
+  assert.ok(batches.filter(b=>b.lod===0).length<=21,'material batching limits nearby parked-car draw calls');
+  for(const spot of spots){
+    const bounds=new THREE.Box3();let triangles=0;
+    for(const b of batches.filter(b=>b.lod===0))for(const instance of b.instances){
+      if(instance.position.x!==spot.x)continue;
+      b.geometry.computeBoundingBox();bounds.union(b.geometry.boundingBox!.clone().applyMatrix4(instance.matrix));
+      triangles+=(b.geometry.index?.count??b.geometry.getAttribute('position').count)/3;
+      if(b.material.name==='paint')assert.equal(instance.color!.getHexString(),'845951');
+    }
+    const size=bounds.getSize(new THREE.Vector3());
+    assert.ok(size.x>1.4&&size.x<2.1);assert.ok(size.z>3.3&&size.z<4.05);
+    assert.ok(Math.abs(bounds.min.y-.26)<.015,'all four tires stay on the paved surface');
+    assert.ok(triangles>1000&&triangles<13000,'reuse the approved detailed mesh');
+    const distant=batches.filter(b=>b.lod===1&&b.instances.some(i=>i.position.x===spot.x));
+    const farTriangles=distant.reduce((sum,b)=>sum+(b.geometry.index?.count??b.geometry.getAttribute('position').count)/3,0);
+    assert.ok(farTriangles<triangles*.5,'parked vehicles use less than half their geometry in distant city views');
+    for(const b of distant){
+      assert.ok(b.geometry.getAttribute('position').array.every(Number.isFinite));
+      const near=batches.find(n=>n.lod===0&&n.material===b.material)!;
+      assert.equal(near.instances,b.instances,'all LODs share one selection to prevent zoom flicker');
+      near.geometry.computeBoundingBox();b.geometry.computeBoundingBox();
+      assert.ok(b.geometry.boundingBox!.min.distanceTo(near.geometry.boundingBox!.min)<.32);
+      assert.ok(b.geometry.boundingBox!.max.distanceTo(near.geometry.boundingBox!.max)<.32);
+    }
+  }
+  batches.forEach(b=>{b.geometry.dispose();b.material.dispose();});
 });

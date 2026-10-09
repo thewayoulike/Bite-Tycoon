@@ -922,8 +922,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   const [empire, setEmpire] = useState<EmpireState>(boot.current.empire);
   useEffect(()=>setEmpire(prev=>({...prev,restaurants:Object.fromEntries(Object.entries(prev.restaurants).map(([id,r])=>[id,normalizeTableLayout(r)]))})),[]);
   const [saveError,setSaveError]=useState(false);
-  const selected=empire.restaurants[empire.activeRestaurantId];
-  const state={...selected,cashProtection:protectedObligations(propertyById(empire.activeRestaurantId)!,empire.district.businesses[empire.activeRestaurantId],empire.district,selected)};
+  const selected=empire.restaurants[empire.activeRestaurantId]??{...INITIAL_STATE,money:empire.district.businesses[empire.activeRestaurantId]?.cash??empire.district.market?.ownerCash??0,week:empire.district.week,time:empire.clock?.time??0,phase:empire.clock?.phase??'planning',gameSpeed:empire.speed};
+  const state={...selected,cashProtection:empire.district.businesses[empire.activeRestaurantId]?protectedObligations(propertyById(empire.activeRestaurantId)!,empire.district.businesses[empire.activeRestaurantId],empire.district,empire.restaurants[empire.activeRestaurantId]):undefined};
   const setState=(update:(r:GameState)=>GameState)=>setEmpire(prev=>updateRestaurant(prev,empire.activeRestaurantId,update));
   const lastTickRef = useRef<number>(Date.now());
   const stateRef = useRef(empire);
@@ -1099,7 +1099,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
   const setFrameColor = (color: string | null) => setState(prev => ({ ...prev, frameColor: color }));
   const toggleRestaurantState = () => {
     sounds.playClick();
-    setEmpire(prev=>prev.restaurants[prev.activeRestaurantId].phase==='planning'
+    setEmpire(prev=>(prev.restaurants[prev.activeRestaurantId]?.phase??prev.clock?.phase)==='planning'
       ? startEmpireWeek(prev)
       : updateRestaurant(prev,prev.activeRestaurantId,startOrPauseArrivals));
   };

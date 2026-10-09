@@ -16,7 +16,7 @@ export const hotelWeeklyOccupancy=(b:Business)=>{const l=b.lodging;if(!l?.availa
 export function hotelFloorChecks(b:Business,s:ExpansionState,floor=(b.lodging?.openFloors??1)+1){
  const spec=HOTEL_FLOORS[floor-1];if(!spec)return [];
  const l=b.lodging!,occupancy=l.lastReport?.occupancy??hotelWeeklyOccupancy(b);
- const overdue=s.payroll.some(pay=>pay.businessId==='hotel'&&pay.amount>0&&(pay.week<s.week||(pay.week===s.week&&s.day>=4)));
+ const overdue=s.payroll.some(pay=>s.businesses[pay.businessId]===b&&pay.amount>0&&(pay.week<s.week||(pay.week===s.week&&s.day>=4)));
  return [
   {label:`${spec.nights} completed room-nights`,value:`${hotelCompletedNights(b)} / ${spec.nights}`,met:hotelCompletedNights(b)>=spec.nights},
   ...(spec.occupancy?[{label:`${spec.occupancy}% occupancy in the latest week`,value:`${Math.round(occupancy)}% / ${spec.occupancy}%`,met:occupancy>=spec.occupancy}]:[]),

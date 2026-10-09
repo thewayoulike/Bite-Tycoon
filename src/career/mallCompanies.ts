@@ -4,12 +4,12 @@ import type {RestaurantType} from '../data/restaurantCatalogs';
 import type {EmpireState} from '../empire/empire';
 export type MallCompany={parent:string;unit:number;rent:number;chargedWeek:number;due:number;lastRetry:number;totalRent:number};
 export type TenantTrading={cash:number;stock:number;sales:number;cogs:number;week:number;transactions:number;timer:number;turnoverPercent:number;chargedWeek:number};
-export function openMallCompany(s:ExpansionState,unit:number,kind:'cafe'|'shop',type:RestaurantType='cafe'):ExpansionState{
- const mall=s.businesses.park,u=mall?.venue?.units[unit];if(!u||u.occupied||u.dirty||mall.venue?.running||!['cafe','shop'].includes(kind))return s;
- const id=`mall-${kind}-${unit}`,p=propertyById(id)!,setup=kind==='cafe'?1200:900,working=1500;if(s.businesses[id]||mall.cash<setup+working+protectedObligations(propertyById('park')!,mall,s).total)return s;
- const created={...createBusiness('owned'),restaurantType:kind==='cafe'?type:undefined,mallCompany:{parent:'park',unit,rent:p.rent,chargedWeek:s.week-1,due:0,lastRetry:-1,totalRent:0}};
- let next=lendCash({...s,businesses:{...s.businesses,[id]:created}},'park',id,setup+working,20,'property');
- const child=next.businesses[id];next={...next,businesses:{...next.businesses,[id]:{...child,cash:child.cash-setup},park:{...next.businesses.park,plaza:{...mall.plaza!,leasesSigned:mall.plaza!.leasesSigned+1,applications:mall.plaza!.applications.filter(a=>a.unit!==unit)},venue:{...mall.venue!,units:mall.venue!.units.map((v,i)=>i===unit?{...v,occupied:true,ownerCompany:id,tenantName:p.name,shopType:kind==='cafe'?'cafe':'grocer',rent:p.rent,rentWeek:s.week,leaseEnd:999999}:v)}}},notice:`${p.name} opened with its own $1,500 cash, staff and inventory. The mall lent $${setup+working}; internal rent is recorded in both accounts.`};
+export function openMallCompany(s:ExpansionState,unit:number,kind:'cafe'|'shop',type:RestaurantType='cafe',mallId='park'):ExpansionState{
+ const mall=s.businesses[mallId],u=mall?.venue?.units[unit];if(!u||u.occupied||u.dirty||mall.venue?.running||!['cafe','shop'].includes(kind))return s;
+ const id=`mall-${kind}-${unit}${mallId==='park'?'':'@'+mallId}`,p=propertyById(id)!,setup=kind==='cafe'?1200:900,working=1500;if(s.businesses[id]||mall.cash<setup+working+protectedObligations(propertyById(mallId)!,mall,s).total)return s;
+ const created={...createBusiness('owned'),restaurantType:kind==='cafe'?type:undefined,mallCompany:{parent:mallId,unit,rent:p.rent,chargedWeek:s.week-1,due:0,lastRetry:-1,totalRent:0}};
+ let next=lendCash({...s,businesses:{...s.businesses,[id]:created}},mallId,id,setup+working,20,'property');
+ const child=next.businesses[id];next={...next,businesses:{...next.businesses,[id]:{...child,cash:child.cash-setup},[mallId]:{...next.businesses[mallId],plaza:{...mall.plaza!,leasesSigned:mall.plaza!.leasesSigned+1,applications:mall.plaza!.applications.filter(a=>a.unit!==unit)},venue:{...mall.venue!,units:mall.venue!.units.map((v,i)=>i===unit?{...v,occupied:true,ownerCompany:id,tenantName:p.name,shopType:kind==='cafe'?'cafe':'grocer',rent:p.rent,rentWeek:s.week,leaseEnd:999999}:v)}}},notice:`${p.name} opened with its own $1,500 cash, staff and inventory. The mall lent $${setup+working}; internal rent is recorded in both accounts.`};
  return next;
 }
 /** Internal rent is income to the mall and expense to the shop; never new district income. */

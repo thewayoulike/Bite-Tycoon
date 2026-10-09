@@ -1,3 +1,4 @@
+import {leaseReserve} from '../empire/propertyMarket';
 import type {EmpireState} from '../empire/empire';
 import {propertyById,businessWages} from '../prototype/expansionModel';
 import {weeklyWages} from '../gameplay';
@@ -12,7 +13,7 @@ export function paymentCalendar(e:EmpireState){
   payroll.forEach((v,i)=>rows.push({id:`${id}-wages-${i}`,business:id,day:stockDay(v.week,4),label:'Earned wages payable',amount:v.amount,committed:true}));
   rows.push({id:`${id}-forecast-wages`,business:id,day:stockDay(s.week+1,4),label:'Current week wages · full-week estimate',amount:r?weeklyWages(r.staff)+crewPremium(r.crew):businessWages(p,b),committed:false});
   if(b.leaseDue)rows.push({id:`${id}-arrears`,business:id,day:today,label:'Overdue property lease · daily retry',amount:b.leaseDue,committed:true});
-  if(b.tenure==='leased'&&(b.leaseChargedWeek??0)<s.week)rows.push({id:`${id}-lease`,business:id,day:stockDay(s.week,7),label:'Property lease',amount:p.rent,committed:true});
+  if(b.tenure==='leased'&&(b.leaseTerms||(b.leaseChargedWeek??0)<s.week))rows.push({id:`${id}-lease`,business:id,day:stockDay(b.leaseTerms?.nextPaymentWeek??s.week,7),label:b.leaseTerms?'Monthly property rent · 4-week month':'Property lease',amount:b.leaseTerms?leaseReserve(p,b,s)-(b.leaseDue??0):p.rent,committed:true});
   if(b.mallCompany&&b.mallCompany.chargedWeek<s.week)rows.push({id:`${id}-internal-rent`,business:id,day:stockDay(s.week,7),label:'Internal shop rent to mall',amount:b.mallCompany.rent,committed:true});
   const protection=protectedObligations(p,b,s,r);
   if(protection.upkeep)rows.push({id:`${id}-upkeep`,business:id,day:today,label:'Facilities / shared upkeep allowance',amount:protection.upkeep,committed:false});

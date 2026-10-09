@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {getDeliveryTruck} from './deliveryTruck';
 
 export type StreetLibrary = 'trees' | 'vehicles';
-export type VehicleStyle = 'sedan' | 'hatchback' | 'suv';
+export type VehicleStyle = 'sedan' | 'hatchback' | 'suv' | 'truck';
 export const streetLibraries: Partial<Record<StreetLibrary, THREE.Group>> = {};
 const requests: Partial<Record<StreetLibrary, Promise<THREE.Group | null>>> = {};
 
@@ -36,8 +37,11 @@ export function chooseVehicleStyle(color: string, speed: number, taxi = false): 
 
 const paints = new Map<string, THREE.MeshStandardMaterial>();
 const lights = new Map<string, THREE.MeshStandardMaterial>();
+export function vehicleSource(library:THREE.Group,style:VehicleStyle){
+  return style==='truck'?getDeliveryTruck():library.getObjectByName(style);
+}
 export function createVehicleInstance(library: THREE.Group, style: VehicleStyle, color: string, night: boolean) {
-  const source = library.getObjectByName(style);
+  const source = vehicleSource(library,style);
   if (!source) throw new Error(`Vehicle model missing: ${style}`);
   const root = source.clone(true), wheels: THREE.Object3D[] = [];
   root.traverse(node => {

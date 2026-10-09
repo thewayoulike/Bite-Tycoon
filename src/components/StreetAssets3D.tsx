@@ -8,7 +8,7 @@ import {StylizedTree3D as FallbackTree, RoundedCarBody3D as FallbackCar} from '.
 import {chooseVehicleStyle, createVehicleInstance, getTreeParts, loadStreetLibrary, streetLibraries, treeLeafMaterial, type StreetLibrary} from '../graphics/streetAssetLibrary';
 import type {Vec3} from '../graphics/modelParts';
 
-function useStreetLibrary(kind: StreetLibrary) {
+export function useStreetLibrary(kind: StreetLibrary) {
   const [library, setLibrary] = useState(() => streetLibraries[kind] ?? null);
   useEffect(() => {
     let mounted = true;

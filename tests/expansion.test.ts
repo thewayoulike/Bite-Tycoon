@@ -88,7 +88,7 @@ test('skipping to the next week pays overdue wages without duplication',()=>{
 });
 
 test('park care, supplies and hands-on tasks affect only the park account',()=>{
-  const opened=acquire(initialExpansion(),'park','leased');
+  const opened=acquire(initialExpansion(30000),'park','owned');
   const helped=changeBusiness(opened,'park','help');
   const park=PROPERTIES.find(p=>p.id==='park')!;
   assert.ok(project(park,helped.businesses.park).revenue>project(park,opened.businesses.park).revenue);

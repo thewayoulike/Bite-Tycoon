@@ -66,12 +66,12 @@ test('snow reduces new hotel bookings, but an existing reservation still arrives
  assert.equal(arrived.venue!.visitors[0].agreedRate,123);
 });
 test('surrounding city fills every outer plot without overlapping the managed district, with bounded merged geometry',()=>{
- assert.equal(OUTER_LOTS.length,200);assert.equal(new Set(OUTER_LOTS.map(l=>`${l.x}:${l.z}`)).size,200);
+ assert.equal(OUTER_LOTS.length,416);assert.equal(new Set(OUTER_LOTS.map(l=>`${l.x}:${l.z}`)).size,416);
  assert.ok(OUTER_LOTS.every(l=>(Math.abs(l.x)>=75||Math.abs(l.z)>=75)&&Math.abs(l.x)+9.25<CITY_EDGE&&Math.abs(l.z)+9.25<CITY_EDGE));
  let vertices=0;
  for(let q=0;q<4;q++){
   const model=buildOuterCity(q);assert.equal(Object.keys(model).length,4);
   for(const g of Object.values(model)){vertices+=g.getAttribute('position').count;assert.ok(Number.isFinite(g.boundingSphere!.radius));g.dispose();}
  }
- assert.ok(vertices<1600000,`Scenery budget exceeded: ${vertices} vertices`);
+ assert.ok(vertices<2400000,`Scenery budget exceeded: ${vertices} vertices`);
 });

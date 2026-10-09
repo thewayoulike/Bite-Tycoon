@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {writeFileSync} from 'node:fs';
 import {performance} from 'node:perf_hooks';
 import {INITIAL_STATE,advanceGame,takeCustomerOrder,type GameState} from '../src/hooks/useGameLoop';
-import {createEmpire,updateRestaurant,applyDistrictUpdate,startEmpireWeek,advanceEmpire,unlockTestDistrict,parseEmpireSave,districtView} from '../src/empire/empire';
+import {createEmpire,createFastTrackEmpire,updateRestaurant,applyDistrictUpdate,startEmpireWeek,advanceEmpire,unlockTestDistrict,parseEmpireSave,districtView} from '../src/empire/empire';
 import {chooseRestaurantType} from '../src/restaurantTypes';
 import {hireStaff,serveReadyTable} from '../src/gameplay';
 import {restaurantStockPlan} from '../src/restaurantPurchasing';
@@ -39,13 +39,13 @@ function orderOpeningStock(r:GameState){
 test('sustained fresh career reaches earned hires, profit, menu expansion, a second property and an upper hotel floor',()=>{
  const originalRandom=Math.random;Math.random=seeded(2309);
  try{
-  let e=createEmpire(chooseRestaurantType(structuredClone(INITIAL_STATE),'diner'));const milestones:Record<string,number>={},weeks:any[]=[];
+  let e=applyDistrictUpdate(createFastTrackEmpire(structuredClone(INITIAL_STATE)),s=>acquire(s,'diner','leased','', 'diner'),INITIAL_STATE);const milestones:Record<string,number>={},weeks:any[]=[];
   for(let week=1;week<=60&&!milestones.upperFloor;week++){
    e=updateRestaurant(e,'diner',r=>{r=orderOpeningStock(r);if(r.staff.waiters<1)r=hireStaff(r,'waiter');if(r.staff.cleaners<1&&r.money>650)r=hireStaff(r,'cleaner');if(r.staff.chefs<2&&r.money>900)r=hireStaff(r,'chef');if(!r.staff.hasManager&&r.money>900)r=hireStaff(r,'manager');if(r.staff.hasManager)r={...r,manager:{...r.manager,budget:600,target:30,reserve:250}};
     if(!restaurantUnlockBlocker(r)&&r.restaurantLevel!<3)r=upgradeRestaurant(r);while(r.tables.length<restaurantTableLimit(r)&&r.money>1000){const next=buyDiningTable(r);if(next===r)break;r=next;}
     for(const [station,condition]of Object.entries(restaurantDepth(r).stations))if(condition<50)r=repairStation(r,station as any);return r;});
    const r=e.restaurants.diner;if(r.staff.waiters&&!milestones.waiter)milestones.waiter=week;if((r.restaurantLevel??1)>=2&&!milestones.level2)milestones.level2=week;
-   if(!e.district.businesses.hotel&&r.money>9000){e=applyDistrictUpdate(e,s=>acquire(s,'hotel','leased'),INITIAL_STATE);if(e.district.businesses.hotel){milestones.secondBusiness=week;e=applyDistrictUpdate(e,s=>lendCash(s,'diner','hotel',1600,40,'operating'),INITIAL_STATE);for(const role of ['care','service','maintenance','manager'] as const)e=applyDistrictUpdate(e,s=>hireBusinessStaff(s,'hotel',role),INITIAL_STATE);}}
+   if(!e.district.businesses.hotel&&r.money>42000&&(e.district.market?.level??1)>=3){e=applyDistrictUpdate(e,s=>acquire(s,'hotel','owned'),INITIAL_STATE);if(e.district.businesses.hotel){milestones.secondBusiness=week;e=applyDistrictUpdate(e,s=>lendCash(s,'diner','hotel',1600,40,'operating'),INITIAL_STATE);for(const role of ['care','service','maintenance','manager'] as const)e=applyDistrictUpdate(e,s=>hireBusinessStaff(s,'hotel',role),INITIAL_STATE);}}
    if(e.district.businesses.hotel&&!hotelFloorBlocker(e.district.businesses.hotel,e.district)&&e.district.businesses.hotel.cash>6800){e=applyDistrictUpdate(e,s=>manageLodging(s,'hotel',{type:'floor'}),INITIAL_STATE);if(e.district.businesses.hotel.lodging!.openFloors>1)milestones.upperFloor=week;}
    e=startEmpireWeek(e);let ticks=0;
    while(e.district.week===week&&ticks<900){
@@ -59,7 +59,7 @@ test('sustained fresh career reaches earned hires, profit, menu expansion, a sec
    weeks.push({week,cash:Math.round(e.restaurants.diner.money),served:e.restaurants.diner.stats.customersServed,level:e.restaurants.diner.restaurantLevel,profit:Math.round(report.profit),hotel:e.district.businesses.hotel?.cash,hotelOccupancy:e.district.businesses.hotel?.lodging?.lastReport?.occupancy,hotelNights:e.district.businesses.hotel?.lodging?.completedNights});
    e=parseEmpireSave(JSON.stringify(e))!;assert.ok(e,'Save reload must succeed');
   }
-  writeFileSync('artifacts/career-playthrough.json',JSON.stringify({startingCash:1200,testingGrants:0,ownerActions:'Take and serve orders; clear tables; purchase stock; hire and expand through normal gates.',milestones,weeks},null,2));
+  writeFileSync('artifacts/career-playthrough.json',JSON.stringify({startingCash:250000,testingGrants:0,ownerActions:'Take and serve orders; clear tables; purchase stock; hire and expand through normal gates.',milestones,weeks},null,2));
   for(const name of ['waiter','profit','level2','secondBusiness','upperFloor'])assert.ok(milestones[name],`Career milestone not reached: ${name}; see artifacts/career-playthrough.json`);
  }finally{Math.random=originalRandom;}
 });

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {ModelParts} from '../graphics/modelParts';
 import {RoundedCarBody3D,StylizedTree3D} from './StreetAssets3D';
 import {getSignTexture} from '../graphics/surfaceMaterials';
+import {SnowSurfaceMaterial} from './SnowSurfaceMaterial';
 
 /** The small cues that make a paved block read as a lived-in street. */
 export const StreetscapeDetails3D=memo(function StreetscapeDetails3D({isNight}:{isNight:boolean}){
@@ -59,7 +60,7 @@ export const StreetscapeDetails3D=memo(function StreetscapeDetails3D({isNight}:{
  },[]);
  useEffect(()=>()=>geometry.dispose(),[geometry]);
  return <group>
-  <mesh geometry={geometry} receiveShadow><meshStandardMaterial vertexColors roughness={.84}/></mesh>
+  <mesh geometry={geometry} receiveShadow><SnowSurfaceMaterial roughness={.84}/></mesh>
   <mesh position={[58.17,1.85,12.5]}><boxGeometry args={[.045,2.4,4.2]}/><meshStandardMaterial color="#869b9f" transparent opacity={.28} roughness={.2} depthWrite={false}/></mesh>
   {([{x:-41.7,z:12.5,text:'CEDAR LANE'},{x:41.7,z:12.5,text:'MARKET STREET'},{x:8.4,z:-37.5,text:'CIVIC QUARTER'}]).map(({x,z,text})=><group key={text} position={[x,0,z]}>
    <mesh position={[0,1.85,0]}><boxGeometry args={[.08,3.6,.08]}/><meshStandardMaterial color="#586167"/></mesh>

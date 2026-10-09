@@ -6,6 +6,7 @@ import {getSignTexture,getSurfaceMaterial} from '../graphics/surfaceMaterials';
 import {RestaurantAppearance,restaurantAppearance,propertyInteriorPlacement,RESTAURANT_SHELL} from '../graphics/propertyArchitecture';
 import type {Property} from '../prototype/expansionModel';
 import type {GameState} from '../hooks/useGameLoop';
+import {SnowSurfaceMaterial} from './SnowSurfaceMaterial';
 
 /** One shell for neighborhood, exterior, and cutaway. Only visibility changes. */
 export function restaurantShellGeometry(appearance:RestaurantAppearance){
@@ -55,10 +56,10 @@ export const RestaurantShell3D=memo(function RestaurantShell3D({appearance,cutaw
   const model=useMemo(()=>restaurantShellGeometry(appearance),[appearance.wall,appearance.frame,appearance.layout,appearance.identity]);
   useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
   return <group name={`restaurant-shell-${appearance.identity}`}>
-    <mesh geometry={model.sides} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.8}/></mesh>
+    <mesh geometry={model.sides} castShadow receiveShadow><SnowSurfaceMaterial roughness={.8}/></mesh>
     <mesh geometry={model.sideGlass}><meshStandardMaterial vertexColors transparent opacity={.45} roughness={.15} metalness={.2} depthWrite={false}/></mesh>
     {!cutaway&&<group>
-      <mesh geometry={model.front} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.8}/></mesh>
+      <mesh geometry={model.front} castShadow receiveShadow><SnowSurfaceMaterial roughness={.8}/></mesh>
       <mesh geometry={model.frontGlass}><meshStandardMaterial vertexColors transparent opacity={.45} roughness={.15} metalness={.2} depthWrite={false}/></mesh>
       <mesh position={[0,8.25,23.63]}><planeGeometry args={[13,1.05]}/><meshBasicMaterial map={getSignTexture(appearance.name.toUpperCase())} transparent/></mesh>
       {[-1,1].map(side=><group key={side} position={[side*1.55,0,23]} rotation={[0,doorOpen?side*Math.PI/2:0,0]}>
@@ -68,7 +69,7 @@ export const RestaurantShell3D=memo(function RestaurantShell3D({appearance,cutaw
       </group>)}
     </group>}
     {roof&&<group>
-      <mesh position={[0,10.12,4]} castShadow receiveShadow material={getSurfaceMaterial('asphalt','#615f5a',8,8)}><boxGeometry args={[40.6,.24,38.6]}/></mesh>
+      <mesh position={[0,10.12,4]} castShadow receiveShadow><boxGeometry args={[40.6,.24,38.6]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#615f5a',8,8).map}/></mesh>
       <mesh position={[-9,10.7,-5]} castShadow><boxGeometry args={[4,1.05,3]}/><meshStandardMaterial color="#909796" roughness={.7}/></mesh>
       <mesh position={[10,10.9,-8]} castShadow><cylinderGeometry args={[.45,.45,1.5,10]}/><meshStandardMaterial color="#888b86" metalness={.3}/></mesh>
     </group>}
@@ -77,7 +78,7 @@ export const RestaurantShell3D=memo(function RestaurantShell3D({appearance,cutaw
 
 export function RestaurantProperty3D({p,state,selected,owned,labels,onSelect,isNight=false}:{p:Property;state?:GameState;selected:boolean;owned:boolean;labels:boolean;onSelect:()=>void;isNight?:boolean}){
   const placement=propertyInteriorPlacement(p),appearance=restaurantAppearance(p.id,state);
-  return <group position={placement.position} scale={placement.scale} onClick={event=>{event.stopPropagation();onSelect();}}>
+  return <group position={placement.position} scale={placement.scale} onClick={event=>{event.stopPropagation();if(event.delta<=5)onSelect();}}>
     <mesh position={[0,-.1,4]} receiveShadow><boxGeometry args={[40,.2,38]}/><meshStandardMaterial color="#b9aa94"/></mesh>
     <RestaurantShell3D appearance={appearance} isNight={isNight}/>
     {labels&&<Html position={[0,14,4]} center zIndexRange={[4,0]}><button className={`map-pin ${selected?'selected':''}`} aria-label={`Select ${p.name}`} onClick={event=>{event.stopPropagation();onSelect();}}><span className={owned?'owned-dot':'available-dot'}/>{p.name}<small>{owned?'Your business':'Available'}</small></button></Html>}

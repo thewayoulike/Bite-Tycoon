@@ -10,6 +10,7 @@ import {getSignTexture} from '../graphics/surfaceMaterials';
 import {shopType,plazaUnitName,MALL_FLOORS,MALL_FACILITIES,MALL_FLOOR_HEIGHT,PLAZA_FLOORS,type MallFacility} from '../empire/plaza';
 import {RealCharacter3D} from './RealCharacter3D';
 import {CHILDREN} from '../people-preview/cast';
+import {SnowSurfaceMaterial} from './SnowSurfaceMaterial';
 
 export const MALL_SIZE={width:24,depth:32};
 export const plazaShopPosition=(slot:number):[number,number]=>[slot%2===0?-8.25:8.25,slot<2?-7.5:7.5];
@@ -190,8 +191,8 @@ export function mallExteriorGeometry(levels:number,openFloors:number,roof=true){
 export function PlazaBuilding3D({p,floors=1,selected=false,owned=false,labels=true,onSelect,cutawayFloor,isNight=false}:{p:Property;floors?:number;selected?:boolean;owned?:boolean;labels?:boolean;onSelect?:()=>void;cutawayFloor?:number;isNight?:boolean}){
  const levels=cutawayFloor??PLAZA_FLOORS,height=levels*MALL_FLOOR_HEIGHT,model=useMemo(()=>mallExteriorGeometry(levels,floors,cutawayFloor===undefined),[levels,floors,cutawayFloor]);
  useEffect(()=>()=>{model.frame.dispose();model.glass.dispose();},[model]);
- return <group position={p.position} scale={.75} onClick={e=>{if(onSelect){e.stopPropagation();onSelect();}}}>
-  <mesh geometry={model.frame} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5} metalness={.14}/></mesh>
+ return <group position={p.position} scale={.75} onClick={e=>{if(onSelect){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
+  <mesh geometry={model.frame} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.14}/></mesh>
   <mesh geometry={model.glass}><meshPhysicalMaterial vertexColors transparent opacity={.64} roughness={.12} metalness={.3} clearcoat={1} side={THREE.DoubleSide} envMapIntensity={1.4} emissive={isNight?'#b49a78':'#000000'} emissiveIntensity={.2} depthWrite={false}/></mesh>
   {cutawayFloor===undefined&&<><Sign text="WILLOW" position={[-8.4,height-1.2,16.2]} width={5.8} height={1.2} color="#5b624e"/><Sign text="GALLERIA" position={[-8.4,height-2.28,16.2]} width={5.8} height={.75} color="#5b624e"/><Sign text="SHOP / DINE / PLAY" position={[8.4,6.5,16.3]} width={6} height={.65} color="#826e51"/><Sign text="Willow Galleria" position={[0,3.2,17.28]} width={8.8} height={.6} color="#6a604c"/>{floors<PLAZA_FLOORS&&<Sign text={`${floors} floor${floors>1?'s':''} open / more coming soon`} position={[8.4,5.65,16.3]} width={6} height={.45} color="#637176"/>}</>}
   {selected&&<mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><planeGeometry args={[24.5,32.5]}/><meshBasicMaterial color="#d8b866" transparent opacity={.22}/></mesh>}

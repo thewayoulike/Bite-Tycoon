@@ -15,6 +15,7 @@ import {retailProductFloor} from '../empire/retail';
 import {createVenue,serviceBlocker,VenueVisitor,venueRules} from '../empire/venueSimulation';
 import {LodgingBusiness3D} from '../components/LodgingBusiness3D';
 import {ShoppingPlaza3D} from '../components/ShoppingPlaza3D';
+import {SnowSurfaceMaterial} from '../components/SnowSurfaceMaterial';
 
 export type VenueInteraction='serve'|'clean'|'care'|'inventory'|'staff'|'finance'|'run'|'prices'|'bookings'|'upgrades';
 
@@ -40,7 +41,7 @@ function VenueFurniture({p}:{p:Property}){
     return m.finish();
   },[p]);
   useEffect(()=>()=>model.dispose(),[model]);
-  return <mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.72}/></mesh>;
+  return <mesh geometry={model} castShadow receiveShadow>{p.kind==='park'?<SnowSurfaceMaterial roughness={.72}/>:<meshStandardMaterial vertexColors roughness={.72}/>}</mesh>;
 }
 function Hotspot({position,title,note,onClick,disabled=false}:{position:Vec3;title:string;note:string;onClick:()=>void;disabled?:boolean}){
   return <group position={position}><Html center zIndexRange={[6,0]}><button className="venue-hotspot" disabled={disabled} onClick={e=>{e.stopPropagation();onClick();}}><strong>{title}</strong><small>{note}</small></button></Html></group>;
@@ -71,7 +72,7 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
   if(p.kind==='plaza')return <ShoppingPlaza3D b={b} floor={floor} gameSpeed={gameSpeed} interactive={interactive} onInteract={onInteract} isNight={isNight}/>;
   if(housing)return <LodgingBusiness3D p={p} b={b} floor={floor} gameSpeed={gameSpeed} interactive={interactive} onInteract={onInteract} serviceActive={serviceActive} isNight={isNight}/>;
   return <>
-    <mesh position={[0,-.16,0]} receiveShadow material={getSurfaceMaterial(park?'grass':p.kind==='shop'?'concrete':'wood',park?'#869f68':p.kind==='hotel'?'#ba9c78':p.kind==='shop'?'#d0cabe':'#bbac93',7,7)}><boxGeometry args={[park?22:18,.3,park?18:20]}/></mesh>
+    <mesh position={[0,-.16,0]} receiveShadow><boxGeometry args={[park?22:18,.3,park?18:20]}/>{park?<SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('grass','#788068',7,7).map}/>:<primitive attach="material" object={getSurfaceMaterial(p.kind==='shop'?'concrete':'wood',p.kind==='shop'?'#d0cabe':'#bbac93',7,7)}/>}</mesh>
     {p.kind==='shop'?(floor===1&&b.retail?.electronicsUnlocked?<ElectronicsInterior3D b={b}/>:<SupermarketInterior3D b={b}/>):<VenueFurniture p={p}/>}
     {park?<><ParkFountain3D position={[0,0,-.5]}/>{[-9,9].flatMap((x,i)=>[-7,7].map((z,j)=><StylizedTree3D key={`${x}:${z}`} position={[x,0,z]} seed={i+j} scale={1}/>))}<mesh position={[0,.015,0]} rotation={[-Math.PI/2,0,0]}><ringGeometry args={[4.5,6.2,48]}/><meshStandardMaterial color="#c8c1ad"/></mesh><mesh position={[0,.02,4.5]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2.4,9]}/><meshStandardMaterial color="#c8c1ad"/></mesh></>:<>
       <mesh position={[0,1.7,-10]} receiveShadow><boxGeometry args={[18,3.4,.2]}/><meshStandardMaterial color={p.kind==='shop'?'#e5e2d9':'#d9dfcf'}/></mesh>

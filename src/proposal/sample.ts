@@ -1,4 +1,5 @@
 import {INITIAL_STATE, advanceGame} from '../hooks/useGameLoop';
+import {weatherForDay,type WeatherKind} from '../empire/weather';
 import type {GameState} from '../hooks/useGameLoop';
 import {createEmpire, unlockTestDistrict, districtView, startEmpireWeek, advanceEmpire, setEmpireSpeed} from '../empire/empire';
 import type {EmpireState} from '../empire/empire';
@@ -30,7 +31,7 @@ export function proposalVersion(sample:EmpireState,after:boolean){
 }
 
 /** A new, disposable estate. This module never accesses the browser's save storage. */
-export function createProposalSample(level:number,restaurantTypes:RestaurantAssignments=DEFAULT_RESTAURANT_TYPES,night=false){
+export function createProposalSample(level:number,restaurantTypes:RestaurantAssignments=DEFAULT_RESTAURANT_TYPES,night=false,weather?:WeatherKind){
   const n=Math.max(0,Math.min(5,level-1));
   let empire=unlockTestDistrict(createEmpire(structuredClone(INITIAL_STATE)),INITIAL_STATE);
   empire.district.weatherSeed=1221;
@@ -87,5 +88,8 @@ export function createProposalSample(level:number,restaurantTypes:RestaurantAssi
     empire.restaurants[id]={...ready,floatingEvents:[]};
   }
   empire.district=districtView(empire);
+  if(weather){
+    for(let seed=1;seed<10000;seed++)if(weatherForDay(empire.district.week,empire.district.day,seed).kind===weather){empire.district.weatherSeed=seed;break;}
+  }
   return setEmpireSpeed(empire,0);
 }
