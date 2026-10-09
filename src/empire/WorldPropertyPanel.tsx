@@ -19,10 +19,10 @@ import {protectedObligations} from './cashProtection';
 import {businessSupplies} from '../prototype/expansionModel';
 const money=(n:number)=>n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
 export function WorldPropertyPanel({id,state,restaurants,onChange,onEnter,onClose,initialTab='run',inside=false,selectedUnit}:{id:string;state:ExpansionState;restaurants:Record<string,GameState>;onChange:(f:(s:ExpansionState)=>ExpansionState)=>void;onEnter:(id:string,section?:RestaurantSection)=>void;onClose:()=>void;initialTab?:ManagementTab;inside?:boolean;selectedUnit?:number}){
-  const[tenure,setTenure]=useState<'owned'|'leased'>(canLease(propertyById(id)!.kind)?'leased':'owned'),[funding,setFunding]=useState('diner');
+  const[tenure,setTenure]=useState<'owned'|'leased'>(canLease(propertyById(id,state.businesses[id])!.kind)?'leased':'owned'),[funding,setFunding]=useState('diner');
   const[term,setTerm]=useState<10|20|40>(40);
   const[restaurantType,setRestaurantType]=useState(defaultRestaurantType(id));
-  const definition=propertyById(id)!,business=state.businesses[id],restaurant=restaurants[id];
+  const definition=propertyById(id,state.businesses[id])!,business=state.businesses[id],restaurant=restaurants[id];
   const p=restaurant?{...definition,capacity:restaurant.tables.length*4,wages:weeklyWages(restaurant.staff)}:definition;
   const source=state.businesses[funding]?funding:'diner',sourceCash=state.businesses[source]?.cash??0;
   const cost=(tenure==='owned'?p.buy:p.deposit)+OPENING_CASH;
@@ -51,9 +51,9 @@ export function WorldPropertyPanel({id,state,restaurants,onChange,onEnter,onClos
 export function WorldWeekReport({state,restaurants={},onClose}:{state:ExpansionState;restaurants?:Record<string,GameState>;onClose:()=>void}){
  const[period,setPeriod]=useState<'week'|'last'>('week'),[selected,setSelected]=useState('diner');
  const closed=period==='last';
- const reports=closed?(state.closedWeek?.reports??[]):Object.keys(state.businesses).map(id=>propertyById(id)!).map(p=>weeklyProfitLoss(p,state.businesses[p.id],state,restaurants[p.id]));
+ const reports=closed?(state.closedWeek?.reports??[]):Object.keys(state.businesses).map(id=>propertyById(id,state.businesses[id])!).map(p=>weeklyProfitLoss(p,state.businesses[p.id],state,restaurants[p.id]));
  const legacy=closed&&!state.closedWeek;
- const rows=legacy?state.report.map(r=>({...r,name:propertyById(r.id)?.name??r.id,partial:false,cogs:null,other:null})):reports.map(r=>({...r,other:r.overhead-r.wages}));
+ const rows=legacy?state.report.map(r=>({...r,name:propertyById(r.id,state.businesses[r.id])?.name??r.id,partial:false,cogs:null,other:null})):reports.map(r=>({...r,other:r.overhead-r.wages}));
  const detail=reports.find(r=>r.id===selected)??reports[0];
  const eliminated=closed?(state.closedWeek?.internalRent??0):internalRentForWeek(state,state.week);
  const total=(key:'revenue'|'cogs'|'wages'|'other'|'profit'|'cash')=>rows.reduce((sum,r)=>sum+(r[key]??0),0)-(['revenue','other'].includes(key)?eliminated:0);

@@ -1,3 +1,4 @@
+import {showPropertyLabel} from '../empire/propertyMarket';
 import {OuterRoads3D} from '../components/OuterRoads3D';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -119,14 +120,14 @@ return <CitySnowContext.Provider value={snow}>
     <IndustrialSmoke3D isNight={isNight}/>
     {labels&&[
       {name:'Cedar residential district',note:'Homes · gardens · local streets',position:[-145,12,25]},
-      {name:'Market commercial district',note:market?'Commercial sites · click to buy & build':'Shops · offices · main streets',position:[145,25,30]},
+      {name:'Market commercial district',note:market?'Blue: lease · Gold: business for sale · Green: land':'Shops · offices · main streets',position:[145,25,30]},
       {name:'Northgate industrial district',note:'Future industrial expansion · scenery only',position:[165,12,-168]},
     ].map(area=><Html key={area.name} position={area.position as [number,number,number]} center zIndexRange={[2,0]} style={{pointerEvents:'none'}}><div className="city-district-label"><strong>{area.name}</strong><small>{area.note}</small></div></Html>)}
     <SharedBlocks/><StreetscapeDetails3D isNight={isNight}/>
     <NeighborhoodDistricts3D isNight={isNight} snow={snow} developments={!!market} developmentKey={developmentKey} onSelect={onSelect}/>
-    {market&&<CommercialPlots3D developmentKey={developmentKey} onSelect={onSelect} labels={labels}/>}
+    {market&&<CommercialPlots3D listingSeed={market.listingSeed} developmentKey={developmentKey} onSelect={onSelect} labels={labels}/>}
     <PublicGarden labels={businessLabels} gameSpeed={gameSpeed} isNight={isNight}/>
-    {[...PROPERTIES,...Object.values(market?.parcels??{}).map(id=>propertyById(id!)!)].filter(p=>p.id!==interiorId).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={businessLabels||(labels&&p.id.startsWith('built-'))} onSelect={()=>onSelect(p.id)}/>)}
+    {[...PROPERTIES,...Object.values(market?.parcels??{}).map(id=>propertyById(id!)!)].filter(p=>p.id!==interiorId).map(p=>propertyById(p.id,businesses[p.id])!).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors??(p.id.startsWith('built-')&&p.kind==='shop'?(businesses[p.id]?.retail?.electronicsUnlocked?1:0):undefined)} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)}/>)}
     {[-25,0,25].flatMap(x=>[-25,0,25].filter(z=>!(x===0&&(z===0||z===-25))).map((z,i)=><StylizedTree3D key={`${x}:${z}`} position={[x+8.65,.1,z+6.5]} seed={i} scale={.75}/>))}
     <Car isNight={isNight} gameSpeed={gameSpeed}/><Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-14,14,-14,39]} offset={45} color="#b88d62"/><Car isNight={isNight} gameSpeed={gameSpeed} offset={85} color="#92534b"/>
     <Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-64,64,-64,64]} offset={140} color="#bab7ae"/><Car isNight={isNight} gameSpeed={gameSpeed} bounds={[-61,61,-61,61]} offset={40} color="#626d78"/>

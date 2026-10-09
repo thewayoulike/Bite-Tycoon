@@ -49,11 +49,19 @@ export function restaurantShellGeometry(appearance:RestaurantAppearance){
   front.box([0,6.5,23],[3.5,.2,.55],appearance.frame);
   front.box([0,8.25,23.5],[14,1.5,.22],appearance.frame);
   for(const x of [-10.5,10.5])front.box([x,7.2,24.15],[8.2,.18,2.7],appearance.identity==='bistro'?'#687252':appearance.identity==='cafe'?'#8d9479':'#8f5b4a',[-.1,0,0]);
+  if(appearance.design==='modern'){
+    front.box([0,9.9,24],[39,.22,2.4],appearance.frame);
+    for(const x of [-18,-9,9,18])front.box([x,5,23.5],[.16,10,.18],appearance.frame);
+  }
+  if(appearance.design==='garden'){
+    for(let x=-18;x<=18;x+=1.2)front.box([x,8.9,24],[.16,1.7,2.4],'#92714e');
+    for(const x of [-17,17]){front.box([x,.65,24],[4,1.3,1.3],'#a69a83');for(const dx of [-1.4,-.7,0,.7,1.4])front.ellipsoid([x+dx,1.6,24],[.65,.55,.6],'#637754');}
+  }
   return {sides:sides.finish(),front:front.finish(),sideGlass:sideGlass.finish(),frontGlass:frontGlass.finish()};
 }
 
 export const RestaurantShell3D=memo(function RestaurantShell3D({appearance,cutaway=false,roof=true,isNight=false,doorOpen=false}:{appearance:RestaurantAppearance;cutaway?:boolean;roof?:boolean;isNight?:boolean;doorOpen?:boolean}){
-  const model=useMemo(()=>restaurantShellGeometry(appearance),[appearance.wall,appearance.frame,appearance.layout,appearance.identity]);
+  const model=useMemo(()=>restaurantShellGeometry(appearance),[appearance.wall,appearance.frame,appearance.layout,appearance.identity,appearance.design]);
   useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
   return <group name={`restaurant-shell-${appearance.identity}`}>
     <mesh geometry={model.sides} castShadow receiveShadow><SnowSurfaceMaterial roughness={.8}/></mesh>
@@ -76,8 +84,8 @@ export const RestaurantShell3D=memo(function RestaurantShell3D({appearance,cutaw
   </group>;
 });
 
-export function RestaurantProperty3D({p,state,selected,owned,labels,onSelect,isNight=false}:{p:Property;state?:GameState;selected:boolean;owned:boolean;labels:boolean;onSelect:()=>void;isNight?:boolean}){
-  const placement=propertyInteriorPlacement(p),appearance=restaurantAppearance(p.id,state);
+export function RestaurantProperty3D({p,state,selected,owned,labels,onSelect,isNight=false}:{p:Property;state?:Partial<Pick<GameState,'restaurantIdentity'|'wallColor'|'frameColor'|'restaurantLayout'>>;selected:boolean;owned:boolean;labels:boolean;onSelect:()=>void;isNight?:boolean}){
+  const placement=propertyInteriorPlacement(p),appearance=restaurantAppearance(p.id,state,p);
   return <group position={placement.position} scale={placement.scale} onClick={event=>{event.stopPropagation();if(event.delta<=5)onSelect();}}>
     <mesh position={[0,-.1,4]} receiveShadow><boxGeometry args={[40,.2,38]}/><meshStandardMaterial color="#b9aa94"/></mesh>
     <RestaurantShell3D appearance={appearance} isNight={isNight}/>

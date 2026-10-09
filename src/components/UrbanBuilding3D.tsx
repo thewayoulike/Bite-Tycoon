@@ -93,18 +93,23 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
    metal.box([x,height+1.17,5.805],[.045,1.14,.04],style.frame);
    metal.box([x,height+1.96,5.4],[1.78,.1,.9],'#444b50');
   }
+  if(p.design==='modern')for(const x of [-6.3,-3.14,0,3.14,6.3])metal.box([x,height/2,6.34],[.12,height,.22],style.frame);
+  if(p.design==='garden'){
+    for(const x of [-5.9,5.9])for(let y=3.2;y<height;y+=.44)metal.box([x,y,6.5],[1.2,.14,.3],'#967654');
+    if(!cutaway)for(const x of [-5.8,5.8]){stone.box([x,height+.45,0],[1,.6,10],style.trim);for(let z=-4.4;z<=4.4;z+=.8)metal.ellipsoid([x,height+.9,z],[.55,.45,.55],'#677c58');}
+  }
   // Air-conditioning units on the less prominent side wall.
   if(!hotel)for(let y=4;y<height;y+=5.7){metal.box([6.91,y,-3],[.45,.65,1],'#91928b');for(let i=0;i<5;i++)metal.box([7.15,y-.23+i*.1,-3],[.02,.025,.78],'#515859');}
   lit.box([0,2.7,6.25],[1.2,.12,.05],'#c4b295');
   return {stone:stone.finish(),metal:metal.finish(),glass:glass.finish(),rooms:rooms.finish(),lit:lit.finish()};
- },[seed,floors,height,modern,hotel,residential,mansard,p.id,style,cutaway,groundHeight]);
+ },[seed,floors,height,modern,hotel,residential,mansard,p.id,p.design,style,cutaway,groundHeight]);
  useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
  return <group position={p.position} scale={scale} onClick={e=>{if(interactive){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
   <mesh position={[0,.102,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[17.2,16]}/><meshBasicMaterial map={getContactShadow()} transparent opacity={.48} depthWrite={false}/></mesh>
   <mesh position={[0,height/2,0]} material={getSurfaceMaterial(style.surface,style.wall,3.6,height/2.4)} castShadow receiveShadow><boxGeometry args={[13.4,height,12.2]}/></mesh>
   {!cutaway&&<mesh position={[0,height+.04,0]} receiveShadow><boxGeometry args={[13.2,.1,12]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#555354',4,4).map}/></mesh>}
   {mansard&&!cutaway&&<group position={[0,height+1.3,0]} scale={[9.48,1,8.63]}><mesh rotation={[0,Math.PI/4,0]} castShadow receiveShadow><cylinderGeometry args={[.64,1,2.2,4,1,true]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#44494d',6,2).map}/></mesh></group>}
-  {mansard&&<mesh position={[0,height+2.41,0]}><boxGeometry args={[8.58,.08,7.82]}/><SnowSurfaceMaterial vertexColors={false} color="#4e5354" roughness={.9}/></mesh>}
+  {mansard&&!cutaway&&<mesh position={[0,height+2.41,0]}><boxGeometry args={[8.58,.08,7.82]}/><SnowSurfaceMaterial vertexColors={false} color="#4e5354" roughness={.9}/></mesh>}
   <mesh geometry={model.stone} castShadow receiveShadow><SnowSurfaceMaterial roughness={.89}/></mesh>
   <mesh geometry={model.metal} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.28}/></mesh>
   <mesh geometry={model.rooms}><meshStandardMaterial vertexColors roughness={.87}/></mesh>

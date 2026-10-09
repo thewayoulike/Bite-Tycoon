@@ -1,3 +1,4 @@
+import {buildingDesign,type BuildingDesignId} from '../empire/buildingDesigns';
 import {mallFacilityCoverage,mallRoleCoverage} from '../empire/mallDepth';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useFrame} from '@react-three/fiber';
@@ -133,9 +134,9 @@ export function ShoppingPlaza3D({b,floor,gameSpeed,interactive,onInteract,isNigh
  </>;
 }
 /** Shared signature architecture: stone wings, a bowed glass atrium and a barrel-vault skylight. */
-export function mallExteriorGeometry(levels:number,openFloors:number,roof=true){
+export function mallExteriorGeometry(levels:number,openFloors:number,roof=true,designId?:BuildingDesignId){
  const m=new ModelParts(),glass=new ModelParts(),height=levels*MALL_FLOOR_HEIGHT;
- const bronze='#9b805b',stone='#d0c3ae',frame='#536269';
+ const design=buildingDesign(designId),bronze=design?.frame??'#9b805b',stone=design?.wall??'#d0c3ae',frame=design?.frame??'#536269';
  m.box([0,-.06,0],[24.3,.12,32.3],'#bdb3a2');
  for(let i=0;i<levels;i++){
   const y=i*MALL_FLOOR_HEIGHT,lit=i<openFloors;
@@ -156,6 +157,7 @@ export function mallExteriorGeometry(levels:number,openFloors:number,roof=true){
   for(let x=-11.5;x<=12;x+=2.8)m.box([x,y+2.55,-15.85],[.08,4.55,.12],frame);
   if(lit){for(const x of [-8,8])for(const z of [-10,8])m.box([x,y+1.3,z],[3,1.1,1.2],'#ac9676');for(const x of [-3.2,3.2])m.box([x,y+4.55,0],[.12,.06,29],'#e1cfa6');}
  }
+ if(designId==='garden')for(const x of [-10,-8,-6,6,8,10])m.box([x,height/2,16.05],[.16,height,.55],'#99744e');
  // Stone piers frame the full-height entrance rather than repeating an office-window grid.
  for(const x of [-11.85,-4.9,4.9,11.85])m.box([x,height/2,15.82],[.5,height,.55],stone);
  for(const x of [-12.15,12.15])for(let z=-14;z<16;z+=4.2)m.box([x,height/2,z],[.24,height,.65],bronze);
@@ -170,7 +172,10 @@ export function mallExteriorGeometry(levels:number,openFloors:number,roof=true){
  if(roof){
   // Two planted roof terraces flank a large curved skylight.
   for(const x of [-8.45,8.45]){m.box([x,height+.12,0],[7.3,.25,32],'#c5b59d');m.box([x,height+.35,0],[6.1,.18,28],'#b8a07d');for(const z of [-14.5,14.5]){m.box([x,height+.55,z],[6.25,.8,.7],stone);for(let k=0;k<9;k++)m.ellipsoid([x-2.6+k*.65,height+1.08,z],[.38,.4,.35],'#728164');}for(const z of [-6,6]){m.box([x,height+.65,z],[3.4,.18,1.2],'#9c8160');for(const dx of [-1.4,1.4])m.box([x+dx,height+.36,z],[.1,.6,.8],bronze);}}
-  for(let n=0;n<16;n++){
+  if(designId==='modern'){
+   glass.box([0,height+.25,0],[9.3,.08,31],'#b7cbd3');
+   for(let z=-15;z<=15;z+=3)m.box([0,height+.3,z],[9.5,.1,.08],frame);
+  }else for(let n=0;n<16;n++){
    const a=n*Math.PI/16,b=(n+1)*Math.PI/16,x1=Math.cos(a)*4.65,x2=Math.cos(b)*4.65,y1=height+.25+Math.sin(a)*2.8,y2=height+.25+Math.sin(b)*2.8;
    const length=Math.hypot(x2-x1,y2-y1),angle=Math.atan2(y2-y1,x2-x1);
    glass.box([(x1+x2)/2,(y1+y2)/2,0],[length,.045,31],'#a2bec9',[0,0,angle]);
@@ -189,12 +194,12 @@ export function mallExteriorGeometry(levels:number,openFloors:number,roof=true){
  return {frame:m.finish(),glass:levels>0?glass.finish():new THREE.BufferGeometry()};
 }
 export function PlazaBuilding3D({p,floors=1,selected=false,owned=false,labels=true,onSelect,cutawayFloor,isNight=false}:{p:Property;floors?:number;selected?:boolean;owned?:boolean;labels?:boolean;onSelect?:()=>void;cutawayFloor?:number;isNight?:boolean}){
- const levels=cutawayFloor??PLAZA_FLOORS,height=levels*MALL_FLOOR_HEIGHT,model=useMemo(()=>mallExteriorGeometry(levels,floors,cutawayFloor===undefined),[levels,floors,cutawayFloor]);
+ const levels=cutawayFloor??(p.id.startsWith('built-')?floors:PLAZA_FLOORS),height=levels*MALL_FLOOR_HEIGHT,model=useMemo(()=>mallExteriorGeometry(levels,floors,cutawayFloor===undefined,p.design),[levels,floors,cutawayFloor,p.design]);
  useEffect(()=>()=>{model.frame.dispose();model.glass.dispose();},[model]);
  return <group position={p.position} scale={.75} onClick={e=>{if(onSelect){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
   <mesh geometry={model.frame} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.14}/></mesh>
   <mesh geometry={model.glass}><meshPhysicalMaterial vertexColors transparent opacity={.64} roughness={.12} metalness={.3} clearcoat={1} side={THREE.DoubleSide} envMapIntensity={1.4} emissive={isNight?'#b49a78':'#000000'} emissiveIntensity={.2} depthWrite={false}/></mesh>
-  {cutawayFloor===undefined&&<><Sign text="WILLOW" position={[-8.4,height-1.2,16.2]} width={5.8} height={1.2} color="#5b624e"/><Sign text="GALLERIA" position={[-8.4,height-2.28,16.2]} width={5.8} height={.75} color="#5b624e"/><Sign text="SHOP / DINE / PLAY" position={[8.4,6.5,16.3]} width={6} height={.65} color="#826e51"/><Sign text="Willow Galleria" position={[0,3.2,17.28]} width={8.8} height={.6} color="#6a604c"/>{floors<PLAZA_FLOORS&&<Sign text={`${floors} floor${floors>1?'s':''} open / more coming soon`} position={[8.4,5.65,16.3]} width={6} height={.45} color="#637176"/>}</>}
+  {cutawayFloor===undefined&&<><Sign text={p.name} position={[-8.4,height-1.2,16.2]} width={5.8} height={1.2} color="#5b624e"/><Sign text="SHOPPING MALL" position={[-8.4,height-2.28,16.2]} width={5.8} height={.75} color="#5b624e"/><Sign text="SHOP / DINE / PLAY" position={[8.4,Math.min(6.5,height-1.2),16.3]} width={6} height={.65} color="#826e51"/><Sign text={p.name} position={[0,3.2,17.28]} width={8.8} height={.6} color="#6a604c"/>{floors<PLAZA_FLOORS&&<Sign text={`${floors} floor${floors>1?'s':''} open / more coming soon`} position={[8.4,Math.min(5.65,height-2),16.3]} width={6} height={.45} color="#637176"/>}</>}
   {selected&&<mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><planeGeometry args={[24.5,32.5]}/><meshBasicMaterial color="#d8b866" transparent opacity={.22}/></mesh>}
   {labels&&onSelect&&<Html position={[0,height+3.5,0]} center zIndexRange={[4,0]}><button className={`map-pin ${selected?'selected':''}`} aria-label={`Select ${p.name}`} onClick={onSelect}><span className={owned?'owned-dot':'available-dot'}/>{p.name}<small>{owned?`${floors} / ${PLAZA_FLOORS} mall floors open`:'Shopping mall · available'}</small></button></Html>}
  </group>;

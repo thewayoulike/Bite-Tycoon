@@ -92,7 +92,7 @@ test('opening purchase accounts reconcile; second property is funded by a separa
 test('legacy saves retain their cash and existing lease contracts; empty new careers reload',()=>{
  const old=createEmpire(structuredClone(INITIAL_STATE)),cash=old.restaurants.diner.money;
  const loaded=parseEmpireSave(JSON.stringify(old))!;assert.equal(loaded.restaurants.diner.money,cash);assert.equal(loaded.district.market,undefined);
- assert.deepEqual(parseEmpireSave(JSON.stringify(fresh()))?.district.market,fresh().district.market);
+ const newCareer=fresh();assert.deepEqual(parseEmpireSave(JSON.stringify(newCareer))?.district.market,newCareer.district.market);
 });
 
 test('a legacy constructed mall stays usable and its shops still use it as their landlord',()=>{

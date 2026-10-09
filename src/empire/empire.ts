@@ -1,4 +1,6 @@
-import {FAST_TRACK_CASH,constructionIdentity,earnedPlayerLevel,totalRentLiability,weeklyLeaseExpense} from './propertyMarket';
+import {buildingDesign,cleanBusinessName} from './buildingDesigns';
+import {expansionFunding} from './expansionFunding';
+import {FAST_TRACK_CASH,marketSiteIdentity,earnedPlayerLevel,totalRentLiability,weeklyLeaseExpense} from './propertyMarket';
 import {restaurantDepth} from '../career/restaurant';
 import {settleInternalRent,internalRentForWeek,advanceTenantTrade,closeTenantTurnover} from '../career/mallCompanies';
 import {ensureCrew} from '../career/crew';
@@ -63,7 +65,7 @@ export function createEmpire(diner:GameState):EmpireState {
 /** A fresh career owns no business until the player chooses one. */
 export function createFastTrackEmpire(starter:GameState):EmpireState {
  const base=createEmpire(starter);
- return {...base,restaurants:{},clock:{time:0,phase:'planning'},initialDinerCash:0,district:{...base.district,week:1,day:1,businesses:{},payroll:[],report:[],market:{version:1,ownerCash:FAST_TRACK_CASH,startingCapital:FAST_TRACK_CASH,level:1,parcels:{}},notice:'Choose your first property. Your $250,000 investment includes its opening stock and fit-out.'}};
+ return {...base,restaurants:{},clock:{time:0,phase:'planning'},initialDinerCash:0,district:{...base.district,week:1,day:1,businesses:{},payroll:[],report:[],market:{version:1,ownerCash:FAST_TRACK_CASH,startingCapital:FAST_TRACK_CASH,level:1,parcels:{},listingSeed:base.district.weatherSeed},notice:'Choose an empty shop to lease, an operating business to buy, or land to build on. Review the full opening cost before you commit.'}};
 }
 
 /** Restaurant money is authoritative; the district is a view of those accounts. */
@@ -108,10 +110,19 @@ export function applyDistrictUpdate(empire:EmpireState,update:(s:ExpansionState)
   const view=districtView(empire),changed=update(view);
   const acquired=Object.keys(changed.businesses).filter(id=>!view.businesses[id]);
   if(acquired.length&&(Object.values(empire.restaurants).some(r=>r.phase!=='planning')||Object.values(view.businesses).some(b=>b.venue?.running)))return {...empire,district:{...empire.district,notice:'Finish the current week before acquiring another property.'}};
+  if(acquired.length&&view.market){
+    for(const loan of changed.loans.filter(l=>!view.loans.some(old=>old.id===l.id)&&acquired.includes(l.to))){
+      const funding=expansionFunding(view,loan.from,empire.restaurants[loan.from]);
+      if(loan.principal>funding.available+.001)return {...empire,district:{...view,notice:'Keep cash for the lender’s bills, next week’s wages, stock and buffer. Available to lend: $'+funding.available.toFixed(2)+'.'}};
+    }
+  }
   const restaurants={...empire.restaurants};
   for(const [id,b] of Object.entries(changed.businesses)) {
     if(restaurants[id])restaurants[id]={...restaurants[id],money:b.cash};
-    else if(isRestaurant(id))restaurants[id]=openingRestaurant(starter,b.cash,view.week,id,empire.speed,b.restaurantType);
+    else if(isRestaurant(id)){
+      const opened=openingRestaurant(starter,b.cash,view.week,id,empire.speed,b.restaurantType),design=buildingDesign(b.design);
+      restaurants[id]=design?{...opened,wallColor:design.wall,frameColor:design.frame,restaurantLayout:design.id==='modern'?4:0}:opened;
+    }
     if(isVenue(propertyById(id)!)&&!b.venue)changed.businesses[id]={...b,venue:createVenue(propertyById(id)!)};
   }
   const next={...empire,activeRestaurantId:!Object.keys(view.businesses).length&&acquired.length?acquired[0]:empire.activeRestaurantId,restaurants,district:changed};
@@ -232,12 +243,16 @@ export function parseEmpireSave(raw:string|null):EmpireState|null {
       const m=value.district.market;
       if(m.version!==1||!Number.isFinite(m.ownerCash)||m.ownerCash<0||!Number.isFinite(m.startingCapital)||!Number.isInteger(m.level)||m.level<1||!m.parcels)return null;
       if(Object.keys(value.district.businesses).length&&!value.district.businesses[value.activeRestaurantId])return null;
-      if(Array.isArray(m.parcels)||typeof m.parcels!=='object'||Object.entries(m.parcels).some(([plot,id])=>typeof id!=='string'||constructionIdentity(id)?.plot.id!==plot||!value.district.businesses[id]))return null;
-      if(Object.keys(value.district.businesses).some(id=>{const built=constructionIdentity(id);return built&&m.parcels[built.plot.id]!==id;}))return null;
+      if(Array.isArray(m.parcels)||typeof m.parcels!=='object'||Object.entries(m.parcels).some(([plot,id])=>typeof id!=='string'||marketSiteIdentity(id)?.plot.id!==plot||!value.district.businesses[id]))return null;
+      if(Object.keys(value.district.businesses).some(id=>{const built=marketSiteIdentity(id);return built&&m.parcels[built.plot.id]!==id;}))return null;
       if(value.clock&&(!Number.isFinite(value.clock.time)||value.clock.time<0||value.clock.time>100||!['planning','service'].includes(value.clock.phase)))return null;
     }
     for(const [id,r] of Object.entries(value.restaurants))if(!isRestaurant(id)||!Number.isFinite(r.money)||!Array.isArray(r.tables)||!Array.isArray(r.recipes)||!r.staff||!r.inventory||!r.weekStats||!Array.isArray(r.pendingPayroll)||!['planning','service','closing'].includes(r.phase))return null;
-    for(const [id,b] of Object.entries(value.district.businesses))if(!propertyById(id)||!Number.isFinite(b.cash)||!Array.isArray(b.ledger))return null;
+    for(const [id,b] of Object.entries(value.district.businesses)){
+      if(!propertyById(id)||!Number.isFinite(b.cash)||!Array.isArray(b.ledger))return null;
+      if(b.name!==undefined){const name=cleanBusinessName(b.name);if(!name)return null;b.name=name;}
+      if(b.design!==undefined&&!buildingDesign(b.design))return null;
+    }
     for(const [id,b] of Object.entries(value.district.businesses))if(isVenue(propertyById(id)!)&&!b.venue)value.district.businesses[id]={...b,venue:createVenue(propertyById(id)!)};
     for(const [id,r] of Object.entries(value.restaurants)){
       if(r.restaurantType!==undefined&&!validRestaurantType(r.restaurantType))return null;

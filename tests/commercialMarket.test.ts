@@ -47,14 +47,14 @@ test('remote restaurant and supermarket open ready; occupied plots cannot be bou
  const gated=open(fresh(),builtPropertyId(plot.id,'hotel'));assert.equal(Object.keys(gated.district.businesses).length,0);
 });
 
-test('mall is purchasable at Level 5 but cannot be built or leased through any acquisition path',()=>{
+test('mall can be bought or constructed on a large site at Level 5, but never leased',()=>{
  let e=fresh();e.district.market!.level=5;
- for(const id of ['built-large-plaza',builtPropertyId(remote[0].id,'plaza')]){
-   assert.equal(canConstruct(id),false);assert.equal(Object.keys(open(e,id).district.businesses).length,0);
-   assert.equal(Object.keys(acquireMarketProperty(e.district,id,'owned','').businesses).length,0);
-   const legacy=initialExpansion(100000);assert.equal(acquire(legacy,id,'owned').businesses[id],undefined);
- }
- assert.ok(LAND_PLOTS.every(p=>!p.kinds.includes('plaza')));assert.ok(propertyById('built-large-plaza'),'Old saves must remain readable');
+ assert.equal(canConstruct('built-large-plaza'),true);
+ assert.equal(canConstruct(builtPropertyId(remote[0].id,'plaza')),false,'A mall must fit its site');
+ const built=open(e,'built-large-plaza');assert.equal(built.district.businesses['built-large-plaza'].plaza!.openFloors,1);
+ assert.equal(acquire(e.district,'built-large-plaza','leased','').businesses['built-large-plaza'],undefined);
+ const gated=open(fresh(),'built-large-plaza');assert.equal(gated.district.businesses['built-large-plaza'],undefined);
+ const legacy=initialExpansion(100000);assert.equal(acquire(legacy,'built-large-plaza','owned').businesses['built-large-plaza'],undefined);
  assert.equal(acquire(e.district,'park','leased','').businesses.park,undefined);
  e=open(e,'park');assert.ok(e.district.businesses.park);assert.equal(e.district.businesses.park.plaza!.openFloors,1);assert.equal(e.district.businesses.park.acquisition!.method,'purchase');
 });

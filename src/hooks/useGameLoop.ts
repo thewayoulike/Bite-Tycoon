@@ -1,3 +1,4 @@
+import {saveRevision,canWriteSave} from '../empire/saveSlots';
 import {advanceRestaurantDepth,restaurantDepth,recipeStation} from '../career/restaurant';
 import {advanceCrew,crewPremium,available} from '../career/crew';
 import {ensureRestaurantStockroom,advanceRestaurantStockroom,orderRestaurantStock,setRestaurantReorder} from '../inventory/restaurantStockroom';
@@ -914,6 +915,8 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     const fresh = () => options.startingEmpire ? structuredClone(options.startingEmpire) : createEmpire(structuredClone(options.startingState ?? INITIAL_STATE));
     boot.current = options.persist === false ? { empire: fresh(), writeKey: saveKey, kept: false } : loadPersistedEmpire(saveKey, fresh);
   }
+  const revisionRef=useRef<string|null|undefined>(undefined);
+  if(revisionRef.current===undefined){try{revisionRef.current=options.persist===false?null:saveRevision(localStorage,saveKey);}catch{revisionRef.current=null;}}
   const writeKeyRef = useRef(boot.current.writeKey);
   const tabRef = useRef(tabId());
   const leaderRef = useRef(false);
@@ -954,11 +957,13 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     if(options.persist===false)return;
     const save=()=>{
       if (!leaderRef.current) return;
+      try{if(!canWriteSave(localStorage,saveKey,revisionRef.current??null))return;}catch{return;}
       const value=JSON.stringify(stateRef.current);
       if(value===lastSavedRef.current)return;
       try{localStorage.setItem(writeKeyRef.current,value);lastSavedRef.current=value;setSaveError(false);}catch{setSaveError(true);}
     };
     const sync=(event:StorageEvent)=>{
+      if(event.key===saveKey+'-revision'&&event.newValue!==revisionRef.current){window.location.reload();return;}
       if(event.key!==writeKeyRef.current||!event.newValue||event.newValue===lastSavedRef.current||leaderRef.current)return;
       const saved=parseEmpireSave(event.newValue);if(!saved)return;
       lastSavedRef.current=event.newValue;stateRef.current=saved;setEmpire(saved);
@@ -989,6 +994,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
     }
     const hidden = typeof document !== 'undefined' && document.hidden;
     if (options.persist !== false && typeof localStorage !== 'undefined') {
+      try{if(!canWriteSave(localStorage,saveKey,revisionRef.current??null)){leaderRef.current=false;lastTickRef.current=now;if(!localStorage.getItem(saveKey+'-resetting'))window.location.reload();return;}}catch{/* Keep playing when storage is unavailable. */}
       let lock = null as ReturnType<typeof readLeaderLock>;
       try { lock = readLeaderLock(localStorage.getItem(lockKey)); } catch { lock = null; }
       const action = leaderAction(lock, tabRef.current, now, hidden);

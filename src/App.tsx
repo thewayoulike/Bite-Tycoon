@@ -69,7 +69,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const [selectedUnit,setSelectedUnit]=useState<number|undefined>();
   const [showDistrictReport,setShowDistrictReport]=useState(false);
   const [insideVenue,setInsideVenue]=useState<string|null>(null);
-  const [showWelcome, setShowWelcome] = useState(!prototype&&state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
+  const [showWelcome, setShowWelcome] = useState(!prototype&&!district.market&&state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
   const [isMuted, setIsMuted] = useState(false);
   const headerRef=useRef<HTMLElement|null>(null);
   const [hudBottom,setHudBottom]=useState(96);
@@ -99,7 +99,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const dayOfWeek = clock.day;
   const allPlanning=Object.values(empire.restaurants).every(r=>r.phase==='planning')&&!Object.values(district.businesses).some(b=>b.venue?.running);
   const shownId=focusedProperty??empire.activeRestaurantId;
-  const shownProperty=propertyById(shownId)!;
+  const shownProperty=propertyById(shownId,district.businesses[shownId])!;
   const businessName=shownProperty.name;
   const proposedRestaurant=(prototype?proposal?.restaurantProfiles?.[empire.activeRestaurantId]:undefined)??(state.restaurantType?restaurantCatalog(state.restaurantType):undefined);
   const needsOpeningType=!prototype&&!district.market&&isOpeningRestaurant(state);
@@ -119,7 +119,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
       actions.enterRestaurant(id);setActiveTab(section);setSelectedProperty(null);
     }else{setSelectedProperty(null);setPropertyTab('run');setInsideVenue(id);setActiveTab(section==='inventory'?'inventory':'restaurant');}
   };
-  useEffect(()=>{if(firstOpening.current&&!firstAcquisition){firstOpening.current=false;enterBuilding(empire.activeRestaurantId);setShowWelcome(false);}},[firstAcquisition,empire.activeRestaurantId]);
+  useEffect(()=>{if(firstOpening.current&&!firstAcquisition){firstOpening.current=false;enterBuilding(empire.activeRestaurantId);setShowWelcome(false);setDeskPane('guide');setShowDesk(true);}},[firstAcquisition,empire.activeRestaurantId]);
   const interactWithVenue=(action:VenueInteraction,detail?:number)=>{
     if(!focusedProperty)return;
     const child=detail!==undefined?district.businesses[focusedProperty]?.venue?.units[detail]?.ownerCompany:undefined;
@@ -236,21 +236,21 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
             <span>{firstAcquisition?'CHOOSE FIRST PROPERTY':needsOpeningType?'OPEN RESTAURANT':'CONTINUE GAME'}</span>
             <span>▶</span>
           </motion.button>
-          <div className="mode-links"><a href="/?mode=fast-track">Fast-track career · $250,000</a><a href="/?mode=career">Career save · earn your growth</a><a href="/?mode=sandbox">Sandbox save · test everything</a><a href="/">Existing game save</a></div>
+          <div className="mode-links"><a href="/?mode=fast-track">Fast-track career · $250,000</a><a href="/?mode=career">Career save · earn your growth</a><a href="/?mode=sandbox">Sandbox save · test everything</a><a href="/">Existing game save</a><a href="/save-slots.html">Reset / restore saves</a></div>
         </div>
       </div>
     );
   }
 
-  if(firstAcquisition)return <div className="game-ui w-screen h-dvh relative bg-stone-900"><WorldComponent state={state} worldProgress={0} restaurants={{}} district={district} actions={actions} focus={null} selected={selectedProperty} onSelect={id=>{setShowMarket(id);setFirstMarketHidden(false);}} onOverview={()=>setSelectedProperty(null)} onInteract={()=>{}} testing={false} onTestUnlock={()=>{}} onReport={()=>{}}/>{!firstMarketHidden?<PropertyMarket key={showMarket??'first'} state={district} restaurants={{}} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setFirstMarketHidden(true)} onLocate={locateSite} initialId={showMarket??undefined}/>:<div className="market-first-guide"><strong>Choose a commercial site anywhere in the city</strong><p>Green signs: empty land · Gold signs: redevelopment sites</p><button className="mc-button" onClick={()=>setFirstMarketHidden(false)}>Open property market · $250,000</button></div>}{gameOptions?.persist===false&&<div className="market-preview-note">Preview · changes are not saved</div>}</div>;
+  if(firstAcquisition)return <div className="game-ui w-screen h-dvh relative bg-stone-900"><WorldComponent state={state} worldProgress={0} restaurants={{}} district={district} actions={actions} focus={null} selected={selectedProperty} onSelect={id=>{setShowMarket(id);setFirstMarketHidden(false);}} onOverview={()=>setSelectedProperty(null)} onInteract={()=>{}} testing={false} onTestUnlock={()=>{}} onReport={()=>{}}/>{!firstMarketHidden?<PropertyMarket key={showMarket??'first'} state={district} restaurants={{}} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setFirstMarketHidden(true)} onLocate={locateSite} initialId={showMarket??undefined}/>:<div className="market-first-guide"><strong>Choose how to open your first business</strong><p>Blue: empty shops to lease · Gold: operating businesses for sale · Green: land</p><button className="mc-button" onClick={()=>setFirstMarketHidden(false)}>Open property market · $250,000</button></div>}{gameOptions?.persist===false&&<div className="market-preview-note">Preview · changes are not saved</div>}</div>;
 
   return (
     <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`} as React.CSSProperties}>
       {district.market&&<button className="mc-button market-launch" onClick={()=>setShowMarket('market')}>Property market · Level {district.market.level}</button>}
-      {showMarket&&district.market&&<PropertyMarket key={showMarket} initialId={showMarket==='market'?undefined:showMarket} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setShowMarket(null)} onLocate={locateSite}/>}
+      {showMarket&&district.market&&<PropertyMarket key={showMarket} initialId={showMarket==='market'?undefined:showMarket} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={id=>{enterBuilding(id);setDeskPane('guide');setShowDesk(true);}} onClose={()=>setShowMarket(null)} onLocate={locateSite}/>}
       {gameOptions?.persist===false&&!proposal&&<div className="market-preview-note">Preview · changes are not saved</div>}
       <button className="mc-button desk-launch" onClick={()=>{setDeskPane('guide');setShowDesk(true);}}>Business desk · plans & people</button>
-      {showDesk&&<CareerDesk initialPane={deskPane} empire={{...empire,district}} id={shownId} onChange={actions.updateEmpire} onEnter={id=>enterBuilding(id)} onClose={()=>setShowDesk(false)}/>}
+      {showDesk&&<CareerDesk onMarket={district.market?()=>{setShowDesk(false);setShowMarket('market');}:undefined} initialPane={deskPane} empire={{...empire,district}} id={shownId} onChange={actions.updateEmpire} onEnter={id=>enterBuilding(id)} onClose={()=>setShowDesk(false)}/>}
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
         <WorldComponent state={{...state,gameSpeed:state.gameSpeed*simulationRate(empire)}} worldProgress={worldProgress} restaurants={Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,{...r,gameSpeed:r.gameSpeed*simulationRate(empire)}]))} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)} viewRequest={prototype&&proposal?{request:proposal.request,floor:proposal.floor,detail:proposal.screen==='exterior'?'exterior':'room'}:undefined}/>

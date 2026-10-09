@@ -695,7 +695,7 @@ return <>
 </>;
 }
 
-export function RestaurantContents3D({state,actions,cutaway=true,isNight=false}:{state:GameState;actions:any;cutaway?:boolean;isNight?:boolean}){
+export function RestaurantContents3D({state,actions,cutaway=true,isNight=false,property}:{state:GameState;actions:any;cutaway?:boolean;isNight?:boolean;property?:import("../prototype/expansionModel").Property}){
 const isNearDoor=state.customers.some(c=>c.state==='entering'||c.state==='leaving');
 const identity=state.restaurantIdentity??'diner';
 return <>
@@ -715,7 +715,7 @@ return <>
 
         {isNight && <pointLight position={[0, 6, 0]} intensity={75} distance={32} color="#ffdab1" />}
 
-        <RestaurantShell3D appearance={restaurantAppearance(identity,state)} cutaway={cutaway} roof={false} isNight={isNight} doorOpen={isNearDoor}/>
+        <RestaurantShell3D appearance={restaurantAppearance(identity,state,property)} cutaway={cutaway} roof={false} isNight={isNight} doorOpen={isNearDoor}/>
         <Lantern position={[-8, 8, -10]} />
         <Lantern position={[8, 8, -10]} />
         <Lantern position={[-10, 8, 0]} />
