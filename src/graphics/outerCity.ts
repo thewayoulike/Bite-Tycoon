@@ -3,6 +3,7 @@ import {ModelParts,seededRandom} from './modelParts';
 import {outerCityZone,isOuterPark} from './cityZoning';
 import {commercialParcelAt} from './commercialParcels';
 import {addIndustrialLot} from './industrialScenery';
+import {architecturalUV} from './restaurantFinish';
 
 export const CITY_EDGE=262.5;
 export const OUTER_LOTS=Array.from({length:21},(_,i)=>(i-10)*25).flatMap(x=>Array.from({length:21},(_,i)=>(i-10)*25).filter(z=>Math.abs(x)>50||Math.abs(z)>50).map(z=>({x,z,zone:outerCityZone(x,z)})));
@@ -12,9 +13,9 @@ export type OuterTreePlacement={x:number;z:number;seed:number;scale:number};
 export type OuterCarPlacement={x:number;z:number;color:string;style:'sedan'|'hatchback'|'suv'|'truck'};
 export type OuterStreetModels={trees:boolean;cars:boolean;placements:{trees:OuterTreePlacement[];cars:OuterCarPlacement[]}};
 
-/** Batched scenery: hundreds of addresses, four material draws per city quadrant. */
+/** Batched scenery: hundreds of addresses, six material draws per city quadrant. */
 export function buildOuterCity(quadrant:number,modeledHomes=false,street?:OuterStreetModels,market?:{developed:ReadonlySet<string>}){
- const solid=new ModelParts(),glass=new ModelParts(),lit=new ModelParts(),land=new ModelParts(),random=seededRandom(934+quadrant);
+ const solid=new ModelParts(),glass=new ModelParts(),lit=new ModelParts(),land=new ModelParts(),masonry=new ModelParts(),paving=new ModelParts(),random=seededRandom(934+quadrant);
  let cleared=false;
  const walls=['#a69580','#96705b','#b3ab9b','#826c5e','#ae9c86','#9a8c80'];
  function tree(x:number,z:number){
@@ -42,7 +43,7 @@ export function buildOuterCity(quadrant:number,modeledHomes=false,street?:OuterS
   const hidden=cleared||(house&&modeledHomes);
   const bodySolid=hidden?discard:solid,bodyGlass=hidden?discard:glass,bodyLit=hidden?discard:lit;
   const h=floors*2.9+.35,color=walls[Math.floor(random()*walls.length)];
-  bodySolid.box([x,h/2+.16,z],[w,h,d],color);
+  if(!hidden)masonry.box([x,h/2+.16,z],[w,h,d],color);
   bodySolid.box([x,.32,z],[w+.12,.32,d+.12],'#b9b1a1');
   for(let f=0;f<floors;f++)for(const side of [-1,1]){
    const y=1.8+f*2.9;
@@ -75,7 +76,7 @@ export function buildOuterCity(quadrant:number,modeledHomes=false,street?:OuterS
  for(const {x,z,zone} of OUTER_LOTS.filter(l=>(l.x<0?1:0)+(l.z<0?2:0)===quadrant)){
   const parcel=market&&commercialParcelAt(x,z);
   cleared=!!parcel&&(parcel.vacant||market!.developed.has(parcel.id));
-  solid.box([x,.1,z],[18.5,.2,18.5],'#aca69a');
+  paving.box([x,.1,z],[18.5,.2,18.5],'#ffffff');
   const park=isOuterPark(x,z);
   if(park){
    land.box([x,.22,z],[15,.06,15],'#7f8565');
@@ -113,5 +114,5 @@ export function buildOuterCity(quadrant:number,modeledHomes=false,street?:OuterS
   lit.box([x-8.5,3.5,z+8.5],[.48,.13,.3],'#d9cbaa');
   solid.box([x-8.3,.55,z+5.8],[.55,.8,.55],'#5b655d');
  }
- return {solid:solid.finish(),glass:glass.finish(),lit:lit.finish(),land:land.finish()};
+ return {solid:solid.finish(),glass:glass.finish(),lit:lit.finish(),land:land.finish(),masonry:architecturalUV(masonry.finish()),paving:architecturalUV(paving.finish())};
 }

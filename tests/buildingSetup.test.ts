@@ -56,7 +56,8 @@ test('designs change actual geometry and architecture, without changing the usab
  const restaurantCounts=new Set<number>(),mallCounts=new Set<number>();
  for(const design of BUILDING_DESIGNS){
   const p={...PROPERTIES[0],design:design.id},r=restaurantShellGeometry(restaurantAppearance(p.id,undefined,p));
-  restaurantCounts.add(r.front.getAttribute('position').count);Object.values(r).forEach(g=>g.dispose());
+  // Masonry and trim are separate batches of the same facade.
+  restaurantCounts.add(r.front.getAttribute('position').count+r.frontTrim.getAttribute('position').count);Object.values(r).forEach(g=>g.dispose());
   const mall=mallExteriorGeometry(1,1,true,design.id);mallCounts.add(mall.glass.getAttribute('position').count+mall.frame.getAttribute('position').count);Object.values(mall).forEach(g=>g.dispose());
   const home=urbanBuildingProfile({...PROPERTIES[5],design:design.id},{floorsOverride:1});assert.equal(home.floors,1);assert.equal(home.style.wall,design.wall);assert.equal(home.modern,design.id==='modern');assert.equal(home.mansard,design.id==='heritage');assert.deepEqual(home.scale,[13.5/13.4,2.7/2.85,15/12.2]);
  }

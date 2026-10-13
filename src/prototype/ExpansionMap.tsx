@@ -28,6 +28,7 @@ import {CityRailway3D} from '../components/CityRailway3D';
 import {IndustrialSmoke3D} from '../components/IndustrialSmoke3D';
 import {CityRoadMaterial} from '../components/CityRoadMaterial';
 import {CitySnowContext,SnowSurfaceMaterial} from '../components/SnowSurfaceMaterial';
+import {interiorMaterial} from '../graphics/interiorMaterials';
 import {cityCameraNear} from '../graphics/sceneryPerformance';
 
 // Two lots share each long block; keep full-size playable interiors.
@@ -92,7 +93,7 @@ function SharedBlocks(){
       }
     }return m.finish();},[]);
   useEffect(()=>()=>courtyard.dispose(),[courtyard]);
-  return <group>{BLOCK_COLUMNS.flatMap(x=>[-37.5,12.5,50].map(z=><mesh key={x+':'+z} position={[x,.045,z]} receiveShadow><boxGeometry args={[18.5,.085,z===50?18.5:43.5]}/><SnowSurfaceMaterial vertexColors={false} color="#aca69a"/></mesh>))}
+  return <group>{BLOCK_COLUMNS.flatMap(x=>[-37.5,12.5,50].map(z=><mesh key={x+':'+z} position={[x,.045,z]} receiveShadow><boxGeometry args={[18.5,.085,z===50?18.5:43.5]}/><SnowSurfaceMaterial vertexColors={false} map={interiorMaterial('stone','#bdb7a9',18.5/4,(z===50?18.5:43.5)/4).map}/></mesh>))}
     <mesh geometry={courtyard} receiveShadow><SnowSurfaceMaterial/></mesh>
   </group>;
 }

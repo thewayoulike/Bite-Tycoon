@@ -6,6 +6,7 @@ import {ModelParts,seededRandom} from '../graphics/modelParts';
 import {getSurfaceMaterial,getSignTexture,getContactShadow} from '../graphics/surfaceMaterials';
 import {urbanBuildingProfile} from '../graphics/propertyArchitecture';
 import {SnowSurfaceMaterial} from './SnowSurfaceMaterial';
+import {architecturalUV} from '../graphics/restaurantFinish';
 
 type Props={p:Property;selected:boolean;owned:boolean;onSelect:()=>void;interactive?:boolean;labels?:boolean;isNight?:boolean;floorsOverride?:number;background?:boolean;cutawayFloor?:number};
 /** Recessed bays, thin frames, shopfronts and roof equipment, batched by material. */
@@ -46,9 +47,11 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
    if(residential&&level<floors){
     for(const x of [-3.15,3.15]){
      const base=groundHeight+.13+level*2.85;
-     stone.box([x,base,6.68],[4.8,.16,1.25],'#8c877e');
+     stone.box([x,base,6.68],[4.8,.16,1.25],'#c2b39b');
      metal.box([x,base+1,7.23],[4.8,.045,.05],frame);
      for(let i=0;i<13;i++)metal.box([x-2.28+i*.38,base+.5,7.23],[.03,1,.03],frame);
+     stone.box([x-1.45,base+.34,6.95],[1.3,.46,.43],'#9b8161');
+     for(const dx of [-.45,0,.45])metal.ellipsoid([x-1.45+dx,base+.69,6.95],[.27,.3,.23],'#627455');
     }
    }
   }
@@ -80,9 +83,20 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
   metal.box([1.5,height+1.12,-3.4],[.58,.08,.58],'#686d70');
   }
   if(hotel){
-   metal.box([0,groundHeight-.12,7],[5.8,.17,2.4],'#343a3e');
+   metal.box([0,groundHeight-.12,7],[5.8,.17,2.4],'#4c5347');
+   metal.box([0,groundHeight-.22,8.16],[5.9,.08,.08],'#ad946a');
    for(const x of [-2.7,2.7])metal.box([x,(groundHeight-.12)/2,8],[.09,groundHeight-.12,.09],'#aa9270');
-   rooms.box([0,.12,7.2],[2.1,.025,2.2],'#58423a');
+   rooms.box([0,.12,7.2],[2.1,.025,2.2],'#526052');
+   // Stone entrance piers and warm sconces give the hotel a quieter, formal frontage.
+   for(const x of [-6.5,-3.15,3.15,6.5]){
+    stone.box([x,groundHeight/2,6.3],[.32,groundHeight,.42],style.trim);
+    metal.box([x,1.95,6.55],[.2,.72,.18],'#7d6c4e');lit.box([x,1.95,6.65],[.12,.53,.03],'#efdbb3');
+   }
+  }else if(p.kind==='shop'){
+   metal.box([0,2.91,6.91],[13.7,.16,1.65],frame);
+   metal.box([0,2.72,7.69],[13.7,.3,.08],frame);
+   for(const x of [-5.9,5.9]){metal.box([x,1.4,7.62],[.09,2.8,.09],frame);lit.box([x,2.76,7.6],[.28,.045,.45],'#ece8cf');}
+   stone.box([0,.135,7],[3,.02,1.6],'#536958');
   }else if(p.id==='cafe'||p.id==='bistro'||p.id==='diner'){
    // Individual canvas awnings leave the brick facade visible.
    for(const x of [-3.4,3.4])for(let i=0;i<8;i++)stone.box([x-2.03+i*.58,2.82,6.8],[.58,.065,1.45],i%2?'#b3a893':p.id==='bistro'?'#494b40':'#474b4c',[-.12,0,0]);
@@ -101,7 +115,7 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
   // Air-conditioning units on the less prominent side wall.
   if(!hotel)for(let y=4;y<height;y+=5.7){metal.box([6.91,y,-3],[.45,.65,1],'#91928b');for(let i=0;i<5;i++)metal.box([7.15,y-.23+i*.1,-3],[.02,.025,.78],'#515859');}
   lit.box([0,2.7,6.25],[1.2,.12,.05],'#c4b295');
-  return {stone:stone.finish(),metal:metal.finish(),glass:glass.finish(),rooms:rooms.finish(),lit:lit.finish()};
+  return {stone:architecturalUV(stone.finish()),metal:metal.finish(),glass:glass.finish(),rooms:rooms.finish(),lit:lit.finish()};
  },[seed,floors,height,modern,hotel,residential,mansard,p.id,p.design,style,cutaway,groundHeight]);
  useEffect(()=>()=>Object.values(model).forEach(g=>g.dispose()),[model]);
  return <group position={p.position} scale={scale} onClick={e=>{if(interactive){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
@@ -110,10 +124,10 @@ export const UrbanBuilding3D=memo(function UrbanBuilding3D({p,selected,owned,onS
   {!cutaway&&<mesh position={[0,height+.04,0]} receiveShadow><boxGeometry args={[13.2,.1,12]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#555354',4,4).map}/></mesh>}
   {mansard&&!cutaway&&<group position={[0,height+1.3,0]} scale={[9.48,1,8.63]}><mesh rotation={[0,Math.PI/4,0]} castShadow receiveShadow><cylinderGeometry args={[.64,1,2.2,4,1,true]}/><SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('asphalt','#44494d',6,2).map}/></mesh></group>}
   {mansard&&!cutaway&&<mesh position={[0,height+2.41,0]}><boxGeometry args={[8.58,.08,7.82]}/><SnowSurfaceMaterial vertexColors={false} color="#4e5354" roughness={.9}/></mesh>}
-  <mesh geometry={model.stone} castShadow receiveShadow><SnowSurfaceMaterial roughness={.89}/></mesh>
+  <mesh geometry={model.stone} castShadow receiveShadow><SnowSurfaceMaterial map={getSurfaceMaterial('plaster','#f6f1e8').map} roughness={.83}/></mesh>
   <mesh geometry={model.metal} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.28}/></mesh>
   <mesh geometry={model.rooms}><meshStandardMaterial vertexColors roughness={.87}/></mesh>
-  <mesh geometry={model.glass}><meshStandardMaterial vertexColors roughness={.24} metalness={.35} envMapIntensity={.65}/></mesh>
+  <mesh geometry={model.glass}><meshStandardMaterial vertexColors roughness={.16} metalness={.4} envMapIntensity={.85}/></mesh>
   <mesh geometry={model.lit}><meshStandardMaterial vertexColors roughness={.8} emissive={isNight?'#efc28b':'#000000'} emissiveIntensity={isNight?.65:0}/></mesh>
   <mesh position={[0,groundHeight-.27,hotel?8.22:6.24]}><boxGeometry args={[hotel?6:12.6,.48,.12]}/><meshStandardMaterial color={p.id==='shop'?p.accent:modern?'#353b40':hotel?'#554c43':'#383f3d'} roughness={.75}/></mesh>
   <mesh position={[0,groundHeight-.26,hotel?8.288:6.308]}><planeGeometry args={[hotel?5.5:11.8,.4]}/><meshBasicMaterial map={getSignTexture(p.name.toUpperCase())} transparent depthWrite={false}/></mesh>

@@ -16,6 +16,7 @@ import {createVenue,serviceBlocker,VenueVisitor,venueRules} from '../empire/venu
 import {LodgingBusiness3D} from '../components/LodgingBusiness3D';
 import {ShoppingPlaza3D} from '../components/ShoppingPlaza3D';
 import {SnowSurfaceMaterial} from '../components/SnowSurfaceMaterial';
+import {interiorMaterial} from '../graphics/interiorMaterials';
 
 export type VenueInteraction='serve'|'clean'|'care'|'inventory'|'staff'|'finance'|'run'|'prices'|'bookings'|'upgrades';
 
@@ -72,13 +73,13 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
   if(p.kind==='plaza')return <ShoppingPlaza3D b={b} floor={floor} gameSpeed={gameSpeed} interactive={interactive} onInteract={onInteract} isNight={isNight}/>;
   if(housing)return <LodgingBusiness3D p={p} b={b} floor={floor} gameSpeed={gameSpeed} interactive={interactive} onInteract={onInteract} serviceActive={serviceActive} isNight={isNight}/>;
   return <>
-    <mesh position={[0,-.16,0]} receiveShadow><boxGeometry args={[park?22:18,.3,park?18:20]}/>{park?<SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('grass','#788068',7,7).map}/>:<primitive attach="material" object={getSurfaceMaterial(p.kind==='shop'?'concrete':'wood',p.kind==='shop'?'#d0cabe':'#bbac93',7,7)}/>}</mesh>
+    <mesh position={[0,-.16,0]} receiveShadow><boxGeometry args={[park?22:18,.3,park?18:20]}/>{park?<SnowSurfaceMaterial vertexColors={false} map={getSurfaceMaterial('grass','#788068',7,7).map}/>:<primitive attach="material" object={interiorMaterial(p.kind==='shop'?'terrazzo':'oak',p.kind==='shop'?(floor===1?'#d9d9d1':'#d9d1bd'):'#bbac93',4.5,5)}/>}</mesh>
     {p.kind==='shop'?(floor===1&&b.retail?.electronicsUnlocked?<ElectronicsInterior3D b={b}/>:<SupermarketInterior3D b={b}/>):<VenueFurniture p={p}/>}
     {park?<><ParkFountain3D position={[0,0,-.5]}/>{[-9,9].flatMap((x,i)=>[-7,7].map((z,j)=><StylizedTree3D key={`${x}:${z}`} position={[x,0,z]} seed={i+j} scale={1}/>))}<mesh position={[0,.015,0]} rotation={[-Math.PI/2,0,0]}><ringGeometry args={[4.5,6.2,48]}/><meshStandardMaterial color="#c8c1ad"/></mesh><mesh position={[0,.02,4.5]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2.4,9]}/><meshStandardMaterial color="#c8c1ad"/></mesh></>:<>
-      <mesh position={[0,1.7,-10]} receiveShadow><boxGeometry args={[18,3.4,.2]}/><meshStandardMaterial color={p.kind==='shop'?'#e5e2d9':'#d9dfcf'}/></mesh>
-      <mesh position={[-9,1.7,0]} receiveShadow><boxGeometry args={[.2,3.4,20]}/><meshStandardMaterial color="#cbcaba"/></mesh>
+      <mesh position={[0,1.7,-10]} receiveShadow material={getSurfaceMaterial('plaster','#e8e1d0',4,1)}><boxGeometry args={[18,3.4,.2]}/></mesh>
+      <mesh position={[-9,1.7,0]} receiveShadow material={getSurfaceMaterial('plaster','#d8d0bc',4,1)}><boxGeometry args={[.2,3.4,20]}/></mesh>
       {[-6.3,-2.1,2.1,6.3].map(x=><group key={x}><mesh position={[x,1.8,-9.84]}><boxGeometry args={[3.3,2.3,.15]}/><meshStandardMaterial color="#eee3cc"/></mesh><mesh position={[x,1.8,-9.73]}><boxGeometry args={[2.9,1.9,.05]}/><meshStandardMaterial color={isNight?'#eecb89':'#8ca8aa'} emissive={isNight?'#e8b367':'#000000'} emissiveIntensity={.45} roughness={.25} metalness={.3}/></mesh></group>)}
-      <mesh position={[0,3,-9.5]}><planeGeometry args={[7,.55]}/><meshBasicMaterial map={getSignTexture(p.name.toUpperCase())} transparent/></mesh>
+      <mesh position={[0,3,-9.55]}><boxGeometry args={[12,.68,.12]}/><meshStandardMaterial color={floor===1?'#455d67':'#345848'}/></mesh><mesh position={[0,3,-9.47]}><planeGeometry args={[11.4,.51]}/><meshBasicMaterial map={getSignTexture(p.name.toUpperCase())} transparent/></mesh>
       {[-5,5].map(x=><group key={x} position={[x,3.2,3]}><mesh><cylinderGeometry args={[.6,.8,.3,16]}/><meshStandardMaterial color="#eee3c2" emissive="#f4d394" emissiveIntensity={isNight?1:.15}/></mesh></group>)}
     </>}
     {b.retail?.store?<SupermarketPeople3D b={b} floor={floor} speed={gameSpeed} onAction={(a,id)=>{if(interactive)act(a,id);}}/>:<>

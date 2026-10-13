@@ -1,28 +1,29 @@
 import type {Business,ExpansionState} from '../prototype/expansionModel';
 import {RETAIL_PRODUCTS,retailProduct,retailProductFloor,retailBatches,retailItemValue,consumeRetailStock} from './retail';
 import {batchValue,consumeBatches,stockDay} from '../inventory/stockroom';
+import {SUPERMARKET_STARTER_IDS} from './retailRange';
 
-export type Department='Produce & bakery'|'Pantry & essentials'|'Chilled & frozen'|'Meat & fish'|'Household'|'Electronics'|'Large appliances';
+export type Department='Produce & bakery'|'Pantry & essentials'|'Chilled & frozen'|'Meat & fish'|'Household'|'Personal care'|'Baby care'|'Pet care'|'Home & kitchen'|'Stationery'|'Clothing basics'|'Gifts'|'Electronics'|'Large appliances';
 export type DepartmentResult={sales:number;cogs:number;units:number;stockouts:number;waste:number;received:number;opening:number;wait:number;checkouts:number};
 export type StoreEvent={id:number;kind:'fridge'|'delay'|'rush'|'return';title:string;day:number;until:number;resolved?:string;saleId?:number};
 export type StoreSale={id:number;item:string;price:number;cost:number;qty:number;day:number;returned?:boolean};
 export type StoreDelivery={id:number;item:string;day:number;done?:boolean};
 export type StoreState={version:1;level:number;legacy?:boolean;shelf:Record<string,number>;fixtures:{dry:number;cold:number};budgets?:{grocery:number;electronics:number};spent:{grocery:number;electronics:number};budgetWeek:number;returnBuffer:number;serviceDue:number;replenishTimer:number;receivingTimer:number;deliveryTimer:number;job?:string;jobProgress?:number;week:number;metrics:Partial<Record<Department,DepartmentResult>>;lastMetrics?:Partial<Record<Department,DepartmentResult>>;sales:StoreSale[];deliveries:StoreDelivery[];events:StoreEvent[];lastEventDay:number;serial:number;lastSale:Record<string,number>;receiving:Record<string,number>};
 export const STORE_LEVELS=[
- {level:1,name:'Local grocery',shoppers:0,cost:0,upkeep:0,visible:'Produce bins, bread, milk, pantry essentials, one checkout and a receiving bay.',needs:'Opening cashier and stock assistant included. Select a range and replenish its displays.',stock:0,wages:0},
- {level:2,name:'Complete grocery',shoppers:50,cost:1000,upkeep:10,visible:'Refrigerated cabinets, a freezer and meat, fish and household departments.',needs:'Cold fixtures are included. Consider a fresh-counter specialist and cleaner.',stock:100,wages:70},
- {level:3,name:'Reliable supermarket',shoppers:150,cost:2500,upkeep:20,visible:'Larger backroom, a second checkout and a staffed receiving desk.',needs:'Hire another cashier to use the extra lane; a receiving clerk speeds deliveries to the backroom.',stock:150,wages:70},
+ {level:1,name:'Neighborhood supermarket',shoppers:0,cost:0,upkeep:0,visible:'Twenty stocked opening products, produce and bakery displays, food and drink aisles, household and personal care, one checkout and receiving.',needs:'Opening cashier and stock assistant included. Select a range and replenish its displays.',stock:0,wages:0},
+ {level:2,name:'Complete grocery',shoppers:50,cost:1000,upkeep:10,visible:'Full dairy cabinets, meat and fish, a freezer, baby supplies and pet care. Add departments together or choose individual products.',needs:'Cold fixtures are included. Consider a fresh-counter specialist and cleaner.',stock:100,wages:70},
+ {level:3,name:'Reliable supermarket',shoppers:150,cost:2500,upkeep:20,visible:'Home and kitchen, stationery, clothing basics and gifts; larger backroom, a second checkout and staffed receiving.',needs:'Hire another cashier to use the extra lane; a receiving clerk speeds deliveries to the backroom.',stock:150,wages:70},
  {level:4,name:'Electronics upstairs',shoppers:300,cost:5000,upkeep:35,visible:'An upper showroom for TVs, phones, computers, consoles and small appliances.',needs:'Hire an electronics adviser; reserve a separate electronics purchasing allowance. Start with 1–3 sealed units per item.',stock:1200,wages:35},
  {level:5,name:'Department store',shoppers:700,cost:7500,upkeep:55,visible:'Large appliances, a service and returns desk and a dispatch/loading area upstairs.',needs:'Hire a handling worker for appliance deliveries. Keep a return reserve; appliance stock uses secure storage.',stock:1200,wages:35},
 ] as const;
 export const storeLevel=(b:Business)=>b.retail?.store?.level??(b.retail?.electronicsUnlocked?5:2);
 export const largeAppliance=(id:string)=>['washing_machine','fridge_appliance'].includes(id);
-export function productLevel(id:string){const p=retailProduct(id);return largeAppliance(id)?5:retailProductFloor(id)?4:id==='milk'?1:['Chilled','Frozen','Meat & Fish','Household','Gifts'].includes(p?.category??'')?2:1;}
+export function productLevel(id:string){const p=retailProduct(id);return largeAppliance(id)?5:retailProductFloor(id)?4:id==='milk'?1:['Home & kitchen','Stationery','Clothing basics','Gifts'].includes(p?.category??'')?3:['Chilled','Frozen','Meat & Fish','Baby care','Pet care'].includes(p?.category??'')?2:1;}
 export function productUnlocked(b:Business,id:string){return !!b.retail&&(retailProductFloor(id)===0||!!b.retail.electronicsUnlocked)&&(storeLevel(b)>=productLevel(id)||!!b.retail.store?.legacy);}
-export function department(id:string):Department{const p=retailProduct(id);return largeAppliance(id)?'Large appliances':retailProductFloor(id)?'Electronics':id==='chicken'||p?.category==='Meat & Fish'?'Meat & fish':['Chilled','Frozen'].includes(p?.category??'')?'Chilled & frozen':['Produce','Bakery'].includes(p?.category??'')?'Produce & bakery':p?.category==='Household'?'Household':'Pantry & essentials';}
+export function department(id:string):Department{const p=retailProduct(id);return largeAppliance(id)?'Large appliances':retailProductFloor(id)?'Electronics':id==='chicken'||p?.category==='Meat & Fish'?'Meat & fish':['Chilled','Frozen'].includes(p?.category??'')?'Chilled & frozen':['Produce','Bakery'].includes(p?.category??'')?'Produce & bakery':['Household','Personal care','Baby care','Pet care','Home & kitchen','Stationery','Clothing basics','Gifts'].includes(p?.category??'')?p!.category as Department:'Pantry & essentials';}
 export const coldProduct=(id:string)=>['Chilled & frozen','Meat & fish'].includes(department(id));
 export const emptyDepartment=():DepartmentResult=>({sales:0,cogs:0,units:0,stockouts:0,waste:0,received:0,opening:0,wait:0,checkouts:0});
-export const newStore=():StoreState=>({version:1,level:1,shelf:{apples:8,bread:8,milk:8},fixtures:{dry:12,cold:1},budgets:{grocery:500,electronics:1500},spent:{grocery:0,electronics:0},budgetWeek:1,returnBuffer:0,serviceDue:0,replenishTimer:0,receivingTimer:0,deliveryTimer:0,week:0,metrics:{},sales:[],deliveries:[],events:[],lastEventDay:0,serial:0,lastSale:{},receiving:{}});
+export const newStore=():StoreState=>({version:1,level:1,shelf:Object.fromEntries(SUPERMARKET_STARTER_IDS.map(id=>[id,8])),fixtures:{dry:24,cold:1},budgets:{grocery:1000,electronics:1500},spent:{grocery:0,electronics:0},budgetWeek:1,returnBuffer:0,serviceDue:0,replenishTimer:0,receivingTimer:0,deliveryTimer:0,week:0,metrics:{},sales:[],deliveries:[],events:[],lastEventDay:0,serial:0,lastSale:{},receiving:{}});
 export function ensureSupermarket(b:Business):Business{
  if(!b.retail||b.retail.store)return b;
  const base=newStore(),level=b.retail.electronicsUnlocked?5:2;
@@ -43,9 +44,10 @@ export const shelfQuantity=(b:Business,id:string)=>b.retail?.store?Math.max(0,Ma
 export const backroomQuantity=(b:Business,id:string)=>Math.max(0,(b.retail?.stock[id]??0)-shelfQuantity(b,id)-basketQuantity(b,id)-(b.retail?.store?.receiving[id]??0));
 export const shelfCapacity=(b:Business,id:string)=>retailProductFloor(id)?1:storeLevel(b)>=3?18:12;
 export const storageCapacity=(b:Business,id:string)=>retailProductFloor(id)?10:storeLevel(b)>=3||b.retail?.store?.legacy?100:50;
-export function shelfPlan(b:Business,floor:number){
- const ids=RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===floor&&productUnlocked(b,p.id)).map(p=>p.id),st=b.retail?.store;
- const dry=ids.filter(id=>!coldProduct(id)).length,cold=ids.filter(coldProduct).length;
+export function shelfPlan(b:Business,floor:number,category?:string){
+ const ids=RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===floor&&productUnlocked(b,p.id)&&(!category||p.category===category)).map(p=>p.id),st=b.retail?.store;
+ const selected=[...new Set([...(b.retail?.shelves??[]).filter(id=>retailProductFloor(id)===floor),...ids])];
+ const dry=selected.filter(id=>!coldProduct(id)).length,cold=selected.filter(coldProduct).length;
  const addDry=floor?0:Math.max(0,dry-(st?.fixtures.dry??24)),addCold=floor?0:Math.max(0,cold-(st?.fixtures.cold??12));
  return {ids,addDry,addCold,cost:addDry*40+addCold*100};
 }
@@ -60,8 +62,8 @@ export function advanceStoreLevel(s:ExpansionState,id:string):ExpansionState{
  const next=storeSpend(b,s,spec.cost,`Supermarket Level ${spec.level} · ${spec.name}`,true);
  return change(s,id,{...next,retail:{...b.retail,electronicsUnlocked:b.retail.electronicsUnlocked||spec.level>=4,store:{...st,level:spec.level,returnBuffer:spec.level===5?Math.max(st.returnBuffer,250):st.returnBuffer,fixtures:{dry:Math.max(st.fixtures.dry,spec.level>=3?24:18),cold:Math.max(st.fixtures.cold,8)}}}},`Level ${spec.level} open: ${spec.name}. Choose products and staff; starting stock is purchased separately.`);
 }
-export function confirmShelfPlan(s:ExpansionState,id:string,floor:number):ExpansionState{
- const b=s.businesses[id];if(!b?.retail?.store||floor===1&&!b.retail.electronicsUnlocked||b.venue?.running)return s;const plan=shelfPlan(b,floor);if(b.cash<plan.cost)return {...s,notice:'Not enough supermarket cash for the proposed fixtures.'};
+export function confirmShelfPlan(s:ExpansionState,id:string,floor:number,category?:string):ExpansionState{
+ const b=s.businesses[id];if(!b?.retail?.store||floor===1&&!b.retail.electronicsUnlocked||b.venue?.running)return s;const plan=shelfPlan(b,floor,category);if(b.cash<plan.cost)return {...s,notice:'Not enough supermarket cash for the proposed fixtures.'};
  const next=plan.cost?storeSpend(b,s,plan.cost,'Additional display / refrigerated fixtures',true):b;
  return change(s,id,{...next,retail:{...b.retail,shelves:[...new Set([...b.retail.shelves,...plan.ids])],store:{...b.retail.store,fixtures:{dry:b.retail.store.fixtures.dry+plan.addDry,cold:b.retail.store.fixtures.cold+plan.addCold}}}},'Display plan applied. Receiving and replenishment staff move purchased goods onto these shelves.');
 }

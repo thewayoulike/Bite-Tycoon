@@ -4,7 +4,7 @@ import {ModelParts} from '../graphics/modelParts';
 import {getSurfaceMaterial,getSignTexture} from '../graphics/surfaceMaterials';
 import {RESTAURANT_IDENTITIES,RestaurantIdentity} from '../empire/restaurantIdentity';
 
-export function RestaurantIdentity3D({identity,isNight,level=1,terrace=false}:{identity:RestaurantIdentity;isNight:boolean;level?:number;terrace?:boolean}){
+export function RestaurantIdentity3D({identity,isNight,level=1,terrace=false,name}:{identity:RestaurantIdentity;isNight:boolean;level?:number;terrace?:boolean;name?:string}){
   const theme=RESTAURANT_IDENTITIES[identity];
   const floor=useMemo(()=>{
     const m=new ModelParts();
@@ -68,12 +68,13 @@ export function RestaurantIdentity3D({identity,isNight,level=1,terrace=false}:{i
   useEffect(()=>()=>floor.dispose(),[floor]);
   useEffect(()=>()=>decor.dispose(),[decor]);
   return <>
-    {(identity==='diner'||identity==='fastfood')&&<mesh geometry={floor} position={[0,.055,4]} scale={[40/30,1,38/30]} receiveShadow><meshStandardMaterial vertexColors roughness={.8}/></mesh>}
+    {identity==='fastfood'&&<mesh geometry={floor} position={[0,.055,4]} scale={[40/30,1,38/30]} receiveShadow><meshStandardMaterial vertexColors roughness={.8}/></mesh>}
     <mesh geometry={decor} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.65}/></mesh>
-    <mesh position={[0,7.8,-14.82]}><planeGeometry args={[17,2.1]}/><meshBasicMaterial map={getSignTexture(theme.name.toUpperCase())} transparent/></mesh>
-    <mesh position={[0,5.9,-14.8]}><planeGeometry args={[13,1]}/><meshBasicMaterial map={getSignTexture(theme.tagline.toUpperCase())} transparent/></mesh>
+    <mesh position={[0,8.65,-14.58]}><boxGeometry args={[22,1.55,.1]}/><meshStandardMaterial color={identity==='fastfood'?'#813f32':'#34483d'} roughness={.7}/></mesh>
+    <mesh position={[0,8.65,-14.51]}><planeGeometry args={[20.5,1.25]}/><meshBasicMaterial map={getSignTexture((name??theme.name).toUpperCase())} transparent/></mesh>
+    <mesh position={[0,5.9,-14.6]}><planeGeometry args={[13,1]}/><meshBasicMaterial map={getSignTexture(theme.tagline.toUpperCase())} transparent/></mesh>
     {level>=2&&<mesh position={[11.5,3.35,-10.42]}><planeGeometry args={[2.3,.6]}/><meshBasicMaterial map={getSignTexture(identity==='bistro'?'RESERVED':identity==='fastfood'?'COLLECT':identity==='cafe'?'COFFEE':'PICKUP')} transparent/></mesh>}
     {identity==='bistro'&&level>=5&&<mesh position={[-19.65,4.7,7.5]} rotation={[0,Math.PI/2,0]}><planeGeometry args={[5,1]}/><meshBasicMaterial map={getSignTexture('PRIVATE DINING')} transparent/></mesh>}
-    <mesh position={[0,.025,21]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[7,2]}/><meshStandardMaterial color={identity==='cafe'?'#537967':identity==='bistro'?'#61734c':'#974438'} emissive={isNight?'#211d12':'#000000'} roughness={1}/></mesh>
+    <mesh position={[0,.025,21]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[7,2]}/><meshStandardMaterial color={identity==='diner'?'#344e43':identity==='cafe'?'#537967':identity==='bistro'?'#61734c':'#974438'} emissive={isNight?'#211d12':'#000000'} roughness={1}/></mesh>
   </>;
 }

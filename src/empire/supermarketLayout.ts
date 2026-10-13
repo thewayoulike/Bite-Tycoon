@@ -1,16 +1,33 @@
 import type {Business} from '../prototype/expansionModel';
-import {retailProduct,retailProductFloor} from './retail';
+import {RETAIL_PRODUCTS,retailProduct,retailProductFloor} from './retail';
 import {storeLevel,productUnlocked} from './supermarket';
 import type {LodgingLayout,FloorPoint} from './lodgingLayout';
 import {lodgingWalkingPath} from './lodgingLayout';
-export function supermarketDisplays(ids:string[]){let grocery=0;return ids.flatMap(id=>{const product=retailProduct(id);if(!product||retailProductFloor(id)===1)return [];
- const produce=['apples','bananas','carrots','tomatoes','lettuce','potatoes'].indexOf(id);
- if(produce>=0)return [{id,kind:'produce',x:(produce<3?4.15:6.55)+(produce%3-1)*.65,z:3.3,side:1}];
- if(id==='bread')return [{id,kind:'bakery',x:-6.1,z:-8.2,side:1}];
- if(['milk','eggs','chicken','beef','fish'].includes(id))return [{id,kind:'chilled',x:[-2.7,-1.5,-.15,1.05,3][['milk','eggs','chicken','beef','fish'].indexOf(id)],z:-8.25,side:1}];
- if(id==='frozen_vegetables')return [{id,kind:'frozen',x:6.35,z:-8.25,side:1}];
- const index=grocery++,side=Math.floor(index/3)%2===0?1:-1;return [{id,kind:'grocery',x:[-5,0,5][index%3]+side*.53,z:index<6?-.2:-3.8,side}];
- });}
+export type SupermarketDisplay={id:string;kind:'produce'|'bakery'|'chilled'|'frozen'|'grocery';x:number;y:number;z:number;side:number;aisle?:number};
+const displaySlots=new Map<string,SupermarketDisplay>();
+const aisleFor=(category:string)=>['Pantry','Snacks','Drinks'].includes(category)?0:['Household','Personal care','Baby care'].includes(category)?1:2;
+const counters={produce:0,bakery:0,chilled:0,frozen:0,dry:[0,0,0]};
+// Fixed bays remain stable when products are removed, reordered or added to an old save.
+for(const p of RETAIL_PRODUCTS){
+ if(['Electronics','Appliances'].includes(p.category))continue;
+ let slot:SupermarketDisplay;
+ if(p.category==='Produce'){
+  const i=counters.produce++,bin=Math.floor(i/9),cell=i%9;
+  slot={id:p.id,kind:'produce',x:[4.15,6.55][bin]+(cell%3-1)*.65,y:1.12,z:3.3+(Math.floor(cell/3)-1)*.5,side:1};
+ }else if(p.category==='Bakery'){
+  const i=counters.bakery++;slot={id:p.id,kind:'bakery',x:-6.1+(i%4-1.5)*.91,y:.48+Math.floor(i/4)*.58,z:-8.2,side:1};
+ }else if(['Chilled','Meat & Fish'].includes(p.category)){
+  const i=counters.chilled++,cabinet=Math.floor(i/9),cell=i%9;
+  slot={id:p.id,kind:'chilled',x:[-2.1,.45,3][cabinet]+(cell%3-1)*.68,y:.41+Math.floor(cell/3)*.55,z:-8.2,side:1};
+ }else if(p.category==='Frozen'){
+  const i=counters.frozen++;slot={id:p.id,kind:'frozen',x:6.35+(i%4-1.5)*.57,y:1.08,z:-8.25+(Math.floor(i/4)-.5)*.59,side:1};
+ }else{
+  const aisle=aisleFor(p.category),i=counters.dry[aisle]++,side=i%2===0?1:-1,bay=Math.floor(i/2)%8,tier=Math.floor(i/16);
+  slot={id:p.id,kind:'grocery',x:[-5,0,5][aisle]+side*.53,y:.34+tier*.54,z:-5.03+bay*.86,side,aisle};
+ }
+ displaySlots.set(p.id,slot);
+}
+export function supermarketDisplays(ids:string[]){return [...new Set(ids)].flatMap(id=>displaySlots.has(id)?[{...displaySlots.get(id)!}]:[]);}
 export const electronicsDisplays:[string,number,number][]=[['tv',-5.4,-7.7],['console',.1,-7.7],['fridge_appliance',6.3,-7.7],['washing_machine',6.3,-3.8],['vacuum',6.3,.1],['smartphone',-5.4,-2.3],['laptop',-.9,-2.3],['tablet',2.3,-2.3],['headphones',-5.4,2.1],['microwave',-.7,2.1],['kettle',3.3,2.1],['toaster',3.3,4.4]];
 export function supermarketNavigation(b:Business,floor:number):LodgingLayout{
  const layout:LodgingLayout={kind:'hotel',floor,items:[],rooms:[],finishes:[],entrance:floor?{x:6.4,z:8.7}:{x:0,z:11},elevator:{x:6.4,z:8.7},queue:Array.from({length:12},(_,i)=>({x:-4.2+(i%4)*1.1,z:7.7+Math.floor(i/4)*.9})),staff:[{x:-5.1,z:5.3}],care:[{x:6.5,z:floor?3:-5}],manager:{x:-7.5,z:3}};
@@ -23,7 +40,7 @@ export function supermarketNavigation(b:Business,floor:number):LodgingLayout{
 export function supermarketProductPoint(b:Business,id:string):FloorPoint{
  if(retailProductFloor(id)){const slot=electronicsDisplays.find(v=>v[0]===id);return slot?{x:slot[1]+(id==='kettle'?-1.85:0),z:slot[2]+(id==='kettle'?0:1.5)}:{x:0,z:8};}
  const slot=supermarketDisplays(b.retail?.shelves??[]).find(v=>v.id===id);if(!slot)return {x:0,z:8};
- return slot.kind==='produce'?{x:slot.x,z:4.9}:['chilled','bakery','frozen'].includes(slot.kind)?{x:slot.x,z:-6.6}:{x:slot.x+slot.side*1.1,z:slot.z};
+ return slot.kind==='produce'?{x:slot.x,z:4.9}:slot.kind==='frozen'?{x:Math.min(6.6,slot.x),z:-6.6}:['chilled','bakery'].includes(slot.kind)?{x:slot.x,z:-6.6}:{x:slot.x+slot.side*1.1,z:slot.z};
 }
 
 const travelCache=new Map<string,{browse:number;checkout:number}>();

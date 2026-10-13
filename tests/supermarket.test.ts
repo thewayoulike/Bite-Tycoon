@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {ensureSupermarket} from '../src/empire/supermarket';
+import {ensureSupermarket,confirmShelfPlan} from '../src/empire/supermarket';
 import assert from 'node:assert/strict';
 import {INITIAL_STATE} from '../src/hooks/useGameLoop';
 import {createEmpire,unlockTestDistrict,parseEmpireSave} from '../src/empire/empire';
@@ -23,7 +23,7 @@ function retailFixture(){const e=unlockTestDistrict(createEmpire(structuredClone
 
 test('supermarket supports all grocery selections without losing existing stock or money',()=>{
  const empire=retailFixture();
- let s=empire.district;const before=s.businesses.shop;
+ let s=confirmShelfPlan(empire.district,'shop',0);const before=s.businesses.shop;
  s=placeAllRetailProducts(s,'shop',0);assert.equal(placeAllRetailProducts(s,'shop',0),s);
  for(const p of RETAIL_PRODUCTS)if(!s.businesses.shop.retail!.shelves.includes(p.id))s=setShelfProduct(s,'shop',p.id);
  assert.equal(s.businesses.shop.retail!.shelves.length,retailDisplayCapacity(0));
@@ -33,15 +33,15 @@ test('supermarket supports all grocery selections without losing existing stock 
  const loaded=parseEmpireSave(JSON.stringify({...empire,district:s}))!;
  assert.deepEqual(loaded.district.businesses.shop.retail,JSON.parse(JSON.stringify(s.businesses.shop.retail)));
  for(const product of RETAIL_PRODUCTS.slice(12).filter(p=>retailProductFloor(p.id)===0)){
-  const cash=s.businesses.shop.cash;s=orderRetailStock(s,'shop',product.id,10);
-  assert.equal(s.businesses.shop.retail!.stock[product.id],10);assert.ok(Math.abs(s.businesses.shop.cash-(cash-product.cost*10))<.001);
+  const cash=s.businesses.shop.cash,stock=s.businesses.shop.retail!.stock[product.id]??0;s=orderRetailStock(s,'shop',product.id,10);
+  assert.equal(s.businesses.shop.retail!.stock[product.id],stock+10);assert.ok(Math.abs(s.businesses.shop.cash-(cash-product.cost*10))<.001);
  }
  const f=venueFinancials(propertyById('shop')!,s.businesses.shop,s);assert.ok(Math.abs(f.assets-f.liabilities-f.equity)<.001);
 });
 
 test('supermarket display slots stay distinct for every selectable product and fixtures stay within a bounded mesh',()=>{
  const slots=supermarketDisplays(RETAIL_PRODUCTS.map(p=>p.id));
- assert.equal(new Set(slots.map(s=>`${s.x}:${s.z}`)).size,RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===0).length);
+ assert.equal(new Set(slots.map(s=>`${s.x}:${s.y}:${s.z}`)).size,RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===0).length);
  const geometry=supermarketFixtureGeometry();assert.ok(geometry.getAttribute('position').count<120000);
  for(const name of ['position','normal','color'])assert.ok(Array.from(geometry.getAttribute(name).array).every(Number.isFinite));
  geometry.computeBoundingBox();assert.ok(geometry.boundingBox!.min.x>=-9&&geometry.boundingBox!.max.x<=9);assert.ok(geometry.boundingBox!.min.z>=-10&&geometry.boundingBox!.max.z<=10);geometry.dispose();
@@ -54,8 +54,9 @@ test('electronics floor is earned and paid once, persists, and has separate disp
  const base=s.businesses.shop;s={...s,businesses:{...s.businesses,shop:{...base,venue:{...base.venue!,totalServed:ELECTRONICS_FLOOR_CUSTOMERS}}}};
  const poor={...s,businesses:{...s.businesses,shop:{...s.businesses.shop,cash:ELECTRONICS_FLOOR_COST-1}}};assert.equal(unlockElectronicsFloor(poor,'shop').businesses.shop,poor.businesses.shop);
  s=unlockElectronicsFloor(s,'shop');assert.equal(s.businesses.shop.cash,base.cash-ELECTRONICS_FLOOR_COST);assert.ok(s.businesses.shop.retail!.electronicsUnlocked);assert.equal(unlockElectronicsFloor(s,'shop'),s);
+ s=confirmShelfPlan(s,'shop',0);
  for(const p of RETAIL_PRODUCTS)if(!s.businesses.shop.retail!.shelves.includes(p.id))s=setShelfProduct(s,'shop',p.id);
- assert.equal(s.businesses.shop.retail!.shelves.length,36);
+ assert.equal(s.businesses.shop.retail!.shelves.length,RETAIL_PRODUCTS.length);
  for(const p of RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===1))s=orderRetailStock(s,'shop',p.id,2);
  const geometry=electronicsGeometry(s.businesses.shop);assert.ok(geometry.getAttribute('position').count<120000);geometry.dispose();
  const stock=s.businesses.shop.retail!.stock.tv,cash=s.businesses.shop.cash,p=propertyById('shop')!;

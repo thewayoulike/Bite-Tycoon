@@ -45,6 +45,7 @@ import {businessFinance} from './empire/empire';
 import {weeklyProfitLoss} from './empire/weeklyFinance';
 import {WorldPropertyPanel,WorldWeekReport} from './empire/WorldPropertyPanel';
 import type {ManagementTab,RestaurantSection} from './prototype/BusinessManagement';
+import './graphics/gameLook.css';
 
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -257,11 +258,11 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
       </div>
 
       {/* Retro HUD Overlay */}
-      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 md:p-3">
+      <div className="game-overlay absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 md:p-3">
         {/* Top Header Bar */}
         <header
           ref={headerRef}
-          className="mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2"
+          className="game-topbar mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2"
           style={{ imageRendering: 'pixelated' }}
         >
           {/* Brand & Table Status */}
@@ -386,9 +387,9 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </header>
 
         {/* Bottom Hotbar Navigation Dock */}
-        <div className="p-2 flex justify-center pointer-events-auto pb-4">
+        <div className="game-dock p-2 flex justify-center pointer-events-auto pb-4">
           <div
-            className="mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl"
+            className="game-dock-panel mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl"
             style={{ imageRendering: 'pixelated' }}
           >
             {(nonFood?[
@@ -442,15 +443,14 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </div>
       </div>
 
-      {focusedRestaurant&&!selectedProperty&&<div className="shift-dashboard absolute z-20 rounded-xl bg-[#faf7ef]/95 border border-stone-300 px-4 py-2 shadow-sm">
-        <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm">
-          <strong>{shiftLabel(state)}</strong>
-          <span>{state.phase === 'planning' ? `${settings(empire).weekMinutes} minutes of service per week at 1×` : `Week ${state.week} · Day ${dayOfWeek}`}</span>
-        </div>
+      {focusedRestaurant&&!selectedProperty&&<details className="shift-dashboard absolute z-20 rounded-xl bg-[#faf7ef]/95 border border-stone-300 px-4 py-2 shadow-sm">
+        <summary><strong>{shiftLabel(state)}</strong><span>Week {state.week} · {payroll?`Wages owed: $${payroll.amount.toFixed(0)}`:'Goals & shift details'}</span></summary>
+        <div className="shift-details"><p>{state.phase === 'planning' ? `${settings(empire).weekMinutes} minutes of service per week at 1×` : `Week ${state.week} · Day ${dayOfWeek}`}</p>
         <button className="text-left text-sm mt-1 text-emerald-800 font-semibold" onClick={() => setActiveTab('upgrades')}>{milestone.text} · {milestone.current}/{milestone.target}</button>
         {payroll && <p className="text-xs text-stone-600 mt-1">Wages owed: ${payroll.amount.toFixed(2)} · paid after Day 3, Week {payroll.dueWeek}</p>}
         <p className="text-xs text-stone-500 mt-1">{Object.keys(empire.district.businesses).length} business{Object.keys(empire.district.businesses).length===1?'':'es'} · cash stays with {businessName} · {gameOptions?.persist===false?'sample session · not saved':watching?'another tab is playing this save':saveError?'saving unavailable':saveKept?'previous save kept · this session is stored separately':'autosaved'}</p>
-      </div>}
+        </div>
+      </details>}
 
       {!focusedProperty&&!selectedProperty&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{district.market?`${LAND_PLOTS.filter(p=>!district.market!.parcels[p.id]).length} commercial sites available. Green signs: empty land. Gold signs: buy & redevelop.`:nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}
       {nonFood&&focusedProperty&&!selectedProperty&&<VenueHUD p={shownProperty} b={district.businesses[shownId]} onAction={interactWithVenue}/>}

@@ -4,12 +4,13 @@ import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeomet
 import {ModelParts,Vec3} from '../graphics/modelParts';
 import {getSurfaceMaterial,getSignTexture} from '../graphics/surfaceMaterials';
 import {Furnishing,LodgingLayout} from '../empire/lodgingLayout';
+import {interiorMaterial} from '../graphics/interiorMaterials';
 
 /** All solid details fit inside the same footprints used by the walking planner. */
 export function lodgingFurnitureGeometry(layout:LodgingLayout){
   const m=new ModelParts();
   for(const item of layout.items){
-    const {x,z,w,d,h,yaw,kind}=item,c=Math.cos(yaw),s=Math.sin(yaw),wood=item.color??'#8b7059',fabric=layout.kind==='hotel'?'#9a8b7c':'#818b98';
+    const {x,z,w,d,h,yaw,kind}=item,c=Math.cos(yaw),s=Math.sin(yaw),wood=item.color??'#967652',fabric=layout.kind==='hotel'?'#667460':'#7b9096';
     const at=(a:number,b:number,k:number):Vec3=>[x+a*c+k*s,b,z-a*s+k*c];
     const box=(a:number,b:number,k:number,width:number,height:number,depth:number,color:string)=>m.box(at(a,b,k),[width,height,depth],color,[0,yaw,0]);
     const round=(a:number,b:number,k:number,width:number,height:number,depth:number,color:string,r=.05)=>m.add(new RoundedBoxGeometry(width,height,depth,1,Math.min(r,width/4,height/4,depth/4)),color,at(a,b,k),[1,1,1],[0,yaw,0]);
@@ -17,7 +18,8 @@ export function lodgingFurnitureGeometry(layout:LodgingLayout){
     const oval=(a:number,b:number,k:number,scale:Vec3,color:string)=>m.add(new THREE.SphereGeometry(1,12,8),color,at(a,b,k),scale,[0,yaw,0]);
     const legs=(height:number)=>{for(const a of [-w*.38,w*.38])for(const k of [-d*.36,d*.36])box(a,height/2,k,.065,height,.065,'#51463c');};
     if(kind==='wall'){
-      box(0,h/2,0,w,h,d,'#e5e0d7');box(0,.07,0,w+.025,.14,d+.025,'#a99781');
+      box(0,h/2,0,w,h,d,layout.kind==='hotel'?'#e7ddc9':'#e3ddd1');box(0,.07,0,w+.025,.14,d+.025,'#a99781');
+      if(layout.kind==='hotel'&&h>2){box(0,.46,0,w,.78,d+.008,'#74775e');box(0,.88,0,w,.025,d+.016,'#b69a6a');}
       if(h<2)box(0,h+.025,0,w+.045,.05,d+.045,'#f2eee7');
     }else if(kind==='bed'&&layout.kind==='apartments'){
       // Domestic low bed, patterned duvet and a throw; hotels use tall matching
@@ -32,12 +34,12 @@ export function lodgingFurnitureGeometry(layout:LodgingLayout){
       legs(.24);round(0,.32,0,w-.06,.32,d-.08,'#66513f');round(0,.57,.04,w-.06,.22,d-.14,'#eeeae3');
       box(0,1.13,-d/2+.07,w,2.16,.14,'#64554c');box(0,1.84,-d/2+.16,w*.65,.49,.025,'#c9b999');box(0,1.84,-d/2+.18,w*.58,.42,.016,'#a8b4b2');
       for(const a of [-w*.25,w*.25]){round(a,.75,-d*.31,w*.43,.18,.6,'#fffdf8',.08);round(a,.94,-d*.4,w*.43,.32,.15,'#d6c9ba',.04);}
-      round(0,.735,.42,w,.17,d*.68,'#f4f0e8',.07);box(0,.832,d*.31,w,.025,.55,layout.kind==='hotel'?'#6f7d83':'#b39070');
+      round(0,.735,.42,w,.17,d*.68,'#f4f0e8',.07);box(0,.832,d*.31,w,.025,.55,layout.kind==='hotel'?'#66765e':'#b39070');
       for(const a of [-w*.4,w*.4])box(a,.835,.38,.012,.01,d*.55,'#ded8ce');
     }else if(kind==='sofa'){
       legs(.22);round(0,.35,0,w,.32,d,'#656463');round(0,.76,-d*.4,w,.72,d*.2,fabric);
       for(const a of [-w*.45,w*.45])round(a,.65,0,w*.1,.53,d,fabric);
-      for(const a of [-w*.22,w*.22]){round(a,.57,.03,w*.41,.22,d*.73,layout.kind==='hotel'?'#a4a5a1':'#697f91');round(a,.82,-d*.25,w*.34,.43,.18,layout.kind==='hotel'?'#b6b0a6':'#8397a6');}
+      for(const a of [-w*.22,w*.22]){round(a,.57,.03,w*.41,.22,d*.73,layout.kind==='hotel'?'#87937b':'#748e97');round(a,.82,-d*.25,w*.34,.43,.18,layout.kind==='hotel'?'#b7b49b':'#a0ada9');}
       round(-w*.3,.82,.07,.37,.3,.19,'#b99d7b');
     }else if(kind==='table'){
       legs(h-.1);round(0,h-.06,0,w,.12,d,'#ae9273',.03);
@@ -121,16 +123,22 @@ export function LodgingInterior3D({layout,name,isNight}:{layout:LodgingLayout;na
   useEffect(()=>()=>geometry.dispose(),[geometry]);
   return <>
     <mesh geometry={geometry} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.72}/></mesh>
-    {layout.finishes.map((f,i)=><mesh key={i} position={[f.x,.012+i*.0005,f.z]} rotation={[-Math.PI/2,0,0]} receiveShadow material={f.surface==='carpet'?undefined:getSurfaceMaterial(f.surface==='wood'?'wood':'concrete',f.color,f.w/2,f.d/2)}><planeGeometry args={[f.w,f.d]}/>{f.surface==='carpet'&&<meshStandardMaterial color={f.color} roughness={1}/>}</mesh>)}
+    {layout.finishes.map((f,i)=><mesh key={i} position={[f.x,.012+i*.0005,f.z]} rotation={[-Math.PI/2,0,0]} receiveShadow material={interiorMaterial(f.surface==='wood'?'oak':f.surface==='carpet'?'carpet':layout.kind==='hotel'?'stone':'terrazzo',f.color,f.w/4,f.d/4)}><planeGeometry args={[f.w,f.d]}/></mesh>)}
     {(layout.floor===0?[-7.1,-2.3,2.3,7.1]:layout.kind==='hotel'?[-6,6]:[-7.15,-1.25,4.65]).map(x=><group key={x} position={[x,1.85,-9.84]}>
       <mesh><boxGeometry args={[2.4,1.85,.12]}/><meshStandardMaterial color="#7e7971"/></mesh>
       <mesh position={[0,0,.08]}><boxGeometry args={[2.24,1.7,.04]}/><meshStandardMaterial color={isNight?'#354355':'#b0c6ce'} roughness={.16} metalness={.28}/></mesh>
       {[-1,1].map(side=><group key={side}><mesh position={[side*.59,0,.12]}><boxGeometry args={[.025,1.75,.025]}/><meshStandardMaterial color="#e0dbd2"/></mesh><mesh position={[side*1.12,-.14,.24]}><boxGeometry args={[.35,2.35,.15]}/><meshStandardMaterial color="#c1b4a1" roughness={1}/></mesh></group>)}
     </group>)}
-    {layout.floor===0&&<mesh position={[-3,2.5,-9.7]}><planeGeometry args={[4.5,.45]}/><meshBasicMaterial map={getSignTexture(name.toUpperCase())} transparent/></mesh>}
+    {layout.floor===0&&<><mesh position={[-3,2.5,-9.65]}><boxGeometry args={[5.2,.66,.1]}/><meshStandardMaterial color={layout.kind==='hotel'?'#56604b':'#58666a'}/></mesh><mesh position={[-3,2.5,-9.58]}><planeGeometry args={[4.8,.44]}/><meshBasicMaterial map={getSignTexture(name.toUpperCase())} transparent/></mesh></>}
+    {(layout.floor===0?[[-3,-2.6],[-4.5,4],[4,4]]:layout.kind==='hotel'?[[0,-4],[0,4]]:[[0,7.4],[5,1.5]]).map(([x,z],i)=><group key={`light-${i}`} position={[x,2.85,z]}>
+      <mesh position={[0,.2,0]}><cylinderGeometry args={[.012,.012,.4,6]}/><meshStandardMaterial color="#5d5a4e"/></mesh>
+      <mesh castShadow><cylinderGeometry args={[.33,.5,.18,16]}/><meshStandardMaterial color={layout.kind==='hotel'?'#a48b60':'#d9c7a9'} roughness={.48} metalness={layout.kind==='hotel'?.45:.1}/></mesh>
+      <mesh position={[0,-.105,0]} rotation={[Math.PI/2,0,0]}><circleGeometry args={[.46,16]}/><meshStandardMaterial color="#fff4da" emissive="#ffd8a4" emissiveIntensity={isNight?1.3:.15} side={THREE.DoubleSide}/></mesh>
+    </group>)}
     {layout.rooms.map(room=><group key={room.index} position={[room.door.x,2.5,room.door.z]}>
       <mesh position={[0,.06,0]}><boxGeometry args={layout.kind==='hotel'?[.18,.12,1.82]:[1.82,.12,.18]}/><meshStandardMaterial color="#9c8870"/></mesh>
       {[-1,1].map(side=><mesh key={side} position={layout.kind==='hotel'?[0,-1.2,side*.91]:[side*.91,-1.2,0]}><boxGeometry args={[.1,2.45,.1]}/><meshStandardMaterial color="#a38c73"/></mesh>)}
+      <group rotation={[0,layout.kind==='hotel'?-Math.sign(room.door.x)*Math.PI/2:0,0]} position={[0,.23,0]}><mesh><boxGeometry args={[.65,.21,.06]}/><meshStandardMaterial color="#6b614d"/></mesh><mesh position={[0,0,.04]}><planeGeometry args={[.58,.16]}/><meshBasicMaterial map={getSignTexture(`${layout.floor}${String(room.index%(layout.kind==='hotel'?4:3)+1).padStart(2,'0')}`)} transparent/></mesh></group>
     </group>)}
     {isNight&&<pointLight position={[0,3.8,1]} color="#ffe0b1" intensity={22} distance={19} decay={2}/>}
   </>;

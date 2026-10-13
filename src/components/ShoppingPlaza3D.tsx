@@ -7,7 +7,9 @@ import * as THREE from 'three';
 import type {Business,Property} from '../prototype/expansionModel';
 import type {VenueInteraction} from '../prototype/BusinessInterior';
 import {ModelParts} from '../graphics/modelParts';
-import {getSignTexture} from '../graphics/surfaceMaterials';
+import {getSignTexture,getSurfaceMaterial} from '../graphics/surfaceMaterials';
+import {interiorMaterial} from '../graphics/interiorMaterials';
+import {architecturalUV} from '../graphics/restaurantFinish';
 import {shopType,plazaUnitName,MALL_FLOORS,MALL_FACILITIES,MALL_FLOOR_HEIGHT,PLAZA_FLOORS,type MallFacility} from '../empire/plaza';
 import {RealCharacter3D} from './RealCharacter3D';
 import {CHILDREN} from '../people-preview/cast';
@@ -108,11 +110,24 @@ function MovingShopper({route,seed,speed,child=false,role='customer'}:{route:[nu
 }
 function MallGlass({floor}:{floor:number}){return <group>{[-1,1].map(s=><mesh key={s} position={[s*11.95,2.2,0]}><boxGeometry args={[.045,4.4,32]}/><meshStandardMaterial color="#abc6d2" transparent opacity={.15} metalness={.3} roughness={.12} depthWrite={false}/></mesh>)}{floor>0&&[-1,1].map(s=><mesh key={s} position={[s*2.03,.63,0]}><boxGeometry args={[.035,1,10.4]}/><meshStandardMaterial color="#b3d3db" transparent opacity={.24} depthWrite={false}/></mesh>)}{[0,1,2,3].flatMap(slot=>{const[x,z]=plazaShopPosition(slot);return [-2.78,2.78].map(dz=><mesh key={`${slot}:${dz}`} position={[Math.sign(x)*4.45,1.97,z+dz]}><boxGeometry args={[.035,3.15,3.2]}/><meshStandardMaterial color="#bed1d3" transparent opacity={.12} roughness={.16} depthWrite={false}/></mesh>);})}</group>;}
 function SeatedShopper({position,seed,gameSpeed,eating=true}:{position:[number,number,number];seed:number;gameSpeed:number;eating?:boolean}){return <group position={position} rotation={[0,-Math.PI/2,0]}><RealCharacter3D role="customer" seed={seed} gameSpeed={gameSpeed} isSitting isEating={eating} seatHeight={.46}/></group>;}
+
+function MallFinishes({floor,types,isNight}:{floor:number;types:string[];isNight:boolean}){
+ const slabs=floor===0?[[0,0,24,32]]:[[-7,0,10,32],[7,0,10,32],[0,-10.6,4,10.8],[0,10.6,4,10.8]];
+ return <group>
+  {slabs.map(([x,z,w,d],i)=><mesh key={i} position={[x,.022,z]} rotation={[-Math.PI/2,0,0]} receiveShadow material={interiorMaterial('stone','#dbd2bd',w/4,d/4)}><planeGeometry args={[w,d]}/></mesh>)}
+  {[0,1,2,3].map(slot=>{const[x,z]=plazaShopPosition(slot),wood=['cafe','restaurant','bakery','books','home'].includes(types[slot]);return <mesh key={slot} position={[x,.04,z]} rotation={[-Math.PI/2,0,0]} receiveShadow material={interiorMaterial(wood?'oak':'terrazzo',wood?'#b8a184':'#e0dcd0',1.8,2.2)}><planeGeometry args={[7.2,8.7]}/></mesh>;})}
+  {[-3.15,3.15].flatMap(x=>[-9,9].map(z=><group key={`${x}:${z}`} position={[x,4.05,z]}>
+    <mesh rotation={[Math.PI/2,0,0]}><torusGeometry args={[.62,.032,6,24]}/><meshStandardMaterial color="#aa8c5e" metalness={.65} roughness={.35}/></mesh>
+    <mesh position={[0,-.035,0]} rotation={[Math.PI/2,0,0]}><ringGeometry args={[.52,.6,24]}/><meshStandardMaterial color="#f6e7c9" emissive="#ffd69a" emissiveIntensity={isNight?1.4:.25} side={THREE.DoubleSide}/></mesh>
+    <mesh position={[0,.38,0]}><cylinderGeometry args={[.009,.009,.75,6]}/><meshStandardMaterial color="#726b5c"/></mesh>
+  </group>))}
+ </group>;
+}
 export function ShoppingPlaza3D({b,floor,gameSpeed,interactive,onInteract,isNight}:{b:Business;floor:number;gameSpeed:number;interactive:boolean;onInteract?:(a:VenueInteraction,id?:number)=>void;isNight:boolean}){
  const [labels,setLabels]=useState(false),units=(b.venue?.units??[]).slice(floor*4,floor*4+4),types=units.map(u=>u.shopType??'barber').join(','),facilities=b.plaza?.facilities??[],facilityKey=facilities.join(','),model=useMemo(()=>plazaInteriorGeometry(types.split(','),floor,facilityKey.split(',') as MallFacility[]),[types,floor,facilityKey]);
  const active=(!isNight||floor===3)&&!!b.venue?.running,amenity=MALL_FACILITIES.find(f=>f.floor===floor),hasAmenity=!!amenity&&facilities.includes(amenity.id),staffedAmenity=!!amenity&&mallFacilityCoverage(b,amenity.id)>0,routes=useMemo(()=>[0,1,2,3].map(plazaShopRoute),[]);
  useEffect(()=>()=>model.dispose(),[model]);
- return <><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.68}/></mesh><MallGlass floor={floor}/>
+ return <><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.68}/></mesh><MallFinishes floor={floor} types={types.split(',')} isNight={isNight}/><MallGlass floor={floor}/>
   <Sign text={`${floor===0?'G':floor}  |  ${MALL_FLOORS[floor].name}`} position={[0,3.65,-15.5]} width={10} height={.65}/><Sign text="Toilets / baby care" position={[8.5,3,-15.5]} width={4.3}/><Sign text="Service / staff" position={[-8.5,3,-15.5]} width={4.3}/>
   {units.map((u,slot)=>{const[x,z]=plazaShopPosition(slot),type=shopType(u.shopType),index=floor*4+slot,food=['cafe','restaurant','dessert','bakery'].includes(type.id);return <group key={index}>
    <Sign text={type.name} position={[x,3.35,z-4.35]} width={6.6} color={type.color} height={.6}/>
@@ -136,7 +151,7 @@ export function ShoppingPlaza3D({b,floor,gameSpeed,interactive,onInteract,isNigh
 /** Shared signature architecture: stone wings, a bowed glass atrium and a barrel-vault skylight. */
 export function mallExteriorGeometry(levels:number,openFloors:number,roof=true,designId?:BuildingDesignId){
  const m=new ModelParts(),glass=new ModelParts(),height=levels*MALL_FLOOR_HEIGHT;
- const design=buildingDesign(designId),bronze=design?.frame??'#9b805b',stone=design?.wall??'#d0c3ae',frame=design?.frame??'#536269';
+ const design=buildingDesign(designId),bronze=design?.frame??'#a99066',stone=design?.wall??'#ded4bf',frame=design?.frame??'#53665e';
  m.box([0,-.06,0],[24.3,.12,32.3],'#bdb3a2');
  for(let i=0;i<levels;i++){
   const y=i*MALL_FLOOR_HEIGHT,lit=i<openFloors;
@@ -191,14 +206,14 @@ export function mallExteriorGeometry(levels:number,openFloors:number,roof=true,d
   // Leaf-shaped emblem above the entrance.
   m.ellipsoid([0,height+1.25,15.62],[.35,.67,.06],bronze);m.branch([0,height+.7,15.71],[0,height+1.8,15.71],.025,.008,'#e5d2a5');
  }
- return {frame:m.finish(),glass:levels>0?glass.finish():new THREE.BufferGeometry()};
+ return {frame:architecturalUV(m.finish()),glass:levels>0?glass.finish():new THREE.BufferGeometry()};
 }
 export function PlazaBuilding3D({p,floors=1,selected=false,owned=false,labels=true,onSelect,cutawayFloor,isNight=false}:{p:Property;floors?:number;selected?:boolean;owned?:boolean;labels?:boolean;onSelect?:()=>void;cutawayFloor?:number;isNight?:boolean}){
  const levels=cutawayFloor??(p.id.startsWith('built-')?floors:PLAZA_FLOORS),height=levels*MALL_FLOOR_HEIGHT,model=useMemo(()=>mallExteriorGeometry(levels,floors,cutawayFloor===undefined,p.design),[levels,floors,cutawayFloor,p.design]);
  useEffect(()=>()=>{model.frame.dispose();model.glass.dispose();},[model]);
  return <group position={p.position} scale={.75} onClick={e=>{if(onSelect){e.stopPropagation();if(e.delta<=5)onSelect();}}}>
-  <mesh geometry={model.frame} castShadow receiveShadow><SnowSurfaceMaterial roughness={.5} metalness={.14}/></mesh>
-  <mesh geometry={model.glass}><meshPhysicalMaterial vertexColors transparent opacity={.64} roughness={.12} metalness={.3} clearcoat={1} side={THREE.DoubleSide} envMapIntensity={1.4} emissive={isNight?'#b49a78':'#000000'} emissiveIntensity={.2} depthWrite={false}/></mesh>
+  <mesh geometry={model.frame} castShadow receiveShadow><SnowSurfaceMaterial map={getSurfaceMaterial('plaster','#faf7f0').map} roughness={.6} metalness={.14}/></mesh>
+  <mesh geometry={model.glass}><meshPhysicalMaterial vertexColors transparent opacity={.46} roughness={.1} metalness={.35} clearcoat={1} side={THREE.DoubleSide} envMapIntensity={1.1} emissive={isNight?'#b49a78':'#000000'} emissiveIntensity={.2} depthWrite={false}/></mesh>
   {cutawayFloor===undefined&&<><Sign text={p.name} position={[-8.4,height-1.2,16.2]} width={5.8} height={1.2} color="#5b624e"/><Sign text="SHOPPING MALL" position={[-8.4,height-2.28,16.2]} width={5.8} height={.75} color="#5b624e"/><Sign text="SHOP / DINE / PLAY" position={[8.4,Math.min(6.5,height-1.2),16.3]} width={6} height={.65} color="#826e51"/><Sign text={p.name} position={[0,3.2,17.28]} width={8.8} height={.6} color="#6a604c"/>{floors<PLAZA_FLOORS&&<Sign text={`${floors} floor${floors>1?'s':''} open / more coming soon`} position={[8.4,Math.min(5.65,height-2),16.3]} width={6} height={.45} color="#637176"/>}</>}
   {selected&&<mesh rotation={[-Math.PI/2,0,0]} position={[0,.012,0]}><planeGeometry args={[24.5,32.5]}/><meshBasicMaterial color="#d8b866" transparent opacity={.22}/></mesh>}
   {labels&&onSelect&&<Html position={[0,height+3.5,0]} center zIndexRange={[4,0]}><button className={`map-pin ${selected?'selected':''}`} aria-label={`Select ${p.name}`} onClick={onSelect}><span className={owned?'owned-dot':'available-dot'}/>{p.name}<small>{owned?`${floors} / ${PLAZA_FLOORS} mall floors open`:'Shopping mall · available'}</small></button></Html>}

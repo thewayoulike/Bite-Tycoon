@@ -9,8 +9,8 @@ export function NaturalSky3D({daylight,isNight,cloud=0}:{daylight:number;isNight
  const light=isNight?0:Math.min(1,daylight*2.8);
  const uniforms=useMemo(()=>({zenith:{value:new THREE.Color()},horizon:{value:new THREE.Color()}}),[]);
  // Retain the uniform objects uploaded by Three; update their values through day/night transitions.
- uniforms.zenith.value.set('#142239').lerp(new THREE.Color('#789fbe').lerp(new THREE.Color('#9daebc'),cloud),light);
- uniforms.horizon.value.set('#263248').lerp(new THREE.Color('#e1e5e5').lerp(new THREE.Color('#aebdc9'),cloud*.55),light);
+ uniforms.zenith.value.set('#142239').lerp(new THREE.Color('#91b3c7').lerp(new THREE.Color('#96a9ad'),cloud),light);
+ uniforms.horizon.value.set('#263248').lerp(new THREE.Color('#e6e2d6').lerp(new THREE.Color('#b8c6c9'),cloud*.55),light);
  return <mesh ref={dome} renderOrder={-100} frustumCulled={false}>
   <sphereGeometry args={[600,32,16]}/>
   <shaderMaterial side={THREE.BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms}

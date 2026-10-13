@@ -9,6 +9,8 @@ import {OUTER_HOUSES} from '../graphics/residentialLayout';
 import type {HousePart} from '../graphics/residentialHouseLibrary';
 import type {ThreeEvent} from '@react-three/fiber';
 import {commercialParcelAt} from '../graphics/commercialParcels';
+import {getSurfaceMaterial} from '../graphics/surfaceMaterials';
+import {interiorMaterial} from '../graphics/interiorMaterials';
 const CityQuarter=memo(function CityQuarter({quadrant,isNight,snow,houses,trees,cars,market,developmentKey,onSelect}:{quadrant:number;isNight:boolean;snow:number;houses:HousePart[]|null;trees:Group|null;cars:Group|null;market:boolean;developmentKey:string;onSelect?:(id:string)=>void}){
  const modeledHomes=!!houses,modeledTrees=!!trees,modeledCars=!!cars;
  const {model,placements}=useMemo(()=>{
@@ -19,6 +21,8 @@ const CityQuarter=memo(function CityQuarter({quadrant,isNight,snow,houses,trees,
  const selectSite=(event:ThreeEvent<MouseEvent>)=>{if(!market||event.delta>4)return;const p=commercialParcelAt(Math.round(event.point.x/25)*25,Math.round(event.point.z/25)*25);if(p&&!developmentKey.split('|').includes(p.id)){event.stopPropagation();onSelect?.('plot-'+p.id);}};
  return <group>
   <mesh geometry={model.solid} onClick={market?selectSite:undefined} castShadow receiveShadow><SnowSurfaceMaterial snow={snow}/></mesh>
+  <mesh geometry={model.masonry} onClick={market?selectSite:undefined} castShadow receiveShadow><SnowSurfaceMaterial snow={snow} map={getSurfaceMaterial('brick','#f9f5ee').map}/></mesh>
+  <mesh geometry={model.paving} onClick={market?selectSite:undefined} receiveShadow><SnowSurfaceMaterial snow={snow} map={interiorMaterial('stone','#bdb7a9',2,2).map}/></mesh>
   <mesh geometry={model.glass} onClick={market?selectSite:undefined} receiveShadow><meshStandardMaterial vertexColors metalness={.35} roughness={.3}/></mesh>
   <mesh geometry={model.lit} onClick={market?selectSite:undefined}><meshStandardMaterial vertexColors emissive={isNight?'#efcfa1':'#000000'} emissiveIntensity={isNight?.8:0}/></mesh>
   <mesh geometry={model.land} onClick={market?selectSite:undefined} receiveShadow><SnowSurfaceMaterial snow={snow} roughness={1}/></mesh>

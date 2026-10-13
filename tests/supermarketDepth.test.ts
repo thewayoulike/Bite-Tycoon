@@ -49,9 +49,9 @@ test('older supermarkets preserve every selected department, stock, open electro
 
 test('display plan previews physical fixture requirements, spends only on confirmation and supports the complete unlocked range',()=>{
  let s=level(2),b=s.businesses.shop;b={...b,retail:{...b.retail!,store:{...b.retail!.store!,fixtures:{dry:1,cold:1}}}};s=put(s,b);
- const plan=shelfPlan(b,0);assert.ok(plan.cost>0);assert.equal(plan.ids.length,24);assert.equal(s.businesses.shop.cash,b.cash);
+ const plan=shelfPlan(b,0);assert.ok(plan.cost>0);assert.equal(plan.ids.length,RETAIL_PRODUCTS.filter(item=>retailProductFloor(item.id)===0&&productUnlocked(b,item.id)).length);assert.equal(s.businesses.shop.cash,b.cash);
  const poor=put(s,{...b,cash:0});assert.equal(confirmShelfPlan(poor,'shop',0).businesses.shop,poor.businesses.shop);
- const applied=confirmShelfPlan(s,'shop',0);near(applied.businesses.shop.cash,b.cash-plan.cost);assert.equal(applied.businesses.shop.retail!.shelves.length,24);
+ const applied=confirmShelfPlan(s,'shop',0);near(applied.businesses.shop.cash,b.cash-plan.cost);assert.equal(applied.businesses.shop.retail!.shelves.length,plan.ids.length);
  near(confirmShelfPlan(applied,'shop',0).businesses.shop.cash,applied.businesses.shop.cash);balanced(applied.businesses.shop,applied);
  assert.equal(setShelfProduct(s,'shop','fish').businesses.shop,b);
 });

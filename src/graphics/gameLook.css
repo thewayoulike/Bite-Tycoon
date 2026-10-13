@@ -1,0 +1,51 @@
+/* Game chrome only: the detailed management consoles keep their existing shared UI. */
+.game-ui .game-topbar{background:#faf7efed;border:1px solid #c5beaf;border-radius:12px;box-shadow:0 4px 22px #26312d16;padding:9px 12px;gap:8px;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif}
+.game-ui .game-topbar h1{font-size:14px;letter-spacing:.3px;color:#293e36;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game-ui .game-topbar .mc-slot{border:1px solid #d1c9b8;box-shadow:none;border-radius:7px;background:#f2eee4;padding:6px 8px}
+.game-ui .game-topbar button{box-shadow:none;border-width:1px;border-radius:7px;font-size:10px;letter-spacing:.3px}
+.game-ui .game-topbar button.mc-button-green{background:#315847;border-color:#274a3b;color:#fff9e9;animation:none}
+.game-ui .game-topbar button.mc-button-red{background:#805042;border-color:#694036;color:#fff9e9}
+.game-ui .game-dock{padding:0 0 2px}
+.game-ui .game-dock-panel{background:#faf7efed;border:1px solid #c5beaf;border-radius:12px;padding:5px;gap:3px;box-shadow:0 4px 20px #26312d20}
+.game-ui .game-dock-panel button{padding:8px 9px;min-height:36px;border-radius:7px;border:1px solid transparent;box-shadow:none;gap:5px;background:transparent;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;color:#45504a}
+.game-ui .game-dock-panel button span:not(.absolute){font-size:9px;letter-spacing:0;text-transform:none}
+.game-ui .game-dock-panel button[aria-pressed=true]{background:#e1e9dd;border-color:#b4c4b2;color:#2c4a3c;transform:none}
+.game-ui .game-dock-panel button:hover{background:#ecebe1}
+.game-ui .game-dock-panel button svg{width:16px;height:16px}
+.game-ui .shift-dashboard{max-width:370px;width:calc(100% - 32px);right:auto;padding:9px 12px;border-color:#c5beaf;border-radius:9px;background:#faf7eff0;color:#35483d}
+.game-ui .shift-dashboard summary{cursor:pointer;font-size:11px;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.game-ui .shift-dashboard summary::after{content:'⌄';font-size:14px}
+.game-ui .shift-dashboard summary span{font-size:10px;color:#6b7268}
+.game-ui .shift-dashboard[open] summary::after{content:'⌃'}
+.game-ui .shift-details{padding-top:9px;border-top:1px solid #d8d0bf;margin-top:9px}
+.game-ui .shift-details p,.game-ui .shift-details button{font-size:11px}
+.game-ui .game-world .world-tools{bottom:76px;right:16px;gap:5px;align-items:center;max-width:calc(100% - 32px)}
+.game-ui .world-tools button,.game-ui .world-tools select,.game-ui .world-view-settings summary{font:10px 'Plus Jakarta Sans','Segoe UI',sans-serif;padding:9px 10px;min-height:33px;color:#3d4d44;background:#faf7eff0;border:1px solid #c5beaf;border-radius:7px;box-shadow:0 2px 7px #26312d12;cursor:pointer}
+.game-ui .world-tools select{max-width:205px}
+.game-ui .world-tools button[aria-pressed=true]{background:#dfe9df;border-color:#9aaa95}
+.game-ui .world-tools button:disabled{opacity:.5;cursor:not-allowed}
+.game-ui .world-view-settings{position:relative}
+.game-ui .world-view-settings summary{list-style:none}
+.game-ui .world-view-settings summary::after{content:' ⌃';margin-left:5px}
+.game-ui .world-view-menu{position:absolute;bottom:42px;right:0;display:flex;flex-direction:column;gap:6px;padding:10px;width:225px;max-height:calc(100dvh - 195px);overflow:auto;border:1px solid #bfb6a5;background:#f4f0e6fa;border-radius:10px;box-shadow:0 8px 30px #26312d30}
+.game-ui .world-view-menu button,.game-ui .world-view-menu select{text-align:left;width:100%;max-width:none}
+.game-ui .game-world .world-weather{bottom:122px;right:16px}
+.game-ui .world-weather .weather-summary{font-size:10px;padding:7px 10px;border-radius:7px;border-color:#c5beaf;box-shadow:none}
+.game-ui .world-weather .weather-details{max-height:calc(100dvh - var(--world-hud-bottom,96px) - 175px)}
+.game-ui .world-context{max-width:275px;bottom:123px;font-size:11px;border-color:#c5beaf;background:#faf7eff0}
+.game-ui .world-context p{font-size:10px;color:#657363}
+.game-ui .desk-launch{left:16px;bottom:76px;padding:9px 11px;font-size:10px;min-height:33px;border:1px solid #c5beaf;border-radius:7px;box-shadow:none}
+.game-ui .market-launch{top:var(--world-hud-bottom,96px);right:16px;font-size:10px;padding:8px 11px;border:1px solid #c5beaf;box-shadow:none}
+.game-ui .map-navigation-hint{font-size:9px;opacity:.8}
+.game-ui .game-world .map-pin{padding:7px 10px;font-size:10px;background:#faf7eff2;border-color:#d2c7b1}
+.game-ui .game-world .map-pin.selected{background:#345442;color:#fff8e8}
+.game-ui button:focus-visible,.game-ui summary:focus-visible,.game-ui select:focus-visible{outline:2px solid #346c59;outline-offset:3px}
+.game-ui:has(.world-clean) .game-overlay,.game-ui:has(.world-clean)>.shift-dashboard,.game-ui:has(.world-clean)>.world-context,.game-ui:has(.world-clean)>.desk-launch,.game-ui:has(.world-clean)>.market-launch,.game-ui:has(.world-clean)>.venue-hud{display:none}
+.game-ui .world-clean .world-tools>:not(.world-interface-toggle),.game-ui .world-clean .world-weather,.game-ui .world-clean .venue-floor-switcher,.game-ui .world-clean .map-pin,.game-ui .world-clean .city-district-label{display:none}
+.game-ui .game-world.world-clean .world-tools{bottom:16px}
+.game-ui .restaurant-exterior .restaurant-indoor-label,.game-ui .world-clean .restaurant-indoor-label,.game-ui:has(.restaurant-exterior)>.shift-dashboard{display:none}
+.game-ui:has(.world-clean)>.market-first-guide{display:none}
+.game-ui .world-clean .venue-hotspot,.game-ui .world-clean .mall-view-tools{display:none}
+@media(max-width:1050px){.game-ui .game-topbar h1{max-width:180px;font-size:12px}.game-ui .game-topbar{gap:6px;padding:7px 9px}.game-ui .game-topbar>div{gap:6px}.game-ui .game-topbar .mc-slot{padding:5px 6px}.game-ui .game-topbar .mc-button-green,.game-ui .game-topbar .mc-button-red{padding:8px 9px}}
+@media(max-width:760px){.game-ui .game-world .world-tools{bottom:72px;max-width:calc(100% - 22px);right:11px}.game-ui .world-tools button,.game-ui .world-tools select,.game-ui .world-view-settings summary{font-size:9px;padding:7px;min-height:32px}.game-ui .world-tools select{max-width:155px}.game-ui .desk-launch{bottom:156px;left:12px}.game-ui .world-context{bottom:193px;max-width:240px}.game-ui .game-world .world-weather{bottom:115px;right:12px}.game-ui .game-topbar h1{max-width:165px}.game-ui .shift-dashboard{width:260px;max-width:calc(100% - 170px)}.game-ui .shift-dashboard summary{flex-wrap:wrap;gap:3px}.game-ui .game-dock-panel button{padding:8px}.game-ui .market-launch{right:12px;max-width:145px}}
+@media(prefers-reduced-motion:reduce){.game-ui .game-topbar *{animation:none!important;transition:none!important}}

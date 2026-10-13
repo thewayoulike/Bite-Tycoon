@@ -29,7 +29,10 @@ export function urbanBuildingProfile(p:Property,{background=false,floorsOverride
   const design=buildingDesign(p.design);
   const modern=design?design.id==='modern':p.id==='shop'||(background&&seed%4===0),hotel=p.kind==='hotel',residential=p.kind==='apartments';
   const mansard=design?design.id==='heritage'&&['hotel','apartments'].includes(p.kind):!modern&&!hotel&&((background&&seed%3===0)||p.id==='bistro');
-  const style=design??URBAN_STYLES[hotel?1:modern?3:p.id==='cafe'?2:seed%URBAN_STYLES.length];
+  const propertyStyle=hotel?{wall:'#cbbda5',trim:'#e9dec9',frame:'#65573f',surface:'plaster' as const}
+    :residential?{wall:'#96735d',trim:'#d9cbb5',frame:'#404d47',surface:'brick' as const}
+    :p.kind==='shop'?{wall:'#c2c5b7',trim:'#e8dfcc',frame:'#315849',surface:'concrete' as const}:undefined;
+  const style=design??(!background&&propertyStyle?propertyStyle:URBAN_STYLES[modern?3:p.id==='cafe'?2:seed%URBAN_STYLES.length]);
   const scale:[number,number,number]=background?[1,1,1]:[13.5/13.4,LODGING_STOREY_HEIGHT/2.85,15/12.2];
   return {seed,cutaway,groundHeight,floors,height,modern,hotel,residential,mansard,style,scale};
 }

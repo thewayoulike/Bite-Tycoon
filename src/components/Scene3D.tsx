@@ -71,7 +71,7 @@ const StaminaBar = ({ entity, type, actions }: { entity: any, type: 'waiter'|'ch
   const isExhausted = entity.stamina <= 20;
 
   return (
-    <Html position={[0, 2.3, 0]} center zIndexRange={[100, 0]}>
+    <Html className="restaurant-indoor-label" position={[0, 2.3, 0]} center zIndexRange={[100, 0]}>
       <div className="flex flex-col items-center pointer-events-none">
         {isExhausted && entity.state !== 'on_break' && (
           <div className="bg-red-500 text-white font-black text-[8px] px-1 rounded animate-pulse mb-0.5">TIRED!</div>
@@ -208,7 +208,7 @@ const Customer3D = ({ customer, table, tables, actions, staff, gameSpeed }: any)
       ))}
 
       {customer.state !== 'entering' && customer.state !== 'leaving' && (
-        <Html position={[mapPos(table.x), 4.5, mapPos(table.y)]} center>
+        <Html className="restaurant-indoor-label" position={[mapPos(table.x), 4.5, mapPos(table.y)]} center>
           <div className="flex flex-col items-center pointer-events-none">
             {customer.bookingName&&<span className="rounded bg-[#e8dfce] px-2 text-[10px] font-bold">Reserved · {customer.bookingName}</span>}
             {customer.isVIP && (
@@ -695,11 +695,11 @@ return <>
 </>;
 }
 
-export function RestaurantContents3D({state,actions,cutaway=true,isNight=false,property}:{state:GameState;actions:any;cutaway?:boolean;isNight?:boolean;property?:import("../prototype/expansionModel").Property}){
+export function RestaurantContents3D({state,actions,cutaway=true,isNight=false,property,roof=false}:{state:GameState;actions:any;cutaway?:boolean;isNight?:boolean;property?:import("../prototype/expansionModel").Property;roof?:boolean}){
 const isNearDoor=state.customers.some(c=>c.state==='entering'||c.state==='leaving');
 const identity=state.restaurantIdentity??'diner';
 return <>
-        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} isNight={isNight} terrace={state.advanced?.terrace} level={state.restaurantType?restaurantLevel(state):1}/>
+        <group position={[0,0,4]} scale={[40/30,1,38/30]}><AttractiveFloor3D/>{!cutaway&&<CeilingBeams3D/>}</group><RestaurantIdentity3D identity={identity} name={property?.name} isNight={isNight} terrace={state.advanced?.terrace} level={state.restaurantType?restaurantLevel(state):1}/>
 
         {/* Ambient warm dining area pendant lights */}
         <PendantLamp3D position={[-7, 9.8, -2]} isNight={isNight} />
@@ -715,11 +715,11 @@ return <>
 
         {isNight && <pointLight position={[0, 6, 0]} intensity={75} distance={32} color="#ffdab1" />}
 
-        <RestaurantShell3D appearance={restaurantAppearance(identity,state,property)} cutaway={cutaway} roof={false} isNight={isNight} doorOpen={isNearDoor}/>
-        <Lantern position={[-8, 8, -10]} />
+        <RestaurantShell3D appearance={restaurantAppearance(identity,state,property)} cutaway={cutaway} roof={roof} isNight={isNight} doorOpen={isNearDoor}/>
+        {(identity==='japanese'||identity==='indian')&&<><Lantern position={[-8, 8, -10]} />
         <Lantern position={[8, 8, -10]} />
         <Lantern position={[-10, 8, 0]} />
-        <Lantern position={[10, 8, 0]} />
+        <Lantern position={[10, 8, 0]} /></>}
 
 
         {/* Upgraded Service Counter, Bar, Espresso Machine & Pastry Case */}

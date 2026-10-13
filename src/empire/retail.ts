@@ -8,7 +8,8 @@ import type {Business,ExpansionState} from '../prototype/expansionModel';
 export const ELECTRONICS_FLOOR_COST=5000;
 export const ELECTRONICS_FLOOR_CUSTOMERS=300;
 export const SUPERMARKET_MAX_BUDGET=20000;
-export const RETAIL_PRODUCTS=[
+import {EVERYDAY_PRODUCTS,SUPERMARKET_STARTER_IDS,type RetailProduct} from './retailRange';
+export const RETAIL_PRODUCTS:RetailProduct[]=[
   {id:'apples',name:'Fresh apples',category:'Produce',cost:1.2,price:3,icon:'🍎',color:'#bc6b4e'},
   {id:'bread',name:'Bakery bread',category:'Bakery',cost:1.5,price:4,icon:'🍞',color:'#cda86d'},
   {id:'milk',name:'Milk carton',category:'Chilled',cost:2,price:5,icon:'🥛',color:'#dbe3d6'},
@@ -45,9 +46,10 @@ export const RETAIL_PRODUCTS=[
   {id:'vacuum',name:'Vacuum cleaner',category:'Appliances',cost:60,price:110,icon:'🧹',color:'#8a7889'},
   {id:'kettle',name:'Electric kettle',category:'Appliances',cost:14,price:32,icon:'🫖',color:'#c4bdad'},
   {id:'toaster',name:'Toaster',category:'Appliances',cost:17,price:38,icon:'🍞',color:'#bfc2c0'},
+  ...EVERYDAY_PRODUCTS,
 ];
 export type RetailState={store?:StoreState;stock:Record<string,number>;shelves:string[];electronicsUnlocked?:boolean;batches?:Record<string,StockBatch[]>};
-export const createRetail=(stock=100):RetailState=>({store:newStore(),stock:Object.fromEntries(RETAIL_PRODUCTS.slice(0,6).map(p=>[p.id,Math.round((p.id==='tea'?10:20)*stock/100)])),shelves:['apples','bread','milk']});
+export const createRetail=(stock=100):RetailState=>({store:newStore(),stock:Object.fromEntries(SUPERMARKET_STARTER_IDS.map(id=>[id,Math.round(20*stock/100)])),shelves:[...SUPERMARKET_STARTER_IDS]});
 export const retailProduct=(id:string)=>RETAIL_PRODUCTS.find(p=>p.id===id);
 export const retailProductFloor=(id:string)=>['Electronics','Appliances'].includes(retailProduct(id)?.category??'')?1:0;
 export const retailOrderDiscount=(id:string,quantity:number)=>quantity>=(retailProductFloor(id)===1?5:50)?.1:quantity>=(retailProductFloor(id)===1?3:25)?.05:0;

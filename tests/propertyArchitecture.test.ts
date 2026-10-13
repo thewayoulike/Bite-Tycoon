@@ -4,6 +4,8 @@ import {restaurantAppearance,propertyInteriorPlacement,RESTAURANT_SHELL,urbanBui
 import {restaurantShellGeometry} from '../src/components/RestaurantShell3D';
 import {PROPERTIES} from '../src/prototype/expansionModel';
 import {ROOM} from '../src/restaurantLayout';
+import {restaurantFinish} from '../src/graphics/restaurantFinish';
+import * as THREE from 'three';
 
 test('the shared restaurant shell encloses the playable room at the same address and scale',()=>{
   for(const p of PROPERTIES.filter(p=>p.kind==='restaurant'||p.kind==='cafe')){
@@ -41,4 +43,33 @@ test('hotel, apartments and shop keep facade identity and footprint when reveali
       assert.equal(cutaway.scale[2]*12.2,20*propertyInteriorPlacement(p).scale);
     }
   }
+});
+
+test('approved finishes preserve custom paint and purchased designs without rewriting the saved appearance',()=>{
+  const untouched=restaurantAppearance('diner'),snapshot={...untouched};
+  assert.equal(restaurantFinish(untouched).frame,'#25443c');assert.deepEqual(untouched,snapshot);
+  const custom=restaurantAppearance('cafe',{wallColor:'#c7ad92',frameColor:'#724747'});
+  assert.equal(restaurantFinish(custom).wall,custom.wall);assert.equal(restaurantFinish(custom).frame,custom.frame);
+  for(const design of ['heritage','modern','garden'] as const){
+    const purchased=restaurantAppearance('diner',undefined,{name:'My restaurant',design});
+    assert.equal(restaurantFinish(purchased).wall,purchased.wall);assert.equal(restaurantFinish(purchased).frame,purchased.frame);
+  }
+});
+
+test('all new facade layouts keep the working entrance open and masonry UVs finite',()=>{
+  const material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
+  for(let layout=0;layout<6;layout++){
+    const model=restaurantShellGeometry(restaurantAppearance('diner',{restaurantLayout:layout}));
+    const solids=[model.front,model.frontTrim,model.frontInside].map(geometry=>new THREE.Mesh(geometry,material));
+    for(const x of [-1.25,0,1.25])for(const y of [.2,1.5,3.6]){
+      const ray=new THREE.Raycaster(new THREE.Vector3(x,y,27),new THREE.Vector3(0,0,-1),0,6);
+      assert.equal(ray.intersectObjects(solids).length,0,`Entrance blocked at ${x}, ${y}, layout ${layout}`);
+    }
+    for(const geometry of [model.sides,model.front]){
+      assert.equal(geometry.getAttribute('uv').count,geometry.getAttribute('position').count);
+      assert.ok(Array.from(geometry.getAttribute('uv').array).every(Number.isFinite));
+    }
+    Object.values(model).forEach(g=>g.dispose());
+  }
+  material.dispose();
 });

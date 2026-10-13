@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { Box, Cylinder, Sphere, Html, Torus } from '@react-three/drei';
 import * as THREE from 'three';
 import { FoodPlate3D } from './FoodPlate3D';
+import {getSurfaceMaterial} from '../graphics/surfaceMaterials';
 
 import {mapPos} from '../restaurantLayout';
 
@@ -28,7 +29,7 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
         </Cylinder>
         {/* Brass Cap Ferrule at bottom */}
         <Cylinder args={[0.02, 0.022, 0.08, 12]} position={[0, -0.22, 0]}>
-          <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
         </Cylinder>
       </group>
 
@@ -38,7 +39,7 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
           <meshStandardMaterial color="#291e17" roughness={0.6} />
         </Cylinder>
         <Cylinder args={[0.02, 0.022, 0.08, 12]} position={[0, -0.22, 0]}>
-          <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
         </Cylinder>
       </group>
 
@@ -48,7 +49,7 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
           <meshStandardMaterial color="#291e17" roughness={0.6} />
         </Cylinder>
         <Cylinder args={[0.02, 0.022, 0.08, 12]} position={[0, -0.22, 0]}>
-          <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
         </Cylinder>
       </group>
 
@@ -58,7 +59,7 @@ export const BistroChair3D = memo(({ position, rotation = [0, 0, 0], cushionColo
           <meshStandardMaterial color="#291e17" roughness={0.6} />
         </Cylinder>
         <Cylinder args={[0.02, 0.022, 0.08, 12]} position={[0, -0.22, 0]}>
-          <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+          <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
         </Cylinder>
       </group>
 
@@ -120,14 +121,14 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
 
   // Diverse cushion palette per table for a boutique bistro aesthetic
   const chairPalettes = ["#991b1b", "#1e3a8a", "#065f46", "#b45309", "#4c1d95", "#831843"];
-  const chairColor = identity==='cafe'?'#668676':identity==='bistro'?'#526744':identity==='italian'?'#70523c':identity==='fastfood'?'#b88f46':'#a14e45';
+  const chairColor = identity==='diner'?'#395349':identity==='cafe'?'#668676':identity==='bistro'?'#526744':identity==='italian'?'#70523c':identity==='fastfood'?'#b88f46':'#a14e45';
   const chairStyle=identity==='diner'?(level>=4&&Math.abs(x)>12?'booth':'diner'):identity==='fastfood'?'fastfood':'classic';
 
   return (
     <group position={[x, 0, z]} scale={2}>
       {/* Clean Table Action Banner */}
       {table.isDirty && (
-        <Html position={[0, 2.7, 0]} center zIndexRange={[100, 0]}>
+        <Html className="restaurant-indoor-label" position={[0, 2.7, 0]} center zIndexRange={[100, 0]}>
           <button
             onClick={() => actions.cleanTable(table.id)}
             className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-stone-900 border-2 border-amber-800 font-black text-[11px] rounded-lg shadow-2xl animate-pulse whitespace-nowrap pointer-events-auto flex items-center gap-1.5 transform hover:scale-105 active:scale-95 transition-all"
@@ -145,7 +146,7 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
       </Cylinder>
       {/* Brass Accent Ring */}
       <Torus args={[0.42, 0.02, 12, 32]} position={[0, 0.06, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+        <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
       </Torus>
       {/* Fluted Central Cast Iron Column */}
       <Cylinder args={[0.07, 0.09, 0.64, 24]} position={[0, 0.39, 0]} castShadow>
@@ -153,10 +154,10 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
       </Cylinder>
       {/* Turned Column Decorative Rings */}
       <Cylinder args={[0.11, 0.11, 0.04, 24]} position={[0, 0.22, 0]}>
-        <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+        <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
       </Cylinder>
       <Cylinder args={[0.11, 0.11, 0.04, 24]} position={[0, 0.62, 0]}>
-        <meshStandardMaterial color="#f59e0b" metalness={0.85} roughness={0.2} />
+        <meshStandardMaterial color="#aa8956" metalness={0.85} roughness={0.2} />
       </Cylinder>
 
       {/* Under-table Support Spider Bracket */}
@@ -173,8 +174,9 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
         {/* Polished Marble Surface */}
         <Cylinder args={[1.19, 1.19, 0.075, 48]} position={[0, 0.005, 0]} receiveShadow>
           <meshStandardMaterial
-            color={table.isDirty ? "#d6d3d1" : identity==='cafe'?'#bb9870':identity==='bistro'?'#eee4cb':identity==='italian'?'#d5b28b':identity==='fastfood'?'#d9c8a8':'#fafafa'}
-            roughness={table.isDirty ? 0.6 : 0.1}
+            map={['diner','cafe','italian'].includes(identity)?getSurfaceMaterial('wood','#c5a77e').map:null}
+            color={table.isDirty ? "#bcb6a9" : ['diner','cafe','italian'].includes(identity)?'#ffffff':identity==='bistro'?'#eee4cb':identity==='fastfood'?'#d9c8a8':'#fafafa'}
+            roughness={table.isDirty ? .75 : .48}
             metalness={0.1}
           />
         </Cylinder>
@@ -208,7 +210,7 @@ export const BistroTable3D = memo(({ table, index, isEating, actions, servedReci
             </Cylinder>
             {/* Warm Candle Flame */}
             <Sphere args={[0.015, 8, 8]} position={[0, 0.07, 0]} scale={[0.8, 1.4, 0.8]}>
-              <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={2.5} />
+              <meshStandardMaterial color="#aa8956" emissive="#aa8956" emissiveIntensity={2.5} />
             </Sphere>
             {/* Micro subtle candle light */}
           </group>
