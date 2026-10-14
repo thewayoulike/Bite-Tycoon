@@ -27,14 +27,15 @@ test('global simulation shares one weather day across restaurants and pauses wit
  const paused=setEmpireSpeed(e,0);assert.equal(advanceEmpire(paused,100,advanceGame),paused);
 });
 test('weather actually changes restaurant walk-ins and online order demand',t=>{
- t.mock.method(Math,'random',()=>.09);
+ // Compare the same fixed service step on either side of the weather threshold.
+ t.mock.method(Math,'random',()=>.009);
  const r={...structuredClone(INITIAL_STATE),week:2,phase:'service' as const,isRestaurantOpen:true};
- assert.equal(advanceGame(r,1,weatherDemand('restaurant','clear')).customers.length,1);
- assert.equal(advanceGame(r,1,weatherDemand('restaurant','snow')).customers.length,0);
- t.mock.restoreAll();t.mock.method(Math,'random',()=>.035);
+ assert.equal(advanceGame(r,.1,weatherDemand('restaurant','clear')).customers.length,1);
+ assert.equal(advanceGame(r,.1,weatherDemand('restaurant','snow')).customers.length,0);
+ t.mock.restoreAll();t.mock.method(Math,'random',()=>.0035);
  const delivery={...r,tables:[],unlockedApps:['bitedash']};
- assert.equal(advanceGame(delivery,1,weatherDemand('restaurant','clear')).orders.length,0);
- assert.ok(advanceGame(delivery,1,weatherDemand('restaurant','rain')).orders.length>0);
+ assert.equal(advanceGame(delivery,.1,weatherDemand('restaurant','clear')).orders.length,0);
+ assert.ok(advanceGame(delivery,.1,weatherDemand('restaurant','rain')).orders.length>0);
 });
 test('venue arrivals respond to weather while signed apartment rents remain unchanged',()=>{
  const e=startEmpireWeek(fresh()),p=propertyById('shop')!,b=e.district.businesses.shop;

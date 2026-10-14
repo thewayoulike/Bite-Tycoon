@@ -11,6 +11,7 @@ import {ParkFountain3D} from '../components/CityScenery3D';
 import {StylizedTree3D} from '../components/StreetAssets3D';
 import {ElectronicsInterior3D,SupermarketInterior3D} from '../components/SupermarketInterior3D';
 import {SupermarketPeople3D} from '../components/SupermarketPeople3D';
+import {supermarketShelfStatus} from '../empire/supermarket';
 import {retailProductFloor} from '../empire/retail';
 import {createVenue,serviceBlocker,VenueVisitor,venueRules} from '../empire/venueSimulation';
 import {LodgingBusiness3D} from '../components/LodgingBusiness3D';
@@ -91,7 +92,7 @@ export function BusinessContents3D({p,b,gameSpeed=1,interactive=false,onInteract
     </>}
     {interactive&&rules&&<>
       {<Hotspot position={park?[6,3,-4.5]:[-4,2.9,7]} title={rules.verb} note={blocker??`${waiting.length} waiting · click to serve`} disabled={!!blocker} onClick={()=>act('serve',waiting[0]?.id)}/>}
-      <Hotspot position={park?[-7,2.4,-5]:[7.5,2.7,-6]} title={p.kind==='hotel'?'Linen & supplies':p.kind==='apartments'?'Maintenance store':p.kind==='shop'?'Stockroom':'Garden supplies'} note={`${Math.round(b.stock)}% stocked · order supplies`} onClick={()=>act('inventory')}/>
+      <Hotspot position={park?[-7,2.4,-5]:[7.5,2.7,-6]} title={p.kind==='hotel'?'Linen & supplies':p.kind==='apartments'?'Maintenance store':p.kind==='shop'?'Stockroom':'Garden supplies'} note={b.retail?`${supermarketShelfStatus(b).stocked} / ${supermarketShelfStatus(b).selected} products stocked on shelves`:`${Math.round(b.stock)}% stocked · order supplies`} onClick={()=>act('inventory')}/>
       {floor===0&&<Hotspot position={park?[0,1.6,7]:[5.8,2.1,7.4]} title={p.kind==='hotel'?'Reception team':p.kind==='apartments'?'Property office':p.kind==='shop'?'Supermarket team':'Park team'} note="Hire staff & set purchasing rules" onClick={()=>act('staff')}/>}
     </>}
   </>;

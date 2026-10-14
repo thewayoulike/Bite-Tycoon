@@ -1,0 +1,20 @@
+.store-loss-advice{margin:12px 0;padding:16px;border:1px solid #d4c2a8;border-radius:10px;background:#fffaf0;color:#31483a;text-align:left}
+.store-loss-advice h4{margin:0 0 6px;font-size:1rem;font-weight:750;color:#79502e}
+.store-loss-advice .store-loss-context{margin:0 0 12px;color:#6b7168;font-size:.8rem;line-height:1.5}
+.store-loss-advice ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.store-loss-advice li{border-top:1px solid #e4d9c9;padding-top:12px}
+.store-loss-advice li>strong{font-size:.9rem;line-height:1.4;display:block}
+.store-loss-count{display:inline-block;min-width:24px;padding:1px 5px;margin-right:3px;border-radius:5px;background:#f2dfc6;color:#754516;text-align:center;font-variant-numeric:tabular-nums}
+.store-loss-advice li p{margin:7px 0 0;font-size:.85rem;line-height:1.55}
+.store-loss-advice li .store-loss-cause{color:#6b7168}
+.store-loss-advice li button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin:9px 0 0;padding:8px 10px;border:1px solid #b9cec0;border-radius:6px;background:#edf4ee;color:#315a42;font:inherit;font-size:.8rem;font-weight:650;cursor:pointer;text-align:left}
+.store-loss-advice li button:hover{background:#dceade}
+.store-loss-advice li button:focus-visible{outline:2px solid #315a42;outline-offset:2px}
+.store-loss-advice--compact{padding:10px;margin:10px 0}
+.store-loss-advice--compact h4{font-size:12px;line-height:1.4}
+.store-loss-advice--compact .store-loss-context{font-size:10px;margin-bottom:8px}
+.store-loss-advice--compact ul{gap:10px}
+.store-loss-advice--compact li{padding-top:9px}
+.store-loss-advice--compact li>strong{font-size:11px}
+.store-loss-advice--compact li p{font-size:11px;line-height:1.55}
+.store-loss-advice--compact li button{font-size:11px;padding:7px}

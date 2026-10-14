@@ -25,8 +25,8 @@ export function ProgressionComparison({p,level,after,onClose,onStage}:{p:Propert
     ['Leasing','Six-week leases, rent collection, repairs and home types','Proposed 6 / 12 / 24-week terms, renewal offers and furnishing packages'],
     ['Visual change','Current distinct studio, one-bedroom and family layouts','Keep these layouts; parcel, laundry and resident amenities are planned additions'],
   ]:p.kind==='shop'?[
-    ['Electronics unlock','20 shoppers + $5,000','Store Level 4: 300 shoppers + $5,000; existing unlocked floors stay'],
-    ['Departments','24 grocery products + 12 electronics/appliances','Five store levels; deepen the same two sales floors'],
+    ['Electronics unlock','20 shoppers + $5,000','Store Level 2: 50 shoppers + $5,000; all electronics and appliances open together'],
+    ['Departments','24 grocery products + 12 electronics/appliances','All 145 everyday products at Level 1; 12 electronics/appliances upstairs at Level 2'],
     ['Physical stock','Available stock and products placed on shelves','Delivery → receiving → stockroom → shelf refill → checkout'],
     ['Manager','One weekly budget, reserve and low-stock rules','Grocery/electronics budget split plus incoming-order tracking'],
     ['Staff','Cashier, stock assistant and manager','Add electronics adviser, receiving and service desk when needed'],

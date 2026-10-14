@@ -13,7 +13,7 @@ export function TableLayoutEditor({state,onSave,onClose}:{state:GameState;onSave
  const move=(id:string,x:number,z:number)=>setTables(list=>list.map(t=>t.id===id?{...t,x:storedPos(Math.round(x*2)/2),y:storedPos(Math.round(z*2)/2)}:t));
  const nudge=(x:number,z:number)=>{if(current)move(current.id,mapPos(current.x)+x,mapPos(current.y)+z);};
  return createPortal(<div className="table-layout-backdrop game-ui" onKeyDown={dialog.onKeyDown}><section ref={dialog.ref} tabIndex={-1} className="table-layout-dialog" role="dialog" aria-modal="true" aria-labelledby="table-layout-title">
-  <header><div><h2 id="table-layout-title">Arrange dining room</h2><p>Bite Tycoon management console</p></div><button aria-label="Close table layout" onClick={onClose}>×</button></header>
+  <header><div><h2 id="table-layout-title">Arrange dining room</h2><p>Business Simulator management console</p></div><button aria-label="Close table layout" onClick={onClose}>×</button></header>
   <div className="table-layout-body">
    <svg ref={svg} viewBox="-20 -15 40 38" role="group" aria-label="Restaurant floor plan" className="table-floor-plan"
     onPointerMove={e=>{if(!dragging.current||!svg.current)return;const r=svg.current.getBoundingClientRect();move(dragging.current,(e.clientX-r.left)/r.width*40-20,(e.clientY-r.top)/r.height*38-15);}}

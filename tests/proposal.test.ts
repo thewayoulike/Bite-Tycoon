@@ -4,6 +4,7 @@ import {INITIAL_STATE} from '../src/hooks/useGameLoop';
 import {toggleMenuRecipe} from '../src/gameplay';
 import {createProposalSample,proposalVersion} from '../src/proposal/sample';
 import {DEFAULT_RESTAURANT_TYPES,RESTAURANT_TYPES,restaurantCatalog} from '../src/proposal/restaurantCatalogs';
+import {RETAIL_PRODUCTS} from '../src/empire/retail';
 
 test('proposal capacity expands menus while the default game still stops at six',()=>{
   const state=structuredClone(INITIAL_STATE);
@@ -31,7 +32,7 @@ test('expanded sample has the real property floors and does not mutate the start
   assert.equal(b.apartments.venue?.units.length,30);
   assert.equal(b.park.plaza?.openFloors,5);
   assert.equal(b.park.venue?.units.length,20);
-  assert.equal(b.shop.retail?.shelves.length,36);
+  assert.deepEqual(new Set(b.shop.retail?.shelves),new Set(RETAIL_PRODUCTS.map(p=>p.id)));
   assert.ok(sample.restaurants.diner.recipes.some(r=>r.name==='Margherita pizza'&&sample.restaurants.diner.activeMenu.includes(r.id)));
   assert.ok(sample.restaurants.cafe.recipes.some(r=>r.name==='Espresso'));
   assert.ok(!sample.restaurants.cafe.recipes.some(r=>r.name==='Margherita pizza'));

@@ -8,6 +8,7 @@ import {serviceProfile} from '../restaurantPersonality';
 import {UnlockDetails,UnlockInfo} from './UnlockDetails';
 import './restaurantProgression.css';
 import {RestaurantPurchasingPlan} from './RestaurantPurchasingPlan';
+import {RestaurantManagerStatus} from './RestaurantManagerStatus';
 
 interface Props {
   state: GameState;
@@ -51,6 +52,7 @@ export function UpgradesModal({ state, onBuyUpgrade, onBuyLevelUpgrade, onHireMa
     </div>
     {state.staff.hasManager && <section className="rounded-xl border border-stone-300 bg-white p-4 space-y-3">
       <h3 className="font-bold">Purchasing rules</h3>
+      <RestaurantManagerStatus state={state}/>
       <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={state.manager.enabled} onChange={e => onUpdateManager({ enabled: e.target.checked })} /> Automatic purchasing enabled</label>
       <div className="grid sm:grid-cols-3 gap-3">
         <label className="text-sm">Weekly budget<select aria-label="Manager weekly budget" className="block w-full border rounded p-2 mt-1" value={state.manager.budget} onChange={e => onUpdateManager({ budget: Number(e.target.value) })}>{[...new Set([...RESTAURANT_MANAGER_BUDGETS,state.manager.budget])].sort((a,b)=>a-b).map(n => <option key={n} value={n}>${n}</option>)}</select></label>

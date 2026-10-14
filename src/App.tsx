@@ -1,3 +1,4 @@
+import {StartScreen} from './components/StartScreen';
 import {PropertyMarket} from './empire/PropertyMarketPanel';
 import {LAND_PLOTS} from './empire/propertyMarket';
 import {restaurantStockViews} from './inventory/restaurantStockroom';
@@ -14,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GameWorld3D } from './components/GameWorld3D';
 import { ResearchLabModal } from './components/ResearchLabModal';
 import { InventoryModal } from './components/InventoryModal';
+import {RestaurantManagerStatus} from './components/RestaurantManagerStatus';
 import {BusinessInventory} from './empire/BusinessInventory';
 import {BusinessPurchasing} from './empire/BusinessPurchasing';
 import { RecipesModal } from './components/RecipesModal';
@@ -187,60 +189,10 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
     ingId => (state.inventory[ingId] || 0) < (purchasingTargets[ingId]?.reorderAt??1)
   ).length;
 
-  // Splash Start Screen
   if (gamePhase === 'menu') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-mono select-none bg-stone-950">
-        <div className="w-full max-w-[900px] aspect-[4/3] bg-[#2563eb] rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.9)] border-8 border-stone-800 relative overflow-hidden flex flex-col items-center justify-center p-6">
-          <div className="absolute inset-0 bg-[repeating-conic-gradient(from_0deg,#3b82f6_0deg_15deg,#1d4ed8_15deg_30deg)] opacity-60 animate-[spin_80s_linear_infinite]" />
-
-          <motion.div
-            initial={{ scale: 0.6, y: -40 }}
-            animate={{ scale: 1, y: 0 }}
-            transition={{ type: 'spring', bounce: 0.5 }}
-            className="z-10 flex flex-col items-center text-center"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-4xl animate-bounce">🍔</span>
-              <span className="text-4xl animate-bounce [animation-delay:200ms]">🍜</span>
-              <span className="text-4xl animate-bounce [animation-delay:400ms]">🍕</span>
-            </div>
-
-            <h1
-              className="text-6xl sm:text-7xl md:text-8xl font-black text-white drop-shadow-[0_8px_0_#172554] tracking-tighter"
-              style={{ WebkitTextStroke: '4px #172554' }}
-            >
-              BITE
-            </h1>
-            <h2
-              className="text-4xl sm:text-5xl md:text-6xl font-black text-yellow-300 drop-shadow-[0_6px_0_#854d0e] -mt-3 tracking-tight rotate-2"
-              style={{ WebkitTextStroke: '3px #854d0e' }}
-            >
-              TYCOON 3D
-            </h2>
-
-            <p className="mt-4 text-xs md:text-sm font-bold text-blue-100 uppercase tracking-widest max-w-md drop-shadow bg-blue-950/60 px-4 py-2 rounded-full border border-blue-400/40">
-              Voxel Restaurant Empire & Real-Time Management
-            </p>
-          </motion.div>
-
-          {needsOpeningType&&<div className="restaurant-start-picker"><RestaurantTypePicker value={openingType} onChange={setOpeningType} id="starting-restaurant-type"/></div>}
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.3, type: 'spring' }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => {if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}
-            className="mt-4 px-14 py-3.5 mc-button-green font-black text-2xl md:text-3xl z-10 transition-all font-mono tracking-widest shadow-2xl flex items-center gap-3"
-          >
-            <span>{firstAcquisition?'CHOOSE FIRST PROPERTY':needsOpeningType?'OPEN RESTAURANT':'CONTINUE GAME'}</span>
-            <span>▶</span>
-          </motion.button>
-          <div className="mode-links"><a href="/?mode=fast-track">Fast-track career · $250,000</a><a href="/?mode=career">Career save · earn your growth</a><a href="/?mode=sandbox">Sandbox save · test everything</a><a href="/">Existing game save</a><a href="/save-slots.html">Reset / restore saves</a></div>
-        </div>
-      </div>
-    );
+    return <StartScreen firstAcquisition={firstAcquisition} needsOpeningType={needsOpeningType} week={district.week} businesses={Object.keys(district.businesses).length} cash={district.market?.ownerCash??0} sandbox={!!empire.testingUnlocked} onPlay={()=>{if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}>
+      {needsOpeningType&&<RestaurantTypePicker value={openingType} onChange={setOpeningType} id="starting-restaurant-type"/>}
+    </StartScreen>;
   }
 
   if(firstAcquisition)return <div className="game-ui w-screen h-dvh relative bg-stone-900"><WorldComponent state={state} worldProgress={0} restaurants={{}} district={district} actions={actions} focus={null} selected={selectedProperty} onSelect={id=>{setShowMarket(id);setFirstMarketHidden(false);}} onOverview={()=>setSelectedProperty(null)} onInteract={()=>{}} testing={false} onTestUnlock={()=>{}} onReport={()=>{}}/>{!firstMarketHidden?<PropertyMarket key={showMarket??'first'} state={district} restaurants={{}} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setFirstMarketHidden(true)} onLocate={locateSite} initialId={showMarket??undefined}/>:<div className="market-first-guide"><strong>Choose how to open your first business</strong><p>Blue: empty shops to lease · Gold: operating businesses for sale · Green: land</p><button className="mc-button" onClick={()=>setFirstMarketHidden(false)}>Open property market · $250,000</button></div>}{gameOptions?.persist===false&&<div className="market-preview-note">Preview · changes are not saved</div>}</div>;
@@ -477,7 +429,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
               </div>
 
               <h2 className="text-2xl md:text-3xl font-black text-[#2b2b2b] uppercase tracking-wider border-b-4 border-[#8b8b8b] pb-2 w-full">
-                Welcome to Bite Tycoon!
+                Welcome to Business Simulator!
               </h2>
 
               <p className="text-xs font-bold text-[#555555] uppercase tracking-wide">
@@ -557,7 +509,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                        nonFood?'Inventory':'Pantry'}
                     </h2>
                     <span className="text-[9px] font-bold text-[#555555] uppercase">
-                      Bite Tycoon Management Console
+                      Business Simulator Management Console
                     </span>
                   </div>
                 </div>
@@ -588,6 +540,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
 
                 {activeTab==='inventory'&&<button className="mc-button" onClick={()=>{setDeskPane('storage');setActiveTab(null);setShowDesk(true);}}>Enter stockroom & build storage</button>}
                 {activeTab === 'inventory' && !nonFood && (
+                  <><RestaurantManagerStatus state={state}/>
                   <InventoryModal
                     key={empire.activeRestaurantId}
                     stockroom={state.stockroom?{room:state.stockroom,views:restaurantStockViews(state),onOrder:actions.orderStock,onRule:actions.setStockRule}:undefined}
@@ -599,6 +552,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                     unlockedRecipes={activeRecipes(state)}
                     onBuyIngredient={actions.buyIngredient}
                   />
+                  </>
                 )}
 
                 {activeTab === 'inventory' && nonFood && (

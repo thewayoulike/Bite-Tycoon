@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {INITIAL_STATE} from '../src/hooks/useGameLoop';
 import {createEmpire,unlockTestDistrict,parseEmpireSave} from '../src/empire/empire';
 import {propertyById} from '../src/prototype/expansionModel';
-import {RETAIL_PRODUCTS,createRetail,retailPrice,retailProductFloor} from '../src/empire/retail';
+import {RETAIL_PRODUCTS,createRetail,retailPrice,retailProductFloor,unlockElectronicsFloor,ELECTRONICS_FLOOR_COST,ELECTRONICS_FLOOR_CUSTOMERS,setProductPrice} from '../src/empire/retail';
 import {retailStorage,SUPERMARKET_STARTER_IDS} from '../src/empire/retailRange';
-import {advanceStoreLevel,confirmShelfPlan,shelfPlan,productUnlocked,receiveStoreGoods,replenishShelf,shelfQuantity,department} from '../src/empire/supermarket';
+import {confirmShelfPlan,shelfPlan,productUnlocked,productLevel,receiveStoreGoods,replenishShelf,shelfQuantity,department} from '../src/empire/supermarket';
 import {orderBusinessStock,businessStockDefinitions} from '../src/inventory/businessStockroom';
 import {collectStoreBasket,checkoutStore} from '../src/empire/supermarketSimulation';
 import {venueFinancials} from '../src/empire/venueFinance';
@@ -13,6 +13,31 @@ import {supermarketDisplays} from '../src/empire/supermarketLayout';
 import {supermarketStockGeometry} from '../src/components/SupermarketInterior3D';
 const fresh=()=>unlockTestDistrict(createEmpire(structuredClone(INITIAL_STATE)),INITIAL_STATE);
 const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<.001,`${a} != ${b}`);
+
+test('all everyday products open at Level 1; one paid Level 2 floor opens every electronic and appliance',()=>{
+ let s=fresh().district;const before=s.businesses.shop,defs=businessStockDefinitions(propertyById('shop')!,before);
+ for(const item of RETAIL_PRODUCTS){const upstairs=retailProductFloor(item.id)===1;assert.equal(productUnlocked(before,item.id),!upstairs,item.id);assert.equal(productLevel(item.id),upstairs?2:1);assert.equal(defs.find(d=>d.id===item.id)!.locked,upstairs);}
+ assert.equal(shelfPlan(before,0).ids.length,145);assert.deepEqual(shelfPlan(before,1).ids,[]);
+ assert.equal(orderBusinessStock(s,'shop','tv',1).businesses.shop,before);assert.equal(setProductPrice(s,'shop','washing_machine',450),s);
+ s={...s,businesses:{...s.businesses,shop:{...before,venue:{...before.venue!,totalServed:ELECTRONICS_FLOOR_CUSTOMERS}}}};
+ s=unlockElectronicsFloor(s,'shop');const open=s.businesses.shop;
+ assert.equal(open.retail!.store!.level,2);near(open.cash,before.cash-ELECTRONICS_FLOOR_COST);assert.ok(RETAIL_PRODUCTS.every(item=>productUnlocked(open,item.id)));
+ assert.equal(shelfPlan(open,1).ids.length,12);assert.deepEqual(open.retail!.stock,before.retail!.stock);assert.equal(unlockElectronicsFloor(s,'shop'),s);
+ s=orderBusinessStock(s,'shop','washing_machine',1);assert.ok(s.businesses.shop.stockroom!.orders.some(order=>order.itemId==='washing_machine'));
+});
+
+test('older Level 2 and 3 stores keep their earned upgrades and buy a still-closed electronics floor once',()=>{
+ for(const level of [2,3]){
+  const empire=fresh();empire.district.businesses.shop.retail!.store!.level=level;
+  let s=parseEmpireSave(JSON.stringify(empire))!.district;const before=s.businesses.shop;
+  assert.equal(before.retail!.store!.level,level);assert.ok(!before.retail!.electronicsUnlocked);assert.ok(productUnlocked(before,'baby_wipes'));assert.ok(!productUnlocked(before,'washing_machine'));
+  s={...s,businesses:{...s.businesses,shop:{...before,venue:{...before.venue!,totalServed:150}}}};
+  const running={...s,businesses:{...s.businesses,shop:{...s.businesses.shop,venue:{...s.businesses.shop.venue!,running:true}}}};
+  assert.equal(unlockElectronicsFloor(running,'shop').businesses.shop,running.businesses.shop);
+  s=unlockElectronicsFloor(s,'shop');assert.equal(s.businesses.shop.retail!.store!.level,level);near(s.businesses.shop.cash,before.cash-ELECTRONICS_FLOOR_COST);assert.ok(productUnlocked(s.businesses.shop,'washing_machine'));assert.equal(unlockElectronicsFloor(s,'shop'),s);
+  assert.deepEqual(s.businesses.shop.retail!.stock,before.retail!.stock);assert.deepEqual(s.businesses.shop.retail!.store!.fixtures,before.retail!.store!.fixtures);
+ }
+});
 
 test('full supermarket range covers daily life with unique priced products and correct storage',()=>{
  assert.ok(RETAIL_PRODUCTS.length>=150);assert.equal(new Set(RETAIL_PRODUCTS.map(p=>p.id)).size,RETAIL_PRODUCTS.length);
@@ -35,7 +60,7 @@ test('new stores have twenty stocked selections; old saves never receive unpurch
 
 test('department plans include existing selections, charge fixtures once and respect level locks',()=>{
  let s=fresh().district;const b=s.businesses.shop,plan=shelfPlan(b,0,'Personal care');
- assert.equal(plan.ids.length,10);assert.ok(plan.addDry>0);assert.deepEqual(shelfPlan(b,0,'Baby care').ids,[]);
+ assert.equal(plan.ids.length,10);assert.ok(plan.addDry>0);assert.equal(shelfPlan(b,0,'Baby care').ids.length,6);assert.deepEqual(shelfPlan(b,1).ids,[]);
  s=confirmShelfPlan(s,'shop',0,'Personal care');const after=s.businesses.shop;
  near(after.cash,b.cash-plan.cost);assert.deepEqual(after.retail!.stock,b.retail!.stock);
  assert.ok(b.retail!.shelves.every(id=>after.retail!.shelves.includes(id)));assert.ok(plan.ids.every(id=>after.retail!.shelves.includes(id)));
@@ -44,8 +69,7 @@ test('department plans include existing selections, charge fixtures once and res
 });
 
 test('each category can be ordered, received, put on a shelf and sold through a real checkout',()=>{
- let s=fresh().district;s.businesses.shop.venue!.totalServed=1000;
- for(let i=1;i<5;i++)s=advanceStoreLevel(s,'shop');s=confirmShelfPlan(s,'shop',0);
+ let s=fresh().district;s=confirmShelfPlan(s,'shop',0);assert.equal(s.businesses.shop.retail!.store!.level,1);
  for(const [index,id] of ['toothbrushes','baby_wipes','dog_food','bath_towel','notebook','socks','salmon','ice_cream'].entries()){
   const before=s.businesses.shop;s=orderBusinessStock(s,'shop',id,2,'emergency');let b=s.businesses.shop;
   assert.equal(b.retail!.stock[id],2,id);assert.ok(b.cash<before.cash);assert.equal(b.retail!.store!.receiving[id],2);

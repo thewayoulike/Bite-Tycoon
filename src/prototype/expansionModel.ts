@@ -1,5 +1,6 @@
 import {cleanBusinessName,validateBusinessSetup,type BusinessSetup,type BuildingDesignId} from '../empire/buildingDesigns';
 import {crewPremium} from '../career/crew';
+import {recordStoreLoss} from '../empire/supermarket';
 import {acquisitionQuote,canConstruct,canLease,constructionIdentity,listedPropertyIdentity,marketSiteIdentity,siteOffer,marketKindName,leaseReserve,weeklyLeaseExpense,type MarketState,type AcquisitionRecord,type LeaseTerms} from '../empire/propertyMarket';
 import {hotelWeeklyOccupancy} from '../empire/hotelProgression';
 import type {Stockroom} from '../inventory/stockroom';
@@ -218,8 +219,10 @@ export function hireBusinessStaff(state:ExpansionState,id:string,role:'service'|
   if(['security','attendant','operator'].includes(role)&&p.kind!=='plaza')return state;
   if(p.kind==='plaza'&&(role==='attendant'&&(b.plaza?.openFloors??1)<2||role==='operator'&&(b.plaza?.openFloors??1)<4))return {...state,notice:'Open the facility floor first.'};
   if(role==='supervisor'&&p.kind!=='apartments'||role==='cleaner'&&!['apartments','shop','plaza'].includes(p.kind))return state;
-  if(p.kind==='shop'&&role==='cleaner'&&(b.retail?.store?.level??2)<2)return {...state,notice:'Unlock Level 2 for a store cleaner.'};
-  if(['specialist','electronics','receiving','handling'].includes(role)){const floor={specialist:2,receiving:3,electronics:4,handling:5}[role];if(p.kind!=='shop'||(b.retail?.store?.level??(b.retail?.electronicsUnlocked?5:2))<floor)return {...state,notice:'Unlock this department in Upgrades first.'};}
+  if(['specialist','electronics','receiving','handling'].includes(role)){
+    if(p.kind!=='shop'||role==='receiving'&&(b.retail?.store?.level??2)<3)return {...state,notice:'Unlock this service upgrade first.'};
+    if(['electronics','handling'].includes(role)&&!b.retail?.electronicsUnlocked)return {...state,notice:'Open the electronics and appliances floor in Upgrades first.'};
+  }
   if(role==='laundry'&&!b.lodging?.facilities.includes('laundry'))return {...state,notice:'Build the laundry room first.'};
   if(role==='manager'?!!b.manager:(b.hires?.[role]??0)>=(b.lodging?8:2))return state;
   const cost=role==='manager'?250:120;if(b.cash<cost)return{...state,notice:`${p.name} needs $${cost} to hire. Arrange a loan in Finance if needed.`};
@@ -267,6 +270,7 @@ export function finishWeek(state:ExpansionState,autoLoans=true):ExpansionState{
     const result=report.find(r=>r.id===id)!;
     if(b.venue){
       let next=payWeeklyLease(propertyById(id,state.businesses[id])!,b,state);
+      if(b.retail?.store)next=recordStoreLoss(next,'closing',b.venue.visitors.filter(v=>v.state==='waiting').length);
       return[id,{...next,spending:0,helped:false,...(b.lodging?{lodging:{...b.lodging,bookings:b.lodging.bookings.map(booking=>booking.status==='waiting'?{...booking,status:'cancelled' as const}:booking),lastReport:{week:state.week,occupancy:propertyById(id,state.businesses[id])!.kind==='hotel'?hotelWeeklyOccupancy(b):b.lodging.availableSeconds?b.lodging.occupiedSeconds/b.lodging.availableSeconds*100:0,averageRate:b.lodging.roomNights?b.lodging.roomRevenue/b.lodging.roomNights:0,reputation:b.lodging.reputation,served:b.venue.week.served,lost:b.venue.week.lost,revenue:b.venue.week.revenue}}}:{}),venue:{...b.venue,running:false,visitors:b.venue.visitors.filter(v=>v.state==='using'),week:{...b.venue.week,lost:b.venue.week.lost+b.venue.visitors.filter(v=>v.state==='waiting').length}},manager:b.manager?{...b.manager,spent:0}:undefined}];
     }
     let next=payWeeklyLease(propertyById(id,state.businesses[id])!,record(b,state,'Weekly sales collected',result.revenue),state);

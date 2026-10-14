@@ -1,25 +1,42 @@
 import type {Business,ExpansionState} from '../prototype/expansionModel';
-import {RETAIL_PRODUCTS,retailProduct,retailProductFloor,retailBatches,retailItemValue,consumeRetailStock} from './retail';
+import type {VenueVisitor,BasketItem} from './venueSimulation';
+import {RETAIL_PRODUCTS,retailProduct,retailProductFloor,retailPrice,retailBatches,retailItemValue,consumeRetailStock} from './retail';
 import {batchValue,consumeBatches,stockDay} from '../inventory/stockroom';
 import {SUPERMARKET_STARTER_IDS} from './retailRange';
+import {retailStorage} from './retailRange';
 
 export type Department='Produce & bakery'|'Pantry & essentials'|'Chilled & frozen'|'Meat & fish'|'Household'|'Personal care'|'Baby care'|'Pet care'|'Home & kitchen'|'Stationery'|'Clothing basics'|'Gifts'|'Electronics'|'Large appliances';
 export type DepartmentResult={sales:number;cogs:number;units:number;stockouts:number;waste:number;received:number;opening:number;wait:number;checkouts:number};
-export type StoreEvent={id:number;kind:'fridge'|'delay'|'rush'|'return';title:string;day:number;until:number;resolved?:string;saleId?:number};
+export type StoreEvent={id:number;kind:'fridge'|'delay'|'rush'|'return';title:string;day:number;until:number;resolved?:string;saleId?:number;repairProgress?:number};
+export const STORE_REPAIR_COST = 60;
+export const STORE_REPAIR_SECONDS = 4;
 export type StoreSale={id:number;item:string;price:number;cost:number;qty:number;day:number;returned?:boolean};
 export type StoreDelivery={id:number;item:string;day:number;done?:boolean};
-export type StoreState={version:1;level:number;legacy?:boolean;shelf:Record<string,number>;fixtures:{dry:number;cold:number};budgets?:{grocery:number;electronics:number};spent:{grocery:number;electronics:number};budgetWeek:number;returnBuffer:number;serviceDue:number;replenishTimer:number;receivingTimer:number;deliveryTimer:number;job?:string;jobProgress?:number;week:number;metrics:Partial<Record<Department,DepartmentResult>>;lastMetrics?:Partial<Record<Department,DepartmentResult>>;sales:StoreSale[];deliveries:StoreDelivery[];events:StoreEvent[];lastEventDay:number;serial:number;lastSale:Record<string,number>;receiving:Record<string,number>};
+export const STORE_LOSS_LABELS={stock:'Out of stock',refill:'Waiting for shelf refill',receiving:'Delivery not unpacked',checkout:'Checkout queue',adviser:'No electronics adviser',cold:'Refrigeration fault',crowded:'Store too crowded',closing:'Still shopping at closing'} as const;
+export type StoreLossReason=keyof typeof STORE_LOSS_LABELS;
+export function recordStoreLoss(b:Business,reason:StoreLossReason,count=1):Business{
+ if(!b.retail?.store||!count)return b;const st=b.retail.store;
+ return {...b,retail:{...b.retail,store:{...st,losses:{...st.losses,[reason]:(st.losses?.[reason]??0)+count}}}};
+}
+export function storeLossSummary(b:Business){
+ const losses=b.retail?.store?.losses??{};
+ const parts=Object.entries(STORE_LOSS_LABELS).flatMap(([id,label])=>losses[id as StoreLossReason]?[`${losses[id as StoreLossReason]} ${label.toLowerCase()}`]:[]);
+ const unknown=Math.max(0,(b.venue?.week.lost??0)-Object.values(losses).reduce((n,v)=>n+v,0));
+ if(unknown)parts.push(`${unknown} earlier departures (reason not recorded)`);
+ return parts.join(' · ');
+}
+export type StoreState={version:1;losses?:Partial<Record<StoreLossReason,number>>;level:number;legacy?:boolean;shelf:Record<string,number>;fixtures:{dry:number;cold:number};budgets?:{grocery:number;electronics:number};spent:{grocery:number;electronics:number};budgetWeek:number;returnBuffer:number;serviceDue:number;replenishTimer:number;receivingTimer:number;deliveryTimer:number;job?:string;jobProgress?:number;week:number;metrics:Partial<Record<Department,DepartmentResult>>;lastMetrics?:Partial<Record<Department,DepartmentResult>>;sales:StoreSale[];deliveries:StoreDelivery[];events:StoreEvent[];lastEventDay:number;serial:number;lastSale:Record<string,number>;receiving:Record<string,number>};
 export const STORE_LEVELS=[
- {level:1,name:'Neighborhood supermarket',shoppers:0,cost:0,upkeep:0,visible:'Twenty stocked opening products, produce and bakery displays, food and drink aisles, household and personal care, one checkout and receiving.',needs:'Opening cashier and stock assistant included. Select a range and replenish its displays.',stock:0,wages:0},
- {level:2,name:'Complete grocery',shoppers:50,cost:1000,upkeep:10,visible:'Full dairy cabinets, meat and fish, a freezer, baby supplies and pet care. Add departments together or choose individual products.',needs:'Cold fixtures are included. Consider a fresh-counter specialist and cleaner.',stock:100,wages:70},
- {level:3,name:'Reliable supermarket',shoppers:150,cost:2500,upkeep:20,visible:'Home and kitchen, stationery, clothing basics and gifts; larger backroom, a second checkout and staffed receiving.',needs:'Hire another cashier to use the extra lane; a receiving clerk speeds deliveries to the backroom.',stock:150,wages:70},
- {level:4,name:'Electronics upstairs',shoppers:300,cost:5000,upkeep:35,visible:'An upper showroom for TVs, phones, computers, consoles and small appliances.',needs:'Hire an electronics adviser; reserve a separate electronics purchasing allowance. Start with 1–3 sealed units per item.',stock:1200,wages:35},
- {level:5,name:'Department store',shoppers:700,cost:7500,upkeep:55,visible:'Large appliances, a service and returns desk and a dispatch/loading area upstairs.',needs:'Hire a handling worker for appliance deliveries. Keep a return reserve; appliance stock uses secure storage.',stock:1200,wages:35},
+ {level:1,name:'Complete everyday supermarket',shoppers:0,cost:0,upkeep:0,visible:'All ground-floor products available: food, fresh and frozen goods, household, personal care, baby and pet care, homeware, stationery and clothing. Twenty opening products are stocked.',needs:'Opening cashier and stock assistant included. Choose products, pay for any extra display capacity and order stock.',stock:0,wages:0},
+ {level:2,name:'Electronics & appliances upstairs',shoppers:50,cost:5000,upkeep:10,visible:'The second sales floor opens with every electronic product and appliance, including TVs, phones, computers, fridges and washing machines.',needs:'Hire an electronics adviser and appliance handler as needed. Reserve a separate purchasing allowance; start with 1–3 sealed units per item.',stock:1200,wages:70},
+ {level:3,name:'Reliable supermarket',shoppers:150,cost:2500,upkeep:20,visible:'A larger backroom, a second ground-floor checkout and staffed receiving. All products are already available on their open floors.',needs:'Hire another cashier to use the extra lane; a receiving clerk speeds deliveries to the backroom.',stock:150,wages:70},
+ {level:4,name:'Busier department store',shoppers:300,cost:1000,upkeep:35,visible:'More frequent shopper arrivals across the same two sales floors. No additional product locks.',needs:'Review cashier, adviser and replenishment workloads; keep enough stock for increased demand.',stock:300,wages:35},
+ {level:5,name:'Service & dispatch expansion',shoppers:700,cost:7500,upkeep:55,visible:'A service and returns desk and a dedicated dispatch/loading area upstairs. Existing appliances remain available.',needs:'Keep a return reserve and hire extra handling help as needed. Appliance stock uses secure storage.',stock:1200,wages:35},
 ] as const;
 export const storeLevel=(b:Business)=>b.retail?.store?.level??(b.retail?.electronicsUnlocked?5:2);
 export const largeAppliance=(id:string)=>['washing_machine','fridge_appliance'].includes(id);
-export function productLevel(id:string){const p=retailProduct(id);return largeAppliance(id)?5:retailProductFloor(id)?4:id==='milk'?1:['Home & kitchen','Stationery','Clothing basics','Gifts'].includes(p?.category??'')?3:['Chilled','Frozen','Meat & Fish','Baby care','Pet care'].includes(p?.category??'')?2:1;}
-export function productUnlocked(b:Business,id:string){return !!b.retail&&(retailProductFloor(id)===0||!!b.retail.electronicsUnlocked)&&(storeLevel(b)>=productLevel(id)||!!b.retail.store?.legacy);}
+export function productLevel(id:string){return retailProductFloor(id)?2:1;}
+export function productUnlocked(b:Business,id:string){return !!b.retail&&!!retailProduct(id)&&(retailProductFloor(id)===0||!!b.retail.electronicsUnlocked);}
 export function department(id:string):Department{const p=retailProduct(id);return largeAppliance(id)?'Large appliances':retailProductFloor(id)?'Electronics':id==='chicken'||p?.category==='Meat & Fish'?'Meat & fish':['Chilled','Frozen'].includes(p?.category??'')?'Chilled & frozen':['Produce','Bakery'].includes(p?.category??'')?'Produce & bakery':['Household','Personal care','Baby care','Pet care','Home & kitchen','Stationery','Clothing basics','Gifts'].includes(p?.category??'')?p!.category as Department:'Pantry & essentials';}
 export const coldProduct=(id:string)=>['Chilled & frozen','Meat & fish'].includes(department(id));
 export const emptyDepartment=():DepartmentResult=>({sales:0,cogs:0,units:0,stockouts:0,waste:0,received:0,opening:0,wait:0,checkouts:0});
@@ -33,17 +50,26 @@ export function startStoreWeek(b:Business,week:number):Business{
  if(!b.retail?.store)return b;const st=b.retail.store;
  if(st.week===week)return b;
  const metrics:StoreState['metrics']={};for(const p of RETAIL_PRODUCTS){const d=department(p.id);metrics[d]??=emptyDepartment();metrics[d]!.opening+=b.retail.stock[p.id]??0;}
- return {...b,retail:{...b.retail,store:{...st,week,metrics,lastMetrics:st.week?st.metrics:st.lastMetrics,spent:st.budgetWeek===week?st.spent:{grocery:0,electronics:0},budgetWeek:week}}};
+ return {...b,retail:{...b.retail,store:{...st,week,metrics,losses:{},lastMetrics:st.week?st.metrics:st.lastMetrics,spent:st.budgetWeek===week?st.spent:{grocery:0,electronics:0},budgetWeek:week}}};
 }
 export function metric(b:Business,id:string,changes:Partial<DepartmentResult>):Business{
  if(!b.retail?.store)return b;const st=b.retail.store,d=department(id),m={...(st.metrics[d]??emptyDepartment())};for(const [k,n]of Object.entries(changes))m[k as keyof DepartmentResult]+=n;
  return {...b,retail:{...b.retail,store:{...st,metrics:{...st.metrics,[d]:m}}}};
 }
-export const basketQuantity=(b:Business,id:string)=>b.venue?.visitors.filter(v=>v.state==='waiting'&&v.productId===id&&v.basket).reduce((n,v)=>n+(v.quantity??1),0)??0;
+// Older saves may contain a single-product basket. Keep those purchases intact.
+export const storeBasket=(b:Business,v:VenueVisitor):BasketItem[]=>v.basketItems??(v.basket&&v.productId?[{id:v.productId,quantity:v.quantity??1,rate:v.agreedRate??retailPrice(b,v.productId)}]:[]);
+export const basketQuantity=(b:Business,id:string)=>b.venue?.visitors.filter(v=>v.state==='waiting').reduce((n,v)=>n+storeBasket(b,v).filter(item=>item.id===id).reduce((q,item)=>q+item.quantity,0),0)??0;
 export const shelfQuantity=(b:Business,id:string)=>b.retail?.store?Math.max(0,Math.min(b.retail.store.shelf[id]??0,(b.retail.stock[id]??0)-basketQuantity(b,id))):b.retail?.stock[id]??0;
 export const backroomQuantity=(b:Business,id:string)=>Math.max(0,(b.retail?.stock[id]??0)-shelfQuantity(b,id)-basketQuantity(b,id)-(b.retail?.store?.receiving[id]??0));
 export const shelfCapacity=(b:Business,id:string)=>retailProductFloor(id)?1:storeLevel(b)>=3?18:12;
 export const storageCapacity=(b:Business,id:string)=>retailProductFloor(id)?10:storeLevel(b)>=3||b.retail?.store?.legacy?100:50;
+export function supermarketShelfStatus(b:Business){
+ const ids=(b.retail?.shelves??[]).filter(id=>!retailProductFloor(id)&&productUnlocked(b,id));
+ return {selected:ids.length,stocked:ids.filter(id=>shelfQuantity(b,id)>0).length,
+  refill:ids.filter(id=>shelfQuantity(b,id)===0&&backroomQuantity(b,id)>0).length,
+  receiving:ids.filter(id=>shelfQuantity(b,id)===0&&backroomQuantity(b,id)===0&&(b.retail?.store?.receiving[id]??0)>0).length,
+  order:ids.filter(id=>shelfQuantity(b,id)===0&&backroomQuantity(b,id)===0&&!(b.retail?.store?.receiving[id]??0)).length};
+}
 export function shelfPlan(b:Business,floor:number,category?:string){
  const ids=RETAIL_PRODUCTS.filter(p=>retailProductFloor(p.id)===floor&&productUnlocked(b,p.id)&&(!category||p.category===category)).map(p=>p.id),st=b.retail?.store;
  const selected=[...new Set([...(b.retail?.shelves??[]).filter(id=>retailProductFloor(id)===floor),...ids])];
@@ -60,7 +86,7 @@ export function advanceStoreLevel(s:ExpansionState,id:string):ExpansionState{
  if((b.venue?.totalServed??0)<spec.shoppers)return {...s,notice:`Serve ${spec.shoppers} shoppers before Level ${spec.level}.`};
  if(b.cash<spec.cost)return {...s,notice:`The supermarket needs $${spec.cost} for this fit-out.`};
  const next=storeSpend(b,s,spec.cost,`Supermarket Level ${spec.level} · ${spec.name}`,true);
- return change(s,id,{...next,retail:{...b.retail,electronicsUnlocked:b.retail.electronicsUnlocked||spec.level>=4,store:{...st,level:spec.level,returnBuffer:spec.level===5?Math.max(st.returnBuffer,250):st.returnBuffer,fixtures:{dry:Math.max(st.fixtures.dry,spec.level>=3?24:18),cold:Math.max(st.fixtures.cold,8)}}}},`Level ${spec.level} open: ${spec.name}. Choose products and staff; starting stock is purchased separately.`);
+ return change(s,id,{...next,retail:{...b.retail,electronicsUnlocked:b.retail.electronicsUnlocked||spec.level===2,store:{...st,level:spec.level,returnBuffer:spec.level===5?Math.max(st.returnBuffer,250):st.returnBuffer,fixtures:{dry:Math.max(st.fixtures.dry,spec.level>=3?24:18),cold:Math.max(st.fixtures.cold,8)}}}},`Level ${spec.level} open: ${spec.name}. Choose products and staff; starting stock is purchased separately.`);
 }
 export function confirmShelfPlan(s:ExpansionState,id:string,floor:number,category?:string):ExpansionState{
  const b=s.businesses[id];if(!b?.retail?.store||floor===1&&!b.retail.electronicsUnlocked||b.venue?.running)return s;const plan=shelfPlan(b,floor,category);if(b.cash<plan.cost)return {...s,notice:'Not enough supermarket cash for the proposed fixtures.'};
@@ -68,13 +94,18 @@ export function confirmShelfPlan(s:ExpansionState,id:string,floor:number,categor
  return change(s,id,{...next,retail:{...b.retail,shelves:[...new Set([...b.retail.shelves,...plan.ids])],store:{...b.retail.store,fixtures:{dry:b.retail.store.fixtures.dry+plan.addDry,cold:b.retail.store.fixtures.cold+plan.addCold}}}},'Display plan applied. Receiving and replenishment staff move purchased goods onto these shelves.');
 }
 export function replenishShelf(b:Business,id?:string):Business{
- if(!b.retail?.store)return b;const key=id??[...b.retail.shelves].filter(k=>!retailProductFloor(k)&&backroomQuantity(b,k)>0&&shelfQuantity(b,k)<shelfCapacity(b,k)).sort((a,c)=>shelfQuantity(b,a)-shelfQuantity(b,c))[0];
+ if(!b.retail?.store)return b;
+ const waiting=(id:string)=>b.venue?.visitors.filter(v=>v.state==='waiting'&&!v.basket&&v.productId===id).reduce((n,v)=>n+(v.quantity??1),0)??0;
+ const priority=(id:string)=>waiting(id)>shelfQuantity(b,id)?0:shelfQuantity(b,id)===0?1:2;
+ const key=id??[...b.retail.shelves].filter(k=>!retailProductFloor(k)&&backroomQuantity(b,k)>0&&shelfQuantity(b,k)<shelfCapacity(b,k)).sort((a,c)=>priority(a)-priority(c)||shelfQuantity(b,a)-shelfQuantity(b,c))[0];
  if(!key||!b.retail.shelves.includes(key)||retailProductFloor(key))return b;
  const qty=Math.min(6,backroomQuantity(b,key),shelfCapacity(b,key)-shelfQuantity(b,key));if(qty<=0)return b;
  return {...b,retail:{...b.retail,store:{...b.retail.store,shelf:{...b.retail.store.shelf,[key]:shelfQuantity(b,key)+qty},job:key,jobProgress:0}}};
 }
 export function receiveStoreGoods(b:Business):Business{
- if(!b.retail?.store)return b;const st=b.retail.store,entry=Object.entries(st.receiving).find(([,qty])=>qty>0);if(!entry)return b;
+ if(!b.retail?.store)return b;const st=b.retail.store;
+ const needed=(id:string)=>b.venue?.visitors.some(v=>v.state==='waiting'&&!v.basket&&v.productId===id)?0:shelfQuantity(b,id)===0?1:2;
+ const entry=Object.entries(st.receiving).filter(([,qty])=>qty>0).sort(([a],[c])=>needed(a)-needed(c))[0];if(!entry)return b;
  return {...b,retail:{...b.retail,store:{...st,receiving:{...st.receiving,[entry[0]]:Math.max(0,entry[1]-(b.hires?.receiving?40:12))}}}};
 }
 export const storeEnvelope=(id:string)=>retailProductFloor(id)?'electronics':'grocery';
@@ -92,7 +123,7 @@ export function recordStoreSale(b:Business,before:Business,item:string,qty:numbe
 export function resolveStoreEvent(s:ExpansionState,id:string,eventId:number,accept:boolean):ExpansionState{
  let b=s.businesses[id];if(!b?.retail?.store)return s;const st=b.retail.store,event=st.events.find(e=>e.id===eventId);if(!event||event.resolved)return s;
  let label='Reviewed';
- if(event.kind==='fridge'){if(b.cash<60)return {...s,notice:'Refrigerator repair needs $60.'};b=storeSpend(b,s,60,'Refrigerator repaired');label='Repaired';}
+ if(event.kind==='fridge'){if(b.cash<STORE_REPAIR_COST)return {...s,notice:`Refrigerator repair needs $${STORE_REPAIR_COST}.`};b=storeSpend(b,s,STORE_REPAIR_COST,'Refrigerator repaired');label='Repaired';}
  else if(event.kind==='return'){
   const sale=st.sales.find(v=>v.id===event.saleId);if(!sale||sale.returned)return s;
   if(accept){if(b.cash<sale.price)return {...s,notice:'Keep enough supermarket cash to refund this purchase.'};const r=b.retail!,batches=[...retailBatches(r,sale.item),{qty:1,costPerUnit:sale.cost,receivedDay:stockDay(s.week,s.day)}];
@@ -110,7 +141,7 @@ export function reconcileStoreStock(before:Business,after:Business,day:number):B
  if(!after.retail?.store)return after;let b=after;const st=after.retail.store,receiving={...st.receiving},shelf={...st.shelf};
  for(const p of RETAIL_PRODUCTS){
   const delivered=before.stockroom?.orders.filter(o=>o.itemId===p.id&&o.dueDay<=day).reduce((n,o)=>n+o.qty,0)??0;
-  const waste=batchValue(retailBatches(before.retail!,p.id).filter(v=>v.expiresDay!==undefined&&v.expiresDay<=day));
+  const waste=retailStorage(p).shelfLife?batchValue(retailBatches(before.retail!,p.id).filter(v=>v.expiresDay!==undefined&&v.expiresDay<=day)):0;
   const qty=after.retail.stock[p.id]??0;receiving[p.id]=Math.min(qty,(receiving[p.id]??0)+delivered);shelf[p.id]=Math.min(shelf[p.id]??0,Math.max(0,qty-receiving[p.id]-basketQuantity(after,p.id)));
   if(delivered||waste)b=metric(b,p.id,{received:delivered,waste});
  }

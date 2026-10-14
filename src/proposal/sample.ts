@@ -7,6 +7,7 @@ import {PROPERTIES, businessSupplies} from '../prototype/expansionModel';
 import {newLodgingUnit, roomsPerFloor, roomTypes} from '../empire/lodging';
 import {newPlazaUnit, MALL_FACILITIES} from '../empire/plaza';
 import {RETAIL_PRODUCTS, retailProductFloor} from '../empire/retail';
+import {newStore,coldProduct} from '../empire/supermarket';
 import {RECIPES, INGREDIENTS} from '../data/recipes';
 import {TABLE_POSITIONS} from '../restaurantLayout';
 import {hireStaff,serveReadyTable} from '../gameplay';
@@ -70,8 +71,8 @@ export function createProposalSample(level:number,restaurantTypes:RestaurantAssi
       b.plaza.facilities=MALL_FACILITIES.filter(f=>f.floor<b.plaza!.openFloors).map(f=>f.id);
     }
     if(b.retail){
-      const products=RETAIL_PRODUCTS.filter(p=>n>=2||retailProductFloor(p.id)===0);
-      b.retail={electronicsUnlocked:n>=2,shelves:products.map(p=>p.id),stock:Object.fromEntries(products.map(p=>[p.id,retailProductFloor(p.id)?4:40])),batches:Object.fromEntries(products.map(p=>[p.id,[{qty:retailProductFloor(p.id)?4:40,costPerUnit:p.cost}]]))};
+      const products=RETAIL_PRODUCTS.filter(p=>n>=1||retailProductFloor(p.id)===0),ground=products.filter(p=>!retailProductFloor(p.id));
+      b.retail={electronicsUnlocked:n>=1,shelves:products.map(p=>p.id),stock:Object.fromEntries(products.map(p=>[p.id,retailProductFloor(p.id)?4:40])),batches:Object.fromEntries(products.map(p=>[p.id,[{qty:retailProductFloor(p.id)?4:40,costPerUnit:p.cost}]])),store:{...newStore(),level:Math.min(5,n+1),fixtures:{dry:ground.filter(p=>!coldProduct(p.id)).length,cold:ground.filter(p=>coldProduct(p.id)).length},shelf:Object.fromEntries(ground.map(p=>[p.id,n>=2?18:12]))}};
     }
     // Sample opening assets and stock are capital, not fabricated trading profit.
     b.books=undefined;b.weeklyBooks=undefined;

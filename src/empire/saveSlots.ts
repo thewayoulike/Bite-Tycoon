@@ -1,7 +1,7 @@
 type SaveStorage=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 export const SAVE_SLOTS=[
- {id:'fast-track',name:'Fast-track career',key:'bite-tycoon-fast-track-v1',url:'/?mode=fast-track'},
- {id:'career',name:'Career save',key:'bite-tycoon-career-v1',url:'/?mode=career'},
+ {id:'fast-track',name:'Career',key:'bite-tycoon-fast-track-v1',url:'/?mode=fast-track'},
+ {id:'career',name:'Older career save',key:'bite-tycoon-career-v1',url:'/?mode=career'},
  {id:'sandbox',name:'Sandbox save',key:'bite-tycoon-sandbox-v1',url:'/?mode=sandbox'},
  {id:'existing',name:'Existing game save',key:'bite-tycoon-empire-v1',url:'/'},
 ] as const;

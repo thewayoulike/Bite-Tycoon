@@ -25,7 +25,7 @@ function balanced(b:Business,s:ExpansionState){const f=venueFinancials(p,b,s);ne
 
 test('supermarket starts with grocery departments and earns five sequential fit-outs; clicks cannot skip milestones or charge twice',()=>{
  let s=fresh().district;const original=s.businesses.shop;
- assert.equal(original.retail!.store!.level,1);assert.ok(productUnlocked(original,'milk'));assert.equal(productUnlocked(original,'fish'),false);assert.equal(productUnlocked(original,'tv'),false);
+ assert.equal(original.retail!.store!.level,1);assert.ok(productUnlocked(original,'milk'));assert.equal(productUnlocked(original,'fish'),true);assert.equal(productUnlocked(original,'tv'),false);
  assert.equal(advanceStoreLevel(s,'shop').businesses.shop,original);
  for(const spec of STORE_LEVELS.slice(1)){
   s=put(s,{...s.businesses.shop,venue:{...s.businesses.shop.venue!,totalServed:spec.shoppers-1}});const before=s.businesses.shop;
@@ -34,7 +34,7 @@ test('supermarket starts with grocery departments and earns five sequential fit-
   const running=put(s,{...s.businesses.shop,venue:{...s.businesses.shop.venue!,running:true}});assert.equal(advanceStoreLevel(running,'shop').businesses.shop,running.businesses.shop);
   s=advanceStoreLevel(s,'shop');assert.equal(s.businesses.shop.retail!.store!.level,spec.level);near(s.businesses.shop.cash,before.cash-spec.cost);
   assert.equal(advanceStoreLevel(s,'shop').businesses.shop,s.businesses.shop);
-  assert.equal(!!s.businesses.shop.retail!.electronicsUnlocked,spec.level>=4);assert.equal(productUnlocked(s.businesses.shop,'washing_machine'),spec.level>=5);
+  assert.equal(!!s.businesses.shop.retail!.electronicsUnlocked,spec.level>=2);assert.equal(productUnlocked(s.businesses.shop,'washing_machine'),spec.level>=2);
   balanced(s.businesses.shop,s);
  }
  assert.equal(advanceStoreLevel(s,'shop'),s);
@@ -64,7 +64,7 @@ test('stock travels through receiving, backroom, shelf and basket; only checkout
  b=replenishShelf(b,'apples');assert.equal(shelfQuantity(b,'apples'),12);assert.equal(backroomQuantity(b,'apples'),18);near(venueFinancials(p,b,s).assets,balanceBefore);
  b=shopper(startVenueWeek(p,b,1));b=collectStoreBasket(b,1);assert.equal(basketQuantity(b,'apples'),2);assert.equal(shelfQuantity(b,'apples'),10);assert.equal(b.cash,initialCash-12);assert.match(storeServiceBlocker(b,1)!,/walking/);
  assert.equal(checkoutStore(b,1,2,1),b);b=readyCheckout(b);b=checkoutStore(b,1,2,1);near(b.cash,initialCash-6);assert.equal(b.retail!.stock.apples,28);assert.equal(checkoutStore(b,1,2,1),b);
- const m=b.retail!.store!.metrics['Produce & bakery']!;near(m.sales,6);near(m.cogs,2.4);assert.equal(m.units,2);assert.ok(m.wait>0);balanced(b,s);
+ const m=b.retail!.store!.metrics['Produce & bakery']!;near(m.sales,6);near(m.cogs,2.4);assert.equal(m.units,2);assert.equal(m.wait,0,"walking time is not cashier queue time");balanced(b,s);
 });
 
 test('empty shelves block collection even with backroom stock; reservations cannot sell the same units twice',()=>{
@@ -103,7 +103,7 @@ test('fridge faults block cold sales, cause costed waste if left, and repairs ch
 test('every supermarket shelf, checkout and staff aisle has a collision-free route at all store levels',()=>{
  for(let n=1;n<=5;n++){
   const s=level(n),b={...s.businesses.shop,retail:{...s.businesses.shop.retail!,shelves:RETAIL_PRODUCTS.filter(x=>productUnlocked(s.businesses.shop,x.id)).map(x=>x.id)}};
-  for(const floor of n>=4?[0,1]:[0]){
+  for(const floor of n>=2?[0,1]:[0]){
    const layout=supermarketNavigation(b,floor),products=b.retail.shelves.filter(id=>retailProductFloor(id)===floor);
    for(const id of products){const target=supermarketProductPoint(b,id);assert.ok(walkablePoint(layout,target),`Level ${n} ${id} target ${JSON.stringify(target)}`);const path=lodgingWalkingPath(layout,layout.entrance,target);assert.ok(path.length,`Level ${n} ${id} entrance route`);for(let i=1;i<path.length;i++)assert.ok(clearWalkingSegment(layout,path[i-1],path[i]),id);assert.ok(Number.isFinite(supermarketTravelSeconds(b,id).checkout),`${id} checkout route`);}
    for(const point of [...layout.queue,...layout.care,...layout.staff])assert.ok(lodgingWalkingPath(layout,layout.entrance,point).length,`Level ${n} F${floor} staff/queue ${JSON.stringify(point)}`);
@@ -113,8 +113,9 @@ test('every supermarket shelf, checkout and staff aisle has a collision-free rou
 });
 
 test('specialists respect level gates and live supermarket weeks retain balanced separate accounts',()=>{
- let s=fresh().district;assert.equal(hireBusinessStaff(s,'shop','electronics').businesses.shop,s.businesses.shop);assert.equal(hireBusinessStaff(s,'shop','cleaner').businesses.shop,s.businesses.shop);
- s=level(4);s=hireBusinessStaff(s,'shop','electronics');assert.equal(s.businesses.shop.hires!.electronics,1);
+ let s=fresh().district;assert.equal(hireBusinessStaff(s,'shop','electronics').businesses.shop,s.businesses.shop);assert.equal(hireBusinessStaff(s,'shop','handling').businesses.shop,s.businesses.shop);
+ s=hireBusinessStaff(s,'shop','cleaner');s=hireBusinessStaff(s,'shop','specialist');assert.equal(s.businesses.shop.hires!.cleaner,1);assert.equal(s.businesses.shop.hires!.specialist,1);
+ s=level(2);s=hireBusinessStaff(s,'shop','electronics');s=hireBusinessStaff(s,'shop','handling');assert.equal(s.businesses.shop.hires!.electronics,1);assert.equal(s.businesses.shop.hires!.handling,1);
  let e=fresh();e=startEmpireWeek(e);for(let i=0;i<500&&e.district.week===1;i++)e=advanceEmpire(e,1,advanceGame);
  assert.equal(e.district.week,2);assert.ok(e.district.businesses.shop.venue!.totalServed>0);balanced(e.district.businesses.shop,e.district);assert.ok(e.district.businesses.shop.retail!.store!.metrics['Produce & bakery']!.sales>0);
 });

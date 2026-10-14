@@ -45,7 +45,7 @@ export function supermarketFixtureGeometry(level=3){
     m.box([-6.1,y+.1,-7.62],[4,.16,.06],'#a5855f');
   }
   // Open-front chilled cabinets: visible stock, metal shelves and light strips.
-  for(const x of (level>=2?[-2.1,.45,3]:[-2.1])){
+  for(const x of [-2.1,.45,3]){
     m.box([x,1.12,-8.65],[2.3,2.24,.15],'#b5c4c6');
     m.box([x,.12,-8.2],[2.3,.24,1.15],'#52636b');
     for(const dx of [-1.12,1.12])m.box([x+dx,1.12,-8.2],[.09,2.24,1.15],'#d4dcdb');
@@ -54,13 +54,11 @@ export function supermarketFixtureGeometry(level=3){
     m.box([x,2.12,-7.65],[2.12,.035,.045],'#fff8d6');
   }
   // Chest freezer and two produce bins, set back from the customer exit route.
-  if(level>=2){
   m.box([6.35,.5,-8.25],[2.65,1,1.55],'#d9dfdd');
   m.box([6.35,1.02,-8.25],[2.43,.04,1.34],'#718e98');
   for(const x of [5.07,7.63])m.box([x,1.17,-8.25],[.09,.3,1.55],'#d9dfdd');
   for(const z of [-8.98,-7.52])m.box([6.35,1.17,z],[2.65,.3,.09],'#d9dfdd');
   for(const x of [5.72,6.98])m.box([x,1.36,-7.69],[.36,.05,.04],'#e9eeeb');
-  }
   for(const x of [4.15,6.55]){
     m.box([x,.47,3.3],[2.15,.94,1.7],'#9c8058');
     m.box([x,.97,3.3],[2.08,.09,1.63],'#544c35');
@@ -104,43 +102,54 @@ export function supermarketFixtureGeometry(level=3){
   return m.finish();
 }
 
+export function supermarketStockUnits(b:Business){
+  return supermarketDisplays(b.retail?.shelves??[]).flatMap(slot=>{
+    const grocery=slot.kind==='grocery',small=slot.kind==='produce'||slot.kind==='frozen';
+    const facings=small?2:Math.min(6,Math.max(2,Math.floor((slot.width??.8)/(slot.kind==='bakery'?.4:.29))));
+    const count=Math.min(small?4:facings*(grocery?2:3),Math.floor(shelfQuantity(b,slot.id)));
+    return Array.from({length:count},(_,i)=>{
+      const facing=i%facings,row=Math.floor(i/facings),offset=(facing-(facings-1)/2)*(small?.25:((slot.width??.8)-.3)/facings);
+      return {...slot,x:slot.x+(grocery?slot.side*(.18-row*.31):offset),z:slot.z+(grocery?offset:small?(row-.5)*.24:.32-row*.29)};
+    });
+  });
+}
 export function supermarketStockGeometry(b:Business){
   const m=new ModelParts();m.box([0,-.08,0],[.01,.01,.01],'#d4d2cd');
-  const cylinder=(position:Vec3,radius:number,height:number,color:string,segments:number)=>m.add(new THREE.CylinderGeometry(radius,radius,height,segments),color,position);
-  for(const slot of supermarketDisplays(b.retail?.shelves??[])){
-    const product=retailProduct(slot.id)!,count=Math.min(slot.kind==='produce'||slot.kind==='frozen'?4:6,shelfQuantity(b,slot.id));
+  for(const slot of supermarketStockUnits(b)){
+    const product=retailProduct(slot.id)!;
     const form=product.form??(slot.kind==='produce'?'produce':slot.kind==='bakery'?'loaf':slot.kind==='chilled'?(slot.id==='milk'?'bottle':'tray'):['juice','soap','detergent'].includes(slot.id)?'bottle':slot.id==='flowers'?'flower':'box');
-    for(let i=0;i<count;i++){
-      let x=slot.x,y=slot.y,z=slot.z;
-      if(slot.kind==='grocery'){x+=(i%2-.5)*.25;z+=(Math.floor(i/2)-1)*.24;}
-      else if(slot.kind==='produce'||slot.kind==='frozen'){x+=(i%2-.5)*.25;z+=(Math.floor(i/2)-.5)*.24;}
-      else {x+=(i%2-.5)*(slot.kind==='bakery'?.39:.3);z+=(Math.floor(i/2)-1)*.29;}
+      const {x,y,z}=slot,scale=slot.kind==='grocery'?1.2:1;
+      const at=(p:Vec3)=>[x+(p[0]-x)*scale,y+(p[1]-y)*scale,z+(p[2]-z)*scale] as Vec3;
+      const size=(v:Vec3)=>v.map(n=>n*scale) as Vec3;
+      const box=(p:Vec3,s:Vec3,c:string)=>m.box(at(p),size(s),c);
+      const oval=(p:Vec3,s:Vec3,c:string)=>m.add(new THREE.SphereGeometry(1,8,6),c,at(p),size(s));
+      const cylinder=(position:Vec3,radius:number,height:number,color:string,segments:number)=>m.add(new THREE.CylinderGeometry(radius*scale,radius*scale,height*scale,segments),color,at(position));
+      const label=(height:number,width:number,depth:number)=>slot.kind==='grocery'?box([x+slot.side*depth,y+height,z],[.008,.1,width],'#f5ecd8'):box([x,y+height,z+depth],[width,.1,.008],'#f5ecd8');
       const color=product.color;
       if(form==='produce'){
-        m.ellipsoid([x,y+.1,z],['bananas','carrots','cucumber'].includes(slot.id)?[.07,.055,.12]:[.10,.10,.095],color);
-        m.box([x,y+.20,z],[.018,.05,.02],'#58744c');
+        oval([x,y+.1,z],['bananas','carrots','cucumber'].includes(slot.id)?[.07,.055,.12]:[.10,.10,.095],color);
+        box([x,y+.20,z],[.018,.05,.02],'#58744c');
       }else if(form==='loaf'){
-        m.ellipsoid([x,y+.12,z],[.17,.11,.12],color);for(const dx of [-.08,0,.08])m.box([x+dx,y+.22,z],[.012,.01,.12],'#e6cc9a');
+        oval([x,y+.12,z],[.17,.11,.12],color);for(const dx of [-.08,0,.08])box([x+dx,y+.22,z],[.012,.01,.12],'#e6cc9a');
       }else if(form==='bottle'){
         cylinder([x,y+.14,z],.075,.26,color,10);cylinder([x,y+.30,z],.035,.075,color,8);cylinder([x,y+.35,z],.038,.028,'#49605a',8);
-        m.box([x+slot.side*.077,y+.14,z],[.009,.10,.09],'#f4ecd9');
+        label(.14,.09,.077);
       }else if(form==='can'||form==='jar'){
         cylinder([x,y+.12,z],.095,.23,color,10);cylinder([x,y+.245,z],.098,.02,form==='can'?'#bac2bd':'#697b67',10);
-        m.box([x+slot.side*.095,y+.13,z],[.009,.08,.12],'#f4ecd9');
+        label(.13,.12,.095);
       }else if(form==='roll'){
         cylinder([x,y+.125,z],.10,.24,'#eee9da',10);cylinder([x,y+.249,z],.032,.008,'#9d8c72',8);
       }else if(form==='textile'){
-        for(let fold=0;fold<3;fold++)m.box([x,y+.035+fold*.055,z],[.23,.05,.21],fold%2?color:'#ddd4c2');
+        for(let fold=0;fold<3;fold++)box([x,y+.035+fold*.055,z],[.23,.05,.21],fold%2?color:'#ddd4c2');
       }else if(form==='flower'){
-        cylinder([x,y+.08,z],.07,.15,'#ba9873',8);m.branch([x,y+.14,z],[x,y+.36,z],.015,.012,'#647a4f');m.ellipsoid([x,y+.38,z],[.11,.09,.1],color);
+        cylinder([x,y+.08,z],.07,.15,'#ba9873',8);m.branch(at([x,y+.14,z]),at([x,y+.36,z]),.015,.012,'#647a4f');oval([x,y+.35,z],[.11,.08,.1],color);
       }else if(form==='tray'){
-        m.box([x,y+.025,z],[.25,.05,.22],'#e5dfd2');m.ellipsoid([x,y+.07,z],[.10,.045,.08],color);
+        box([x,y+.025,z],[.25,.05,.22],'#e5dfd2');oval([x,y+.07,z],[.10,.045,.08],color);
       }else{
-        m.box([x,y+.14,z],[.22,.28,.19],color);
-        m.box([x+slot.side*.114,y+.14,z],[.008,.1,.13],'#f5ecd8');
-        if(form==='bag')m.box([x,y+.29,z],[.23,.028,.12],'#ded3b7');
+        box([x,y+.14,z],[.22,.28,.19],color);
+        label(.14,.13,slot.kind==='grocery'?.114:.099);
+        if(form==='bag')box([x,y+.29,z],[.23,.028,.12],'#ded3b7');
       }
-    }
   }
   return m.finish();
 }
@@ -154,10 +163,10 @@ export function SupermarketInterior3D({b}:{b:Business}){
     <RetailLighting/>
     <mesh geometry={fixtures} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.67}/></mesh>
     <mesh geometry={stock} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.7}/></mesh>
-    {level>=2&&<mesh position={[6.35,1.32,-8.25]}><boxGeometry args={[2.44,.025,1.34]}/><meshStandardMaterial color="#b9d7db" transparent opacity={.22} roughness={.14} depthWrite={false}/></mesh>}
+    <mesh position={[6.35,1.32,-8.25]}><boxGeometry args={[2.44,.025,1.34]}/><meshStandardMaterial color="#b9d7db" transparent opacity={.22} roughness={.14} depthWrite={false}/></mesh>
     <DepartmentSign text="BAKERY" position={[-6.1,2.57,-8.05]} width={4}/>
-    <DepartmentSign text={level>=2?"DAIRY · MEAT · FISH":"MILK"} position={[level>=2?.45:-2.1,2.57,-8.05]} width={level>=2?7.35:2.3}/>
-    {level>=2&&<DepartmentSign text="FROZEN" position={[6.35,1.68,-8.6]} width={2.5}/>}
+    <DepartmentSign text="DAIRY · MEAT · FISH" position={[.45,2.57,-8.05]} width={7.35}/>
+    <DepartmentSign text="FROZEN" position={[6.35,1.68,-8.6]} width={2.5}/>
     <DepartmentSign text="FRESH PRODUCE" position={[5.35,2.2,2.4]} width={4.7}/>
     {[-5,0,5].map((x,i)=><DepartmentSign key={x} text={["1  FOOD & DRINK","2  HOUSEHOLD & CARE","3  HOME & EVERYDAY"][i]} position={[x,2.38,1.57]} width={2.45}/>)}
     <DepartmentSign text="CHECKOUT" position={[-4.6,2.6,6.3]} width={3}/>
@@ -220,7 +229,7 @@ export function electronicsGeometry(b:Business){
 }
 export function ElectronicsInterior3D({b}:{b:Business}){
   const model=useMemo(()=>electronicsGeometry(b),[storeLevel(b),b.retail?.shelves.join('|'),b.retail?.store?.deliveries.filter(d=>!d.done).length]);useEffect(()=>()=>model.dispose(),[model]);
-  return <group name="electronics-interior"><RetailLighting electronics/><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5}/></mesh><DepartmentSign text={storeLevel(b)>=5?"ELECTRONICS & HOME APPLIANCES":"ELECTRONICS"} position={[-1,3.15,-8.9]} width={10} color="#3c4d68"/>
+  return <group name="electronics-interior"><RetailLighting electronics/><mesh geometry={model} castShadow receiveShadow><meshStandardMaterial vertexColors roughness={.5}/></mesh><DepartmentSign text="ELECTRONICS & HOME APPLIANCES" position={[-1,3.15,-8.9]} width={10} color="#3c4d68"/>
     {electronicsDisplays.filter(([id])=>productUnlocked(b,id)).map(([id,x,z])=><DepartmentSign key={id} text={`${retailProduct(id)!.name.toUpperCase()}${b.retail?.shelves.includes(id)?(b.retail.stock[id]??0)>0?'':' · ORDER STOCK':' · CHOOSE STOCK'}`} position={[x,.72,z+.83]} width={id==='tv'?4:2.25} color="#3c4d68"/>)}
     {storeLevel(b)>=5&&<DepartmentSign text="DISPATCH" position={[-7.8,2.4,-3]} width={2.3} color="#3c4d68"/>}
     <DepartmentSign text={storeLevel(b)>=5?"SERVICE & RETURNS":"CHECKOUT"} position={[-4.6,2.6,6.3]} width={4} color="#3c4d68"/><SupermarketLift3D/>

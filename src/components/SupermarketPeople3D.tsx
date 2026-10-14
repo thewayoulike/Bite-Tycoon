@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type {Business} from '../prototype/expansionModel';
 import {supermarketNavigation,supermarketProductPoint} from '../empire/supermarketLayout';
 import {retailProductFloor} from '../empire/retail';
-import {storeLevel} from '../empire/supermarket';
+import {storeLevel,coldProduct} from '../empire/supermarket';
 import {lodgingWalkingPath,advanceFloorWalker,walkablePoint} from '../empire/lodgingLayout';
 import type {FloorPoint,FloorWalker,LodgingLayout} from '../empire/lodgingLayout';
 import {RealCharacter3D} from './RealCharacter3D';
@@ -21,9 +21,11 @@ export function SupermarketPeople3D({b,floor,speed,onAction}:{b:Business;floor:n
  const crew=ensureCrew(propertyById('shop')!,b),hour=(8+(b.venue?.clock??0)*7*24/180)%24,coverage=(role:string)=>crewPower(crew,role,hour,0,floor);
  const layout=useMemo(()=>supermarketNavigation(b,floor),[floor,storeLevel(b),b.retail?.shelves.join('|')]);
  const people=b.venue?.visitors.filter(v=>retailProductFloor(v.productId??'')===floor)??[],queued=people.filter(v=>v.basket),job=b.retail?.store?.job;
- return <group name="supermarket-people">{people.map(v=>{const target=v.state!=='waiting'?layout.entrance:v.basket?layout.queue[Math.max(0,queued.findIndex(q=>q.id===v.id))%layout.queue.length]:supermarketProductPoint(b,v.productId!);return <Walker key={v.id} layout={layout} target={target} role="customer" seed={v.seed} speed={speed} basket={v.basket} onClick={()=>onAction(v.basket?'serve':'run',v.id)}/>;})}
+ const repair=b.retail?.store?.events.some(e=>e.kind==='fridge'&&!e.resolved),coldItem=b.retail?.shelves.find(coldProduct);
+ return <group name="supermarket-people">{people.map(v=>{const target=v.state!=='waiting'?layout.entrance:v.basket?layout.queue[Math.max(0,queued.findIndex(q=>q.id===v.id))%layout.queue.length]:supermarketProductPoint(b,v.productId!);return <Walker key={v.id} layout={layout} target={target} role="customer" seed={v.seed} speed={speed} basket={v.basket||!!v.basketItems?.length||v.state==='using'} onClick={()=>onAction(v.basket?'serve':'run',v.id)}/>;})}
   {layout.staff.slice(0,Math.ceil(coverage(floor===0?'service':'electronics'))).map((pos,i)=><group key={'cashier'+i} position={[pos.x,0,pos.z]} onClick={()=>onAction('staff')}><RealCharacter3D role="cashier" seed={40+i+floor*8} gameSpeed={speed} isWorking={queued.length>0}/></group>)}
   {floor===0&&<>{coverage('care')>0&&<Walker layout={layout} target={job&&b.retail?.store?.jobProgress!<.65?supermarketProductPoint(b,job):layout.care[0]} role="helper" seed={56} speed={speed} onClick={()=>onAction('staff')}/>}{coverage('cleaner')>0&&<Walker layout={layout} target={{x:-2.3,z:Math.floor((b.venue?.clock??0)/8)%2?-4:3}} role="cleaner" seed={58} speed={speed} onClick={()=>onAction('staff')}/>}{coverage('receiving')>0&&<group position={[6.5,0,-6.4]} onClick={()=>onAction('run')}><RealCharacter3D role="helper" seed={57} gameSpeed={speed} isWorking={Object.values(b.retail?.store?.receiving??{}).some(n=>n>0)}/></group>}</>}
+  {floor===0&&coverage('maintenance')>0&&<Walker layout={layout} target={repair&&coldItem?supermarketProductPoint(b,coldItem):layout.care[0]} role="helper" seed={69} speed={speed} onClick={()=>onAction('run')}/>}
   {floor===1&&coverage('electronics')>0&&<Walker layout={layout} target={{x:-2.8,z:3.5}} role="helper" seed={65} speed={speed} onClick={()=>onAction('staff')}/>}
   {floor===1&&coverage('handling')>0&&<Walker layout={layout} target={{x:-6.5,z:-3.8}} role="helper" seed={66} speed={speed} onClick={()=>onAction('run')}/>}
  </group>;

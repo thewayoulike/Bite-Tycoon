@@ -3,7 +3,7 @@ export type StockBatch={qty:number;costPerUnit:number;receivedDay?:number;expire
 export type ReorderRule={minimum:number;target:number;maximum:number};
 export type DeliveryMode='standard'|'emergency';
 export type StockOrder={id:number;itemId:string;qty:number;cost:number;dueDay:number};
-export type Stockroom={layout?:import("../career/storage").StoragePlan;version:1;laundryLoads?:{itemId:string;batches:StockBatch[];dueDay:number}[];day:number;serial:number;rules:Record<string,ReorderRule>;orders:StockOrder[];batches?:Record<string,StockBatch[]>;dirty?:Record<string,StockBatch[]>;usage?:Record<string,{day:number;used:number;rate:number}>;lastLaundryDay?:number;lastManagerDay?:number;notes:string[];spoilage?:number};
+export type Stockroom={layout?:import("../career/storage").StoragePlan;version:1;laundryLoads?:{itemId:string;batches:StockBatch[];dueDay:number}[];day:number;serial:number;rules:Record<string,ReorderRule>;orders:StockOrder[];batches?:Record<string,StockBatch[]>;dirty?:Record<string,StockBatch[]>;usage?:Record<string,{day:number;used:number;rate:number}>;lastLaundryDay?:number;lastManagerDay?:number;lastRestaurantManagerCheck?:number;notes:string[];spoilage?:number};
 export type StockDefinition={id:string;name:string;cost:number;category:string;icon?:string;location:string;capacity:number;shelfLife?:number;kind:'consumable'|'resale'|'reusable';supplier:string;pack:number;tiers:number[];discounts:number[];unit:string;locked?:boolean;lockedHint?:string;salePrice?:number};
 export type StockView={definition:StockDefinition;onHand:number;reserved:number;available:number;onOrder:number;dirty:number;dailyUse:number;coverage:number|null;rule:ReorderRule;nextDelivery?:number;reason:string;action:string;batches:StockBatch[]};
 export const stockDay=(week:number,day:number)=>(week-1)*7+day;
@@ -16,7 +16,13 @@ export const dirtyValue=(room?:Stockroom)=>Object.values(room?.dirty??{}).reduce
 export function recordStockUse(room:Stockroom,id:string,qty:number):Stockroom{
  const old=room.usage?.[id];return {...room,usage:{...room.usage,[id]:{day:room.day,used:old?.day===room.day?old.used+qty:qty,rate:old?.rate??qty}}};
 }
-export function stampBatches(batches:StockBatch[],def:StockDefinition,day:number){return batches.map(b=>b.receivedDay===undefined?{...b,receivedDay:day,...(def.shelfLife?{expiresDay:day+def.shelfLife}:{}),...(def.kind==='reusable'?{condition:b.condition??100}:{})}:b);}
+export function stampBatches(batches:StockBatch[],def:StockDefinition,day:number){return batches.map(batch=>{
+ // Product rules are authoritative, including saves from older stock catalogues.
+ // A towel or television must never expire because its saved batch had a date.
+ const {expiresDay,...rest}=batch;
+ const receivedDay=batch.receivedDay??day;
+ return {...rest,receivedDay,...(def.shelfLife?{expiresDay:expiresDay??receivedDay+def.shelfLife}:{}),...(def.kind==='reusable'?{condition:batch.condition??100}:{})};
+});}
 export function consumeBatches(batches:StockBatch[],qty:number){
  let remaining=qty,cost=0;const used:StockBatch[]=[],left:StockBatch[]=[];
  for(const b of batches){const take=Math.min(remaining,b.qty);if(take>0){used.push({...b,qty:take});cost+=take*b.costPerUnit;remaining-=take;}if(b.qty>take)left.push({...b,qty:b.qty-take});}

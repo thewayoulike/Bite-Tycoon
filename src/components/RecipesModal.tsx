@@ -7,6 +7,7 @@ import type { GameState } from '../hooks/useGameLoop';
 import {UnlockDetails} from './UnlockDetails';
 import {visibleRestaurantRecipes,menuUsage,menuRecipeBlocker,isResearchRecipe} from '../restaurantMenu';
 import type {RestaurantType} from '../data/restaurantCatalogs';
+import {basePreparationSeconds} from '../restaurantTiming';
 
 interface RecipesModalProps {
   recipes: Recipe[];
@@ -198,7 +199,7 @@ export const RecipesModal: React.FC<RecipesModalProps> = ({
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
-                              <Clock size={11} /> {Number((recipe.cookingTime * 5).toFixed(2))}s base prep
+                              <Clock size={11} /> {Number(basePreparationSeconds(recipe).toFixed(2))}s base prep at 1×
                             </span>
                             {isCustom && (
                               <span className="text-[8px] font-black text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5">

@@ -9,6 +9,7 @@ import {chooseRestaurantType} from '../restaurantTypes';
 import {restaurantLevel,restaurantMenuLimit,upgradeRestaurant} from '../restaurantProgression';
 import {buyDiningTable} from '../tablePurchases';
 import {restaurantRush,serviceProfile,preparationBoost} from '../restaurantPersonality';
+import {COOKING_WORK_PER_SECOND,RESTAURANT_STEP_SECONDS} from '../restaurantTiming';
 import {RestaurantServicePlan,BistroBooking,servicePlan,changeServicePlan,isPickup,isCoffee,preparationTime,freshnessModifier,chooseServiceRecipe,bookBistroTable,cancelBistroBooking,reservedTableIds,walkInCapacity,advanceBistroBookings} from '../restaurantOperations';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {TABLE_POSITIONS,mapPos,ROOM,nextTablePosition,applyTableLayout,normalizeTableLayout,servicePoint,walkStaff,customerTravelTime} from '../restaurantLayout';
@@ -113,6 +114,9 @@ export interface WaiterEntity {
   x: number;
   y: number;
   stamina: number;
+  walkRoute?: {x:number;z:number}[];
+  walkDestination?: string;
+  walkStep?: number;
 }
 
 export interface ChefEntity {
@@ -341,6 +345,20 @@ function kitchenCannotCook(state: GameState, order: Order, hour: number) {
 }
 
 export function advanceGame(prevState: GameState, delta: number, weather:WeatherDemand={visits:1,delivery:1}): GameState {
+  if (prevState.phase === 'planning' || prevState.weekSummary || !Number.isFinite(delta) || delta <= 0) return prevState;
+  // At 5×, one browser tick contains several service steps. Process each so walking,
+  // taking orders and handing over dishes do not lose time at state transitions.
+  let next = prevState;
+  const wholeSteps = Math.floor((delta + 1e-9) / RESTAURANT_STEP_SECONDS);
+  for (let i = 0; i < wholeSteps; i++) {
+    next = advanceRestaurantStep(next, RESTAURANT_STEP_SECONDS, weather);
+    if (next.phase === 'planning' || next.weekSummary) return next;
+  }
+  const remainder = delta - wholeSteps * RESTAURANT_STEP_SECONDS;
+  return remainder > 1e-9 ? advanceRestaurantStep(next, remainder, weather) : next;
+}
+
+function advanceRestaurantStep(prevState: GameState, delta: number, weather:WeatherDemand): GameState {
   if (prevState.phase === 'planning' || prevState.weekSummary || delta <= 0) return prevState;
   let newState = {
     ...prevState,
@@ -368,7 +386,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     const seconds = Math.min(delta, Math.max(0, (100 - newState.time) / 100 * SHIFT_SECONDS));
     newState.weekStats.wages += (weeklyWages(staff)+crewPremium(newState.crew)) * seconds / SHIFT_SECONDS;
     newState.time = Math.min(100, newState.time + delta * 100 / SHIFT_SECONDS);
-    if (newState.time >= 100) { newState.phase = 'closing'; newState.isRestaurantOpen = false; }
+    if (newState.time >= 100 - 1e-9) { newState.time = 100; newState.phase = 'closing'; newState.isRestaurantOpen = false; }
   }
   newState = advanceRestaurantDepth(newState,delta);
   newState = advanceRestaurantStockroom(newState);
@@ -453,7 +471,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     } else if (newC.state === 'waiting_food' && newC.tableId.startsWith('online_')) {
       if (newC.patience > ONLINE_PATIENCE) newC.patience = ONLINE_PATIENCE;
       newC.patience -= delta;
-      if (newC.patience <= 0) {
+      if (newC.patience <= 1e-9) {
         newC.state = 'leaving';
         newC.actionTimer = 0;
         lostThisTick += 1;
@@ -462,7 +480,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
       }
     } else if ((newC.state === 'waiting_order' || newC.state === 'waiting_food') && !newC.tableId.startsWith('online_')) {
       newC.patience -= (newC.state === 'waiting_food' ? 2 : 3) * delta;
-      if (newC.patience <= 0) {
+      if (newC.patience <= 1e-9) {
         newC.state = 'leaving';
         const table = tables.find(t => t.id === newC.tableId);
         newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
@@ -473,7 +491,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
       }
     } else if (newC.state === 'eating' && !newC.tableId.startsWith('online_')) {
       newC.patience -= (newState.restaurantType?serviceProfile(newState).eating:15) * delta;
-      if (newC.patience <= 0) {
+      if (newC.patience <= 1e-9) {
         newC.state = 'leaving';
         const table = tables.find(t => t.id === newC.tableId);
         newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
@@ -550,31 +568,54 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
   }
 
   // --- WAITER AUTOMATION & STAMINA ---
+  // Release stale reservations before dispatching anyone, regardless of array order.
+  // A break, shift change or a manually served guest must not block a colleague.
+  const releaseWaiter = (w:WaiterEntity) => {
+    if(w.state!=='on_break')w.state='idle';
+    w.targetTableId=null;w.targetCustomerId=null;w.targetOrderId=null;w.actionTimer=0;
+    w.walkRoute=undefined;w.walkDestination=undefined;w.walkStep=undefined;
+  };
+  const claimedTables=new Set<string>();
+  for(let i=0;i<waiterEntities.length;i++){
+    const w=waiterEntities[i];
+    const taking=w.state==='walking_to_order'||w.state==='taking_order';
+    const serving=w.state==='walking_to_counter_with_order'||w.state==='walking_to_serve';
+    const guest=customers.find(c=>c.tableId===w.targetTableId&&c.state===(taking?'waiting_order':'waiting_food')&&(!w.targetCustomerId||c.id===w.targetCustomerId));
+    const tickets=orders.filter(o=>o.tableId===w.targetTableId);
+    const valid=(taking||serving)&&crewReady('waiter',i)&&guest&&tables.some(t=>t.id===w.targetTableId)&&
+      (taking||tickets.length>0&&tickets.every(o=>o.state==='ready'))&&!claimedTables.has(w.targetTableId!);
+    if(valid){w.targetCustomerId=guest.id;claimedTables.add(w.targetTableId!);}
+    else if(taking||serving||w.targetTableId||w.targetCustomerId||w.targetOrderId)releaseWaiter(w);
+  }
   for (let i = 0; i < waiterEntities.length; i++) {
     let w = waiterEntities[i];
-    if(w.state==='idle'&&!crewReady('waiter',i))continue;
     if (w.state === 'on_break') {
       w.stamina = Math.min(100, w.stamina + 20 * delta);
       if (w.stamina >= 100) w.state = 'idle';
       continue;
     }
+    if(!crewReady('waiter',i)){releaseWaiter(w);w.stamina=Math.min(100,w.stamina+delta*3);continue;}
 
     const WAITER_SPEED = 5 * crewSkill('waiter',i) * (w.stamina <= 20 ? 0.4 : 1);
     let moving = false;
 
-    if (w.state === 'idle') {
+    if (w.state === 'idle' || w.state === 'walking_to_counter_empty') {
       const tablesWithReadyOrders = [...new Set(orders.filter(o => o.state === 'ready' && !o.tableId.startsWith('online_')).map(o => o.tableId))];
       let tableToServe = null;
       for (const tId of tablesWithReadyOrders) {
-        if (orders.filter(o => o.tableId === tId).every(o => o.state === 'ready') && !waiterEntities.some(other => other.targetTableId === tId && (other.state === 'walking_to_counter_with_order' || other.state === 'walking_to_serve'))) {
+        if (tables.some(t=>t.id===tId)&&customers.some(c=>c.tableId===tId&&c.state==='waiting_food')&&orders.filter(o => o.tableId === tId).every(o => o.state === 'ready') && !claimedTables.has(tId)) {
           tableToServe = tId; break;
         }
       }
       if (tableToServe) { w.state = 'walking_to_counter_with_order'; w.targetTableId = tableToServe; }
       else {
-        const waitingCustomer = customers.find(c => c.state === 'waiting_order' && !waiterEntities.some(other => other.targetTableId === c.tableId));
+        const waitingCustomer = customers.find(c => c.state === 'waiting_order' && tables.some(t=>t.id===c.tableId) && !claimedTables.has(c.tableId));
         if (waitingCustomer) { w.state = 'walking_to_order'; w.targetTableId = waitingCustomer.tableId; }
       }
+      if(w.targetTableId){
+        w.targetCustomerId=customers.find(c=>c.tableId===w.targetTableId&&c.state===(w.state==='walking_to_order'?'waiting_order':'waiting_food'))!.id;
+        claimedTables.add(w.targetTableId);
+      }else w.state='walking_to_counter_empty';
     }
 
     if (w.state === 'walking_to_order' || w.state === 'walking_to_serve') {
@@ -744,7 +785,7 @@ export function advanceGame(prevState: GameState, delta: number, weather:Weather
     } else {
         const power = chef.stamina <= 20 ? 0.4 : 1;
         const member=newState.crew?.find(e=>e.id===`chef-${i}`);
-        chefBudgets.push({station:member?.station??'all',power:power*(1+((member?.skill??1)-1)*.1) * upgrades.cookingSpeed * preparationBoost(newState) * delta * 20});
+        chefBudgets.push({station:member?.station??'all',power:power*(1+((member?.skill??1)-1)*.1) * upgrades.cookingSpeed * preparationBoost(newState) * delta * COOKING_WORK_PER_SECOND});
         if (activelyCooking) chef.stamina = Math.max(0, chef.stamina - 0.4 * delta);
       else chef.stamina = Math.min(100, chef.stamina + 4 * delta);
     }
@@ -1088,7 +1129,7 @@ export function useGameLoop(enabled=true,options:GameOptions={}) {
 
   const sendOnBreak = (entityId: string, type: 'waiter' | 'chef' | 'cleaner') => {
       setState(prev => {
-          if (type === 'waiter') return { ...prev, waiterEntities: prev.waiterEntities.map(e => e.id === entityId ? { ...e, state: 'on_break' } : e) };
+          if (type === 'waiter') return { ...prev, waiterEntities: prev.waiterEntities.map(e => e.id === entityId ? { ...e, state: 'on_break',targetTableId:null,targetCustomerId:null,targetOrderId:null,actionTimer:0,walkRoute:undefined,walkDestination:undefined,walkStep:undefined } : e) };
           if (type === 'chef') return { ...prev, chefEntities: prev.chefEntities.map(e => e.id === entityId ? { ...e, state: 'on_break' } : e) };
           if (type === 'cleaner') return { ...prev, cleanerEntities: prev.cleanerEntities.map(e => e.id === entityId ? { ...e, state: 'on_break' } : e) };
           return prev;

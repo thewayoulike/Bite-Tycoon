@@ -256,7 +256,7 @@ const Waiter3D = ({ index, state, actions }: any) => {
     const dz = targetZ - ref.current.position.z;
     const dist = Math.hypot(dx, dz);
 
-    const lerpSpeed = Math.min(1, delta * 9);
+    const lerpSpeed = 1 - Math.exp(-delta * 9 * state.gameSpeed);
     ref.current.position.x += dx * lerpSpeed;
     ref.current.position.z += dz * lerpSpeed;
 
@@ -286,7 +286,7 @@ const Waiter3D = ({ index, state, actions }: any) => {
     let angleDiff = targetAngleRef.current - ref.current.rotation.y;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    ref.current.rotation.y += angleDiff * Math.min(1, delta * 8);
+    ref.current.rotation.y += angleDiff * (1 - Math.exp(-delta * 8 * state.gameSpeed));
   });
 
   if (!entity) return null;
@@ -328,7 +328,7 @@ const Cleaner3D = ({ index, state, actions }: any) => {
     const dz = entity.y - ref.current.position.z;
     const dist = Math.hypot(dx, dz);
 
-    const lerpSpeed = Math.min(1, delta * 9);
+    const lerpSpeed = 1 - Math.exp(-delta * 9 * state.gameSpeed);
     ref.current.position.x += dx * lerpSpeed;
     ref.current.position.z += dz * lerpSpeed;
 
@@ -351,7 +351,7 @@ const Cleaner3D = ({ index, state, actions }: any) => {
     let angleDiff = targetAngleRef.current - ref.current.rotation.y;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    ref.current.rotation.y += angleDiff * Math.min(1, delta * 8);
+    ref.current.rotation.y += angleDiff * (1 - Math.exp(-delta * 8 * state.gameSpeed));
   });
 
   if (!entity) return null;
@@ -377,7 +377,8 @@ const Chef3D = ({ index, state, actions }: any) => {
       setIsWalking(false);
       return;
     }
-    if (Math.random() < 0.015) {
+    const elapsed = delta * state.gameSpeed;
+    if (Math.random() < 1 - Math.exp(-.9 * elapsed)) {
       setTarget([-5 + index * 2.5 + (Math.random() * 3 - 1.5), -12.5 + (Math.random() * 0.8 - 0.4)]);
     }
     if (ref.current) {
@@ -387,8 +388,8 @@ const Chef3D = ({ index, state, actions }: any) => {
 
       if (dist > 0.1) {
         setIsWalking(true);
-        ref.current.position.x += dx * Math.min(1, delta * 2.5);
-        ref.current.position.z += dz * Math.min(1, delta * 2.5);
+        ref.current.position.x += dx * (1 - Math.exp(-elapsed * 2.5));
+        ref.current.position.z += dz * (1 - Math.exp(-elapsed * 2.5));
         targetAngleRef.current = Math.atan2(dx, dz);
       } else {
         setIsWalking(false);
@@ -398,7 +399,7 @@ const Chef3D = ({ index, state, actions }: any) => {
       let angleDiff = targetAngleRef.current - ref.current.rotation.y;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      ref.current.rotation.y += angleDiff * Math.min(1, delta * 6);
+      ref.current.rotation.y += angleDiff * (1 - Math.exp(-elapsed * 6));
     }
   });
 

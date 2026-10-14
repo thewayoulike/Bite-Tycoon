@@ -1,14 +1,15 @@
 import {promotionDiscount} from '../career/retailEvents';
-import {newStore,StoreState,productUnlocked,selectedFixtureRoom,shelfPlan,advanceStoreLevel} from './supermarket';
+import {newStore,StoreState,productUnlocked,selectedFixtureRoom,shelfPlan,advanceStoreLevel,basketQuantity} from './supermarket';
+import {incoming} from '../inventory/stockroom';
 import {orderBusinessStock,manageBusinessStockroom} from '../inventory/businessStockroom';
 import type {StockBatch} from '../inventory/stockroom';
 import {protectedObligations} from './cashProtection';
 import {propertyById} from '../prototype/expansionModel';
 import type {Business,ExpansionState} from '../prototype/expansionModel';
 export const ELECTRONICS_FLOOR_COST=5000;
-export const ELECTRONICS_FLOOR_CUSTOMERS=300;
+export const ELECTRONICS_FLOOR_CUSTOMERS=50;
 export const SUPERMARKET_MAX_BUDGET=20000;
-import {EVERYDAY_PRODUCTS,SUPERMARKET_STARTER_IDS,type RetailProduct} from './retailRange';
+import {EVERYDAY_PRODUCTS,SUPERMARKET_STARTER_IDS,retailStorage,type RetailProduct} from './retailRange';
 export const RETAIL_PRODUCTS:RetailProduct[]=[
   {id:'apples',name:'Fresh apples',category:'Produce',cost:1.2,price:3,icon:'🍎',color:'#bc6b4e'},
   {id:'bread',name:'Bakery bread',category:'Bakery',cost:1.5,price:4,icon:'🍞',color:'#cda86d'},
@@ -66,7 +67,9 @@ export const retailShelfCount=(b:Business,floor:number)=>b.retail?.shelves.filte
 export const retailSelectionDisabled=(b:Business,id:string)=>!b.retail||!productUnlocked(b,id)||(b.retail.shelves.includes(id)?b.retail.shelves.length===1:!selectedFixtureRoom(b,id));
 export function unlockElectronicsFloor(state:ExpansionState,id:string):ExpansionState{
  const b=state.businesses[id];if(!b?.retail||b.retail.electronicsUnlocked)return state;
- if(b.retail.store)return b.retail.store.level===3?advanceStoreLevel(state,id):{...state,notice:'Complete the grocery and stockroom levels before electronics.'};
+ if(b.retail.store?.level===1)return advanceStoreLevel(state,id);
+ // Older saves can keep earned service upgrades while buying the still-closed floor.
+ if(b.venue?.running)return {...state,notice:'Fit out the electronics floor between weeks.'};
  if((b.venue?.totalServed??0)<ELECTRONICS_FLOOR_CUSTOMERS)return {...state,notice:`Serve ${ELECTRONICS_FLOOR_CUSTOMERS} supermarket shoppers to unlock the electronics floor.`};
  if(b.cash<ELECTRONICS_FLOOR_COST)return {...state,notice:`The electronics floor needs $${ELECTRONICS_FLOOR_COST} from the supermarket account.`};
  return {...state,businesses:{...state.businesses,[id]:{...b,cash:b.cash-ELECTRONICS_FLOOR_COST,spending:b.spending+ELECTRONICS_FLOOR_COST,retail:{...b.retail,electronicsUnlocked:true},books:b.books?{...b.books,upgrades:b.books.upgrades+ELECTRONICS_FLOOR_COST}:undefined,ledger:[...b.ledger,{week:state.week,day:state.day,label:'Electronics floor fitted out',amount:-ELECTRONICS_FLOOR_COST}].slice(-60)}},notice:'Electronics floor opened. Choose products, order stock and set prices in Inventory and Products & prices.'};
@@ -116,11 +119,25 @@ export function autoRetailStock(state:ExpansionState,id:string):ExpansionState {
   }
   return next;
 }
+export function retailDailyDemand(b:Business,id:string,weather=1){
+ const electronic=!!retailProductFloor(id),range=Math.max(1,b.retail?.shelves.filter(id=>!retailProductFloor(id)).length??1);
+ // Expected store-wide basket demand is shared across the selected range.
+ const baseline=electronic?1:60*6/7/range;
+ return Math.max(electronic?.1:.5,(b.stockroom?.usage?.[id]?.rate??baseline)*Math.min(1.2,Math.max(.8,weather)));
+}
+export const retailStockTarget=(id:string,dailyUse:number)=>retailProductFloor(id)?Math.min(3,Math.max(1,Math.ceil(dailyUse))):Math.max(3,Math.ceil(dailyUse*3));
 export function retailRestockNeeds(b:Business){
- return availableRetailProducts(b).filter(p=>b.retail?.shelves.includes(p.id)&&(b.retail.stock[p.id]??0)<(retailProductFloor(p.id)===1?1:15)).map(p=>({id:p.id,name:p.name,quantity:(retailProductFloor(p.id)===1?3:30)-(b.retail!.stock[p.id]??0)}));
+ return availableRetailProducts(b).filter(p=>b.retail?.shelves.includes(p.id)).flatMap(p=>{
+  if(!b.stockroom){const count=b.retail!.stock[p.id]??0;return count<(retailProductFloor(p.id)?1:15)?[{id:p.id,name:p.name,quantity:(retailProductFloor(p.id)?3:30)-count}]:[];}
+  const demand=retailDailyDemand(b,p.id),target=retailStockTarget(p.id,demand),rule=b.stockroom.rules[p.id]??{minimum:Math.ceil(target/2),target,maximum:retailProductFloor(p.id)?10:100};
+  const stock=b.retail!.stock[p.id]??0,ordered=incoming(b.stockroom,p.id),available=Math.max(0,stock-basketQuantity(b,p.id)),life=retailStorage(p).shelfLife;
+  const limit=life?Math.max(1,Math.ceil(demand*Math.max(1,life-1))):rule.target;
+  const quantity=Math.max(0,Math.floor(Math.min(Math.min(rule.target,limit)-available-ordered,rule.maximum-stock-ordered)));
+  return available+ordered<rule.minimum&&quantity>0?[{id:p.id,name:p.name,quantity}]:[];
+ });
 }
 export function recommendedRetailBudget(b:Business){
- const rangeCost=availableRetailProducts(b).filter(p=>b.retail?.shelves.includes(p.id)).reduce((sum,p)=>sum+retailOrderCost(p.id,retailProductFloor(p.id)===1?3:30),0);
+ const rangeCost=availableRetailProducts(b).filter(p=>b.retail?.shelves.includes(p.id)).reduce((sum,p)=>sum+retailOrderCost(p.id,retailProductFloor(p.id)===1?3:Math.ceil(retailDailyDemand(b,p.id)*7)),0);
  const remainingCost=retailRestockNeeds(b).reduce((sum,p)=>sum+retailOrderCost(p.id,p.quantity),0);
  return Math.min(SUPERMARKET_MAX_BUDGET,Math.max(b.retail?.electronicsUnlocked?1000:300,Math.ceil(Math.max(rangeCost,(b.manager?.spent??0)+remainingCost)/500)*500));
 }
