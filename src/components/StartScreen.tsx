@@ -1,18 +1,101 @@
-import type {ReactNode} from 'react';
-import {ArrowUpRight,ArrowRight,Building2,Store,Utensils,Hotel,House,ShoppingBag,FolderOpen,FlaskConical,Play} from 'lucide-react';
+import {useRef, useState, type ReactNode} from 'react';
+import {ArrowRight, Building2, Store, Star, FolderOpen, FlaskConical, Play, Settings, X, Clock, BriefcaseBusiness} from 'lucide-react';
 import './startScreen.css';
 
-type Props={firstAcquisition:boolean;needsOpeningType:boolean;week:number;businesses:number;cash:number;sandbox:boolean;onPlay:()=>void;children?:ReactNode};
-export function StartScreen({firstAcquisition,needsOpeningType,week,businesses,cash,sandbox,onPlay,children}:Props){
- return <main className="sim-start">
-  <header className="sim-start-header"><a href="/" className="sim-wordmark"><span><Building2 size={24}/></span><b>BUSINESS<br/><small>SIMULATOR</small></b></a><span className="sim-header-note">A city of possibilities.</span><a href="/save-slots.html" className="sim-saves"><FolderOpen size={17}/> Saved games</a></header>
-  <section className="sim-hero">
-   <div className="sim-hero-art" aria-hidden="true"/>
-   <div className="sim-hero-copy"><p className="sim-eyebrow"><i/> BUILD YOUR OWN SUCCESS STORY</p><h1>Small beginnings.<br/><em>Big ambitions.</em></h1><p>Open your doors. Build your team.<br/>Turn a neighborhood business into a thriving empire.</p><div className="sim-city-caption"><span>YOUR CITY, YOUR DECISIONS</span><small>Buy · Build · Manage · Grow</small></div></div>
-   <div className="sim-play-card"><span className="sim-card-eyebrow">{firstAcquisition?'YOUR NEXT CHAPTER STARTS HERE':'WELCOME BACK'}</span><h2>{firstAcquisition?'Make your first move.':'Your city is waiting.'}</h2><p>{firstAcquisition?'Lease a shop, buy a business, or choose land and build. You decide where it begins.':`Continue your ${sandbox?'sandbox':'career'} and pick up where you left off.`}</p><div className="sim-save-stats"><span><small>{firstAcquisition?'Starting investment':'Trading week'}</small><b>{firstAcquisition?cash.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}):`Week ${week}`}</b></span><span><small>{firstAcquisition?'Starting level':'Your businesses'}</small><b>{firstAcquisition?'Level 1':businesses}</b></span></div>{children&&<div className="sim-type-picker">{children}</div>}<button className="sim-play" onClick={onPlay}><Play size={16} fill="currentColor"/>{firstAcquisition?'Choose first property':needsOpeningType?'Open restaurant':'Continue game'}<ArrowRight size={20}/></button><small className="sim-save-note">Progress saves automatically in this browser.</small></div>
-  </section>
-  <section className="sim-business-strip" aria-label="Businesses you can run">{[[Utensils,'Restaurants'],[Store,'Supermarkets'],[Hotel,'Hotels'],[House,'Apartments'],[ShoppingBag,'Shopping malls']].map(([Icon,label])=>{const Mark=Icon as typeof Store;return <span key={String(label)}><Mark size={18}/>{String(label)}</span>;})}</section>
-  <section className="sim-modes" aria-label="Ways to play"><div className="sim-mode-intro"><span className="sim-eyebrow">MAKE IT YOURS</span><h2>Choose your way to play.</h2><p>Two experiences. Separate progress.</p></div><a className="sim-mode-card" href="/?mode=fast-track"><span className="sim-mode-icon"><Building2 size={24}/></span><div><h3>Career <span>$250,000 START</span></h3><p>Choose your first property. Earn new levels and grow one business at a time.</p></div><ArrowUpRight size={21}/></a><a className="sim-mode-card" href="/?mode=sandbox"><span className="sim-mode-icon"><FlaskConical size={24}/></span><div><h3>Sandbox <span>EXPLORE & TEST</span></h3><p>Start with the seven test properties open and extra funds to try things out.</p></div><ArrowUpRight size={21}/></a></section>
-  <footer className="sim-start-footer"><span>BUSINESS SIMULATOR <i>·</i> Your next big idea starts with one open door.</span><a href="/save-slots.html">Manage or restore older saves <ArrowUpRight size={14}/></a></footer>
- </main>;
+type Props = {
+  firstAcquisition: boolean;
+  needsOpeningType: boolean;
+  week: number;
+  businesses: number;
+  cash: number;
+  sandbox: boolean;
+  muted: boolean;
+  weekMinutes: 3 | 14;
+  canChangeWeekLength: boolean;
+  onPlay: () => void;
+  onNewCareer: () => void;
+  onToggleMute: () => void;
+  onWeekLengthChange: (minutes: 3 | 14) => void;
+  children?: ReactNode;
+};
+
+export function StartScreen({firstAcquisition, needsOpeningType, week, businesses, cash, sandbox, muted, weekMinutes, canChangeWeekLength, onPlay, onNewCareer, onToggleMute, onWeekLengthChange, children}: Props) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const [panel, setPanel] = useState<'settings' | 'new' | 'type'>('settings');
+  const [error, setError] = useState('');
+  const openPanel = (next: typeof panel) => {
+    previousFocus.current = document.activeElement as HTMLElement;
+    setPanel(next);
+    setError('');
+    dialog.current?.showModal();
+  };
+  const closePanel = () => dialog.current?.close();
+  const play = () => needsOpeningType ? openPanel('type') : onPlay();
+  const money = cash.toLocaleString('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
+
+  return <main className="sim-start">
+    <div className="sim-start-art" aria-hidden="true"/>
+    <header className="sim-start-header">
+      <span className="sim-neighborhood"><Store size={18}/> YOUR NEIGHBORHOOD. YOUR EMPIRE.</span>
+      <button className="sim-settings" onClick={() => openPanel('settings')}><Settings size={16}/> Settings</button>
+    </header>
+
+    <section className="sim-hero" aria-label="Business Simulator main menu">
+      <div className="sim-identity">
+        <div className="sim-crown"><Star size={18}/> THE CITY IS YOURS <Star size={18}/></div>
+        <h1 className="sim-title"><strong>BUSINESS</strong><span>SIMULATOR</span></h1>
+        <p className="sim-ribbon">BIG DREAMS START ON A LITTLE STREET</p>
+      </div>
+
+      <div className="sim-play-card">
+        <span className="sim-card-badge">{firstAcquisition ? 'READY, BOSS?' : sandbox ? 'YOUR SANDBOX AWAITS' : 'WELCOME BACK, BOSS'}</span>
+        <button className="sim-play" onClick={play}>
+          <Play className="sim-play-icon" fill="currentColor"/>
+          <span><strong>{firstAcquisition ? 'LET’S GET STARTED' : needsOpeningType ? 'OPEN FOR BUSINESS' : 'CONTINUE GAME'}</strong>
+            <small>{firstAcquisition ? 'Choose your first property' : needsOpeningType ? 'Choose your restaurant type' : sandbox ? 'Return to your sandbox' : 'Continue your career'}</small></span>
+          <ArrowRight size={20}/>
+        </button>
+        <div className="sim-save-stats" aria-label="Current game progress">
+          {firstAcquisition ? <><Building2 size={13}/><span>{money} TO START</span><i>·</i><span>LEVEL 1</span></> : <><Clock size={13}/><span>WEEK {week}</span><i>·</i><span>{businesses} {businesses === 1 ? 'BUSINESS' : 'BUSINESSES'}</span><i>·</i><span>{sandbox ? 'SANDBOX' : 'CAREER'}</span></>}
+        </div>
+        <nav className="sim-modes" aria-label="Ways to play">
+          <button onClick={() => openPanel('new')}><BriefcaseBusiness size={17}/> NEW CAREER</button>
+          <a href="/?mode=sandbox"><FlaskConical size={18}/> SANDBOX</a>
+        </nav>
+        <a className="sim-saves" href="/save-slots.html"><FolderOpen size={15}/> Saved games</a>
+        <small className="sim-save-note">Progress saves automatically in this browser.</small>
+      </div>
+    </section>
+
+    <footer className="sim-start-footer"><span>BUILD · MANAGE · GROW</span><span>BUSINESS SIMULATOR</span></footer>
+
+    <dialog className="sim-dialog" ref={dialog} aria-labelledby="sim-dialog-title" onClose={() => previousFocus.current?.focus()}>
+      <button className="sim-dialog-close" onClick={closePanel} aria-label="Close dialog"><X size={20}/></button>
+      {panel === 'settings' && <>
+        <span className="sim-dialog-kicker">GAME SETTINGS</span>
+        <h2 id="sim-dialog-title">Make yourself comfortable.</h2>
+        <label className="sim-setting"><span>Sound effects<small>Order bells, arrivals and cash-register sounds.</small></span><input type="checkbox" checked={!muted} onChange={onToggleMute}/></label>
+        <label className="sim-setting"><span>Week length<small>Real time at 1× speed. Weekly wages stay the same.</small></span><select value={weekMinutes} disabled={!canChangeWeekLength} onChange={e => onWeekLengthChange(Number(e.target.value) as 3 | 14)}><option value={3}>Fast · 3 minutes</option><option value={14}>Relaxed · 14 minutes</option></select></label>
+        {!canChangeWeekLength && <p className="sim-dialog-note">Finish the current trading week to change its length.</p>}
+        <button className="sim-dialog-primary" onClick={closePanel}>Done</button>
+      </>}
+      {panel === 'new' && <>
+        <span className="sim-dialog-kicker">A FRESH START</span>
+        <h2 id="sim-dialog-title">Start a new career?</h2>
+        <p>Begin at Level 1 with <strong>$250,000</strong>. Lease an empty shop, buy a running business, or buy land and build.</p>
+        <div className="sim-career-info"><Building2 size={25}/><p>Your current Career slot will be replaced. Its previous progress will be kept as a backup in Saved games. Sandbox and older save slots stay separate.</p></div>
+        {error && <p role="alert" className="sim-dialog-error">{error}</p>}
+        <button className="sim-dialog-primary" onClick={() => {try {onNewCareer();} catch {setError('The new career could not be saved. Your previous progress has been kept. Please check browser storage and try again.');}}}><Play size={17} fill="currentColor"/> Start new career</button>
+        <button className="sim-dialog-cancel" onClick={closePanel}>Keep playing my current game</button>
+      </>}
+      {panel === 'type' && <>
+        <span className="sim-dialog-kicker">MAKE IT YOURS</span>
+        <h2 id="sim-dialog-title">What’s on the menu?</h2>
+        <p>Choose the restaurant you want to run. Its opening recipes and ingredients match your choice.</p>
+        <div className="sim-type-picker">{children}</div>
+        <button className="sim-dialog-primary" onClick={() => {closePanel(); onPlay();}}><Play size={17} fill="currentColor"/> Open restaurant</button>
+      </>}
+    </dialog>
+  </main>;
 }

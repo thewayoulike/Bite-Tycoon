@@ -1,3 +1,4 @@
+import {AirportAndCoast3D,CoastalGround3D} from '../components/AirportAndCoast3D';
 import {showPropertyLabel} from '../empire/propertyMarket';
 import {OuterRoads3D} from '../components/OuterRoads3D';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -114,7 +115,7 @@ useFrame(({camera})=>{const near=camera.position.length()<230;if(near!==previous
 const businessLabels=labels&&nearCenter;
 const developmentKey=Object.keys(market?.parcels??{}).sort().join('|');
 return <CitySnowContext.Provider value={snow}>
-    <mesh rotation={[-Math.PI/2,0,0]} receiveShadow material={getSurfaceMaterial('grass',snow?'#d8dedf':'#868679',100,100)}><planeGeometry args={[1000,1000]}/></mesh>
+    <CoastalGround3D snow={snow}/><AirportAndCoast3D isNight={isNight} labels={labels}/>
     <Roads wet={wet} snow={snow}/><OuterRoads3D wet={wet} snow={snow}/>
     <CitySkyline3D isNight={isNight} snow={snow} market={!!market} developmentKey={developmentKey} onSelect={onSelect}/>
     <CityRailway3D gameSpeed={gameSpeed} labels={labels}/>

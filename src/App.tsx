@@ -4,7 +4,9 @@ import {LAND_PLOTS} from './empire/propertyMarket';
 import {restaurantStockViews} from './inventory/restaurantStockroom';
 import React, { useState, useEffect, useRef } from 'react';
 import {CareerDesk} from './career/CareerDesk';
-import {settings,simulationRate} from './career/settings';
+import {settings,simulationRate,changeSettings} from './career/settings';
+import {resetSaveSlots} from './empire/saveSlots';
+import {newGame} from './empire/newGame';
 import { useGameLoop, GameOptions } from './hooks/useGameLoop';
 import {
   ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle,
@@ -73,7 +75,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const [showDistrictReport,setShowDistrictReport]=useState(false);
   const [insideVenue,setInsideVenue]=useState<string|null>(null);
   const [showWelcome, setShowWelcome] = useState(!prototype&&!district.market&&state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(!soundEngine.enabled);
   const headerRef=useRef<HTMLElement|null>(null);
   const [hudBottom,setHudBottom]=useState(96);
   const [openingType,setOpeningType]=useState<RestaurantType>('diner');
@@ -190,7 +192,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   ).length;
 
   if (gamePhase === 'menu') {
-    return <StartScreen firstAcquisition={firstAcquisition} needsOpeningType={needsOpeningType} week={district.week} businesses={Object.keys(district.businesses).length} cash={district.market?.ownerCash??0} sandbox={!!empire.testingUnlocked} onPlay={()=>{if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}>
+    return <StartScreen firstAcquisition={firstAcquisition} needsOpeningType={needsOpeningType} week={district.week} businesses={Object.keys(district.businesses).length} cash={district.market?.ownerCash??0} sandbox={!!empire.testingUnlocked} muted={isMuted} weekMinutes={settings(empire).weekMinutes} canChangeWeekLength={allPlanning} onToggleMute={()=>setIsMuted(soundEngine.toggleMute())} onWeekLengthChange={minutes=>actions.updateEmpire(e=>changeSettings(e,{weekMinutes:minutes}))} onNewCareer={()=>{resetSaveSlots(localStorage,['fast-track'],id=>JSON.stringify(newGame(id)));window.location.assign('/?mode=fast-track');}} onPlay={()=>{if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}>
       {needsOpeningType&&<RestaurantTypePicker value={openingType} onChange={setOpeningType} id="starting-restaurant-type"/>}
     </StartScreen>;
   }

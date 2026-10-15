@@ -1,7 +1,8 @@
+import {SCENIC_BOUNDS} from '../src/graphics/airportAndCoast';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {MOUSE,TOUCH,Vector3} from 'three';
-import {CITY_VIEWS,MAP_MOUSE_BUTTONS,MAP_TOUCHES,constrainCityPan} from '../src/graphics/cityNavigation';
+import {CITY_VIEWS,MAP_MOUSE_BUTTONS,MAP_TOUCHES,constrainCityPan,constrainCityHeight,CITY_CAMERA_MIN_HEIGHT,CITY_STREET_MAX_POLAR} from '../src/graphics/cityNavigation';
 import {CITY_EDGE,OUTER_LOTS,isOuterPark,buildOuterCity,type OuterStreetModels} from '../src/graphics/outerCity';
 import {addIndustrialLot,industrialStacks,industrialProfile} from '../src/graphics/industrialScenery';
 import {ModelParts} from '../src/graphics/modelParts';
@@ -23,7 +24,7 @@ test('map dragging pans by default and reaches every district without changing v
     constrainCityPan(position,target);assert.equal(target.x,sign*190,'panning must pass the previous 65-metre limit');
     const offset=position.clone().sub(target);target.x+=sign*500;position.x+=sign*500;target.z+=sign*500;position.z+=sign*500;
     constrainCityPan(position,target);
-    assert.equal(target.x,sign<0?-CITY_EDGE:CITY_EDGE+30);assert.equal(target.z,sign*CITY_EDGE);
+    assert.equal(target.x,sign<0?SCENIC_BOUNDS.minX:SCENIC_BOUNDS.maxX);assert.equal(target.z,sign<0?SCENIC_BOUNDS.minZ:SCENIC_BOUNDS.maxZ);
     assert.ok(position.clone().sub(target).distanceTo(offset)<1e-9);assert.equal(target.y,3);
   }
 });
@@ -37,6 +38,22 @@ test('the expanded city separates homes, commerce and industry with a green buff
   for(let x=50;x<=250;x+=25)assert.ok(isOuterPark(x,-75));
   for(let z=-100;z>=-250;z-=25)assert.ok(isOuterPark(50,z));
   assert.ok(OUTER_LOTS.filter(l=>l.zone==='industry').length>=50);
+});
+
+test('outdoor camera never moves under the ground or water and keeps valid overhead views',()=>{
+  assert.ok(CITY_STREET_MAX_POLAR<Math.PI/2);
+  for(const targetY of [-20,-1,.5,2,10])for(const eyeY of [-50,-1,0,.7,1.6,3]){
+    const eye=new Vector3(490,eyeY,340),target=new Vector3(485,targetY,320);
+    constrainCityHeight(eye,target);
+    assert.ok(eye.y>=CITY_CAMERA_MIN_HEIGHT);assert.ok(target.y>=.8);
+    assert.equal(eye.x,490);assert.equal(eye.z,340);
+    assert.equal(constrainCityHeight(eye,target),false,'settled camera must not keep drifting');
+  }
+  for(const view of Object.values(CITY_VIEWS)){
+    const eye=new Vector3(...view.position),target=new Vector3(...view.target);
+    assert.equal(constrainCityHeight(eye,target),false);
+    assert.deepEqual(eye.toArray(),view.position);assert.deepEqual(target.toArray(),view.target);
+  }
 });
 test('rail tracks stay outside city roads and train wrapping happens beyond the developed map',()=>{
   assert.ok(RAIL_X-1.75>CITY_EDGE+3.25);

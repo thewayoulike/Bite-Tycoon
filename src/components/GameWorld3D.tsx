@@ -24,7 +24,7 @@ import {UrbanBuilding3D} from './UrbanBuilding3D';
 import {propertyInteriorPlacement} from '../graphics/propertyArchitecture';
 import {PLAZA_FLOORS,MALL_FLOORS,MALL_FLOOR_HEIGHT} from '../empire/plaza';
 import {PlazaBuilding3D} from './ShoppingPlaza3D';
-import {CITY_VIEWS,MAP_MOUSE_BUTTONS,MAP_TOUCHES,constrainCityPan,type CityArea} from '../graphics/cityNavigation';
+import {CITY_VIEWS,MAP_MOUSE_BUTTONS,MAP_TOUCHES,constrainCityPan,constrainCityHeight,CITY_STREET_MAX_POLAR,type CityArea} from '../graphics/cityNavigation';
 
 import {landPlotById} from '../empire/propertyMarket';
 import {cityCameraNear} from '../graphics/sceneryPerformance';
@@ -42,7 +42,7 @@ function WorldCamera({focus,revision,detail,floor,area,site}:{focus:string|null;
     if(person.current){person.current.getWorldPosition(target);target.y+=.45;destination.copy(target).add(new THREE.Vector3(1.7,1.1,2.4));person.current.getWorldPosition(lastPerson);}
     else if(p){if(p.kind==='plaza'){if(detail==='exterior'||detail==='street')target.y=8;destination.copy(target).add(new THREE.Vector3(...(detail==='exterior'||detail==='street'?[24,12,34]:[9,18,24]) as [number,number,number]));}else destination.copy(target).add(new THREE.Vector3(...(p.kind==='park'?[15,19,22]:detail==='street'||detail==='exterior'?[15,8,22]:['restaurant','cafe'].includes(p.kind)?[8,10,18]:[7,12,17]) as [number,number,number]));}
     else if(site&&landPlotById(site)){target.set(...landPlotById(site)!.position);target.y=3;destination.copy(target).add(new THREE.Vector3(27,34,44));}
-    else if(detail==='street'){target.set(7,2.3,0);destination.set(13.5,2.2,36);}
+    else if(detail==='street'){if(area==='airport'){target.set(488,9,-45);destination.set(555,15,40);}else if(area==='seafront'){target.set(20,1.5,350);destination.set(48,10,407);}else{target.set(7,2.3,0);destination.set(13.5,2.2,36);}}
     else {target.set(...CITY_VIEWS[area].target);destination.set(...CITY_VIEWS[area].position);}
     moving.current=true;
   },[focus,revision,detail,floor,area,site,camera,scene,target,destination,lastPerson]);
@@ -51,6 +51,7 @@ function WorldCamera({focus,revision,detail,floor,area,site}:{focus:string|null;
     if(moving.current){const alpha=1-Math.exp(-delta*5);camera.position.lerp(destination,alpha);controls.current.target.lerp(target,alpha);controls.current.update();if(camera.position.distanceTo(destination)<.03)moving.current=false;}
     else if(person.current){person.current.getWorldPosition(current);const dx=current.x-lastPerson.x,dy=current.y-lastPerson.y,dz=current.z-lastPerson.z;camera.position.add(new THREE.Vector3(dx,dy,dz));controls.current.target.add(new THREE.Vector3(dx,dy,dz));lastPerson.copy(current);controls.current.update();}
     constrainCityPan(camera.position,controls.current.target);
+    if(!focus&&constrainCityHeight(camera.position,controls.current.target))controls.current.update();
     if(camera instanceof THREE.PerspectiveCamera){
       const near=Math.round(cityCameraNear(camera.position.distanceTo(controls.current.target),detail==='person'||detail==='street')*10)/10;
       if(camera.near!==near){camera.near=near;camera.updateProjectionMatrix();}
@@ -59,7 +60,7 @@ function WorldCamera({focus,revision,detail,floor,area,site}:{focus:string|null;
   return <OrbitControls ref={controls} makeDefault onStart={()=>{moving.current=false;}} enablePan screenSpacePanning={!!focus}
     mouseButtons={!focus?MAP_MOUSE_BUTTONS:{LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN}}
     touches={!focus?MAP_TOUCHES:{ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN}}
-    enableDamping dampingFactor={.08} minDistance={1.4} maxDistance={focus?190:580} minPolarAngle={.18} maxPolarAngle={detail==='street'?1.7:1.45}/>;
+    enableDamping dampingFactor={.08} minDistance={1.4} maxDistance={focus?190:580} minPolarAngle={.18} maxPolarAngle={detail==='street'?(focus?1.7:CITY_STREET_MAX_POLAR):1.45}/>;
 }
 
 export function GameWorld3D({state,worldProgress,restaurants,district,actions,focus,selected,onSelect,onOverview,onTestUnlock,onReport,onInteract,testing,isolatedInterior=false,onExteriorView,prototypeScenery,viewRequest}:{state:GameState;worldProgress:number;restaurants:Record<string,GameState>;district:ExpansionState;actions:any;focus:string|null;selected:string|null;onSelect:(id:string)=>void;onOverview:()=>void;onTestUnlock:()=>void;onReport:()=>void;onInteract:(action:VenueInteraction,id?:number)=>void;testing:boolean;isolatedInterior?:boolean;onExteriorView?:()=>void;prototypeScenery?:(floor:number,isNight:boolean)=>React.ReactNode;viewRequest?:{request:number;floor:number;detail:'room'|'exterior'}}){
@@ -87,7 +88,7 @@ export function GameWorld3D({state,worldProgress,restaurants,district,actions,fo
     <div className="world-tools">
       {!focus&&<span className="map-navigation-hint"><span className="map-mouse-hint">Drag to move · Right-drag to rotate · Scroll to zoom</span><span className="map-touch-hint">Drag to move · Pinch to zoom · Two fingers to rotate</span></span>}
       <button className="mc-button" onClick={()=>{setDetail('room');setArea('center');onOverview();}} aria-pressed={!focus}>Neighborhood</button>
-      {!focus&&<select className="mc-button" aria-label="Explore city area" value={area} onChange={e=>{onOverview();setArea(e.target.value as CityArea);setDetail('room');}}><option value="town">Whole city</option><option value="center">Town center · your businesses</option><option value="residential">Cedar residential district</option><option value="commercial">Market commercial district</option><option value="civic">Civic quarter & gardens</option><option value="industrial">Northgate industrial district</option><option value="railway">Railway & Eastgate station</option></select>}
+      {!focus&&<select className="mc-button" aria-label="Explore city area" value={area} onChange={e=>{onOverview();setArea(e.target.value as CityArea);setDetail('room');}}><option value="town">Whole city</option><option value="center">Town center · your businesses</option><option value="residential">Cedar residential district</option><option value="commercial">Market commercial district</option><option value="civic">Civic quarter & gardens</option><option value="industrial">Northgate industrial district</option><option value="railway">Railway & Eastgate station</option><option value="airport">Eastport airport</option><option value="seafront">Seabright waterfront & fishing pier</option></select>}
       {!focus&&<button className="mc-button" aria-pressed={detail==='street'} onClick={()=>setDetail(d=>d==='street'?'room':'street')}>{detail==='street'?'City overview':'Street-level view'}</button>}
       {p&&p.kind!=='park'&&<button className="mc-button" aria-pressed={exterior} onClick={()=>{if(onExteriorView){onExteriorView();return;}setDetail(exterior?'room':'exterior');setFloor(0);}}>{exterior?'Return inside':'Exterior view'}</button>}
       <details className="world-view-settings"><summary>View options</summary><div className="world-view-menu">
