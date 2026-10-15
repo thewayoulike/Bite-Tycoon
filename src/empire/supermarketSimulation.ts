@@ -146,7 +146,8 @@ function shoppingTripSeconds(b:Business,key:string,list:ShoppingItem[]=[]){
  const browse=(id:string,seconds:number)=>Math.max(seconds,department(id)==='Meat & fish'&&!team(b,'specialist',0,0)?16:0);
  let seconds=browse(key,supermarketTravelSeconds(b,key).browse),from=key;
  for(const item of list){seconds+=browse(item.id,supermarketBrowseSeconds(b,from,item.id));from=item.id;}
- return seconds+supermarketTravelSeconds(b,from).checkout+4;
+ // Allow for picking goods, simulation-step rounding and a short checkout queue.
+ return seconds+supermarketTravelSeconds(b,from).checkout+8;
 }
 function storeEvents(b:Business,week:number,day:number):Business{
  const date=stockDay(week,day),st=b.retail!.store!;if(st.lastEventDay===date)return b;
