@@ -152,6 +152,7 @@ export interface GameState {
   money: number;
   week: number;
   time: number;
+  serviceClock?: number;
   phase: 'planning' | 'service' | 'closing';
   activeMenu: string[];
   testingUnlocked?: boolean;
@@ -344,24 +345,25 @@ function kitchenCannotCook(state: GameState, order: Order, hour: number) {
   return false;
 }
 
-export function advanceGame(prevState: GameState, delta: number, weather:WeatherDemand={visits:1,delivery:1}): GameState {
-  if (prevState.phase === 'planning' || prevState.weekSummary || !Number.isFinite(delta) || delta <= 0) return prevState;
+export function advanceGame(prevState: GameState, delta: number, weather:WeatherDemand={visits:1,delivery:1}, calendarRate=1): GameState {
+  if (prevState.phase === 'planning' || prevState.weekSummary || !Number.isFinite(delta) || delta <= 0 || !Number.isFinite(calendarRate) || calendarRate<=0) return prevState;
   // At 5×, one browser tick contains several service steps. Process each so walking,
   // taking orders and handing over dishes do not lose time at state transitions.
   let next = prevState;
   const wholeSteps = Math.floor((delta + 1e-9) / RESTAURANT_STEP_SECONDS);
   for (let i = 0; i < wholeSteps; i++) {
-    next = advanceRestaurantStep(next, RESTAURANT_STEP_SECONDS, weather);
+    next = advanceRestaurantStep(next, RESTAURANT_STEP_SECONDS, weather, calendarRate);
     if (next.phase === 'planning' || next.weekSummary) return next;
   }
   const remainder = delta - wholeSteps * RESTAURANT_STEP_SECONDS;
-  return remainder > 1e-9 ? advanceRestaurantStep(next, remainder, weather) : next;
+  return remainder > 1e-9 ? advanceRestaurantStep(next, remainder, weather, calendarRate) : next;
 }
 
-function advanceRestaurantStep(prevState: GameState, delta: number, weather:WeatherDemand): GameState {
+function advanceRestaurantStep(prevState: GameState, delta: number, weather:WeatherDemand, calendarRate:number): GameState {
   if (prevState.phase === 'planning' || prevState.weekSummary || delta <= 0) return prevState;
-  let newState = {
+  let newState:GameState = {
     ...prevState,
+    serviceClock:(prevState.serviceClock??((prevState.week-1)+prevState.time/100)*SHIFT_SECONDS)+delta,
     tables: [...prevState.tables], customers: [...prevState.customers], orders: [...prevState.orders],
     stats: { ...prevState.stats, itemsSold: { ...(prevState.stats.itemsSold || {}) }, itemRevenues: { ...(prevState.stats.itemRevenues || {}) } },
     inventory: { ...prevState.inventory },
@@ -382,13 +384,14 @@ function advanceRestaurantStep(prevState: GameState, delta: number, weather:Weat
   let cleanerEntities = (prevState.cleanerEntities || []).map(c => ({ ...c, stamina: c.stamina ?? 100 }));
 
   newState.manager = { ...prevState.manager };
+  const calendarDelta=newState.phase==='service'?Math.min(delta*calendarRate,Math.max(0,(100-newState.time)/100*SHIFT_SECONDS)):0;
+  newState = advanceRestaurantDepth(newState,delta,calendarDelta);
   if (newState.phase === 'service') {
-    const seconds = Math.min(delta, Math.max(0, (100 - newState.time) / 100 * SHIFT_SECONDS));
+    const seconds = calendarDelta;
     newState.weekStats.wages += (weeklyWages(staff)+crewPremium(newState.crew)) * seconds / SHIFT_SECONDS;
-    newState.time = Math.min(100, newState.time + delta * 100 / SHIFT_SECONDS);
+    newState.time = Math.min(100, newState.time + calendarDelta * 100 / SHIFT_SECONDS);
     if (newState.time >= 100 - 1e-9) { newState.time = 100; newState.phase = 'closing'; newState.isRestaurantOpen = false; }
   }
-  newState = advanceRestaurantDepth(newState,delta);
   newState = advanceRestaurantStockroom(newState);
   newState = payDueWages(newState);
   newState = advanceBistroBookings({...newState,tables,customers,orders});

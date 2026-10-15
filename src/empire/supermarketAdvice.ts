@@ -12,6 +12,20 @@ export type StoreLossAdvice = {
   actionLabel: string;
 };
 
+const money = (n: number) => n.toLocaleString('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 2});
+
+export function supermarketPurchasingLimits(b: Business, week: number) {
+  const store = b.retail?.store;
+  if (!store) return [];
+  const overallRemaining = Math.max(0, (b.manager?.budget ?? 0) - (b.manager?.spent ?? 0));
+  return (['grocery', 'electronics'] as const).map(key => {
+    const limit = store.budgets?.[key] ?? b.manager?.budget ?? 0;
+    const spent = store.budgetWeek === week ? store.spent[key] : 0;
+    const remaining = store.budgets ? Math.max(0, limit - spent) : overallRemaining;
+    return {key, limit, spent, remaining, overallRemaining, allowance: Math.min(remaining, overallRemaining), separate: !!store.budgets};
+  });
+}
+
 // These explain recorded departures; current settings only change the suggested remedy.
 export function supermarketLossAdvice(b: Business): StoreLossAdvice[] {
   if (!b.retail?.store) return [];
@@ -36,35 +50,35 @@ export function supermarketLossAdvice(b: Business): StoreLossAdvice[] {
     crowded: {
       cause: 'The store reached its limit of 18 shoppers still shopping or waiting.',
       tip: fridgeBroken
-        ? 'Repair the open refrigerator fault first; it blocks chilled-product shoppers. Then refill empty shelves and help clear ready checkout baskets.'
-        : `Keep shelves filled and help clear ready checkout baskets. ${secondCheckout}`,
+        ? 'Repair the open refrigerator fault first; it blocks chilled-product shoppers. Keep stock assistants and cashiers on duty so shelves and queues keep moving automatically.'
+        : `Keep shelves filled and cashiers on duty; customers collect groceries automatically. ${secondCheckout}`,
       action: 'run', actionLabel: 'Review shoppers & queues',
     },
     closing: {
       cause: 'These shoppers had not finished buying when the trading week ended.',
-      tip: 'Before reopening, unpack deliveries, refill shelves and check staff coverage. Near closing, help collect products and checkout ready baskets in Operations. Late shoppers may still miss closing.',
+      tip: 'Before reopening, unpack deliveries, refill shelves and check staff coverage. Customers shop automatically; manual checkout help is optional. Late shoppers may still miss closing.',
       action: 'run', actionLabel: 'Prepare for the next week',
     },
     stock: {
-      cause: 'Shoppers could not collect stock before their patience ran out.',
+      cause: 'Shoppers could not find available goods to buy, or waited too long for stock.',
       tip: b.manager
-        ? 'In Inventory, check the purchasing manager is enabled, reorder targets, incoming deliveries and available budget after protected cash. Buy small batches of fresh food based on sales.'
+        ? `In Inventory, check auto-restock, reorder targets and delivery dates.${store.budgets ? ` Groceries have a separate ${money(store.budgets.grocery)} weekly limit within your ${money(b.manager.budget)} overall budget. Raising only the overall budget does not raise this grocery limit.` : ''} Keep enough cash after bills, and buy fresh food in small batches based on sales.`
         : 'In Inventory, order small top-ups of the products you sell before they run out. A purchasing manager can reorder automatically within your budget; avoid large fresh-food orders.',
       action: 'inventory', actionLabel: 'Review stock & purchasing',
     },
     refill: {
       cause: 'Stock was in the backroom but had not reached the shelf.',
-      tip: 'Use Help refill lowest shelf in Operations. Keep a stock assistant on duty on the ground floor; add another if refilling keeps falling behind. Buying more will not move backroom stock onto shelves.',
+      tip: 'Stock assistants refill shelves automatically. Keep one on duty on the ground floor; add another if refilling keeps falling behind. Help refill lowest shelf is optional. Buying more will not move backroom stock onto shelves.',
       action: 'run', actionLabel: 'Refill shelves',
     },
     receiving: {
       cause: 'Purchased goods were still waiting to be unpacked.',
-      tip: `Use Help receive goods in Operations, then refill shelves. Keep a stock assistant on duty.${level >= 3 ? ' A receiving clerk can unpack deliveries faster.' : ' A receiving clerk becomes available at Level 3.'}`,
+      tip: `Stock assistants unpack deliveries automatically; keep one on duty. Help receive goods is optional.${level >= 3 ? ' A receiving clerk can unpack deliveries faster.' : ' A receiving clerk becomes available at Level 3.'}`,
       action: 'run', actionLabel: 'Unpack deliveries',
     },
     checkout: {
       cause: 'Shoppers with baskets ran out of patience before checkout.',
-      tip: `Help checkout ready baskets in Operations and check cashier shifts and breaks in Staff. ${secondCheckout}${b.retail.electronicsUnlocked ? ' Upstairs needs its own electronics adviser on duty.' : ''}`,
+      tip: `Cashiers checkout baskets automatically. Check shifts and breaks in Staff; manual checkout help is optional. ${secondCheckout}${b.retail.electronicsUnlocked ? ' Upstairs needs its own electronics adviser on duty.' : ''}`,
       action: 'staff', actionLabel: 'Review checkout staffing',
     },
     adviser: {

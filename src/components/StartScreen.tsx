@@ -1,6 +1,7 @@
 import {useRef, useState, type ReactNode} from 'react';
 import {ArrowRight, Building2, Store, Star, FolderOpen, FlaskConical, Play, Settings, X, Clock, BriefcaseBusiness} from 'lucide-react';
 import './startScreen.css';
+import {WEEK_LENGTHS,type WeekMinutes} from '../career/settings';
 
 type Props = {
   firstAcquisition: boolean;
@@ -10,12 +11,12 @@ type Props = {
   cash: number;
   sandbox: boolean;
   muted: boolean;
-  weekMinutes: 3 | 14;
+  weekMinutes: WeekMinutes;
   canChangeWeekLength: boolean;
   onPlay: () => void;
   onNewCareer: () => void;
   onToggleMute: () => void;
-  onWeekLengthChange: (minutes: 3 | 14) => void;
+  onWeekLengthChange: (minutes: WeekMinutes) => void;
   children?: ReactNode;
 };
 
@@ -76,7 +77,7 @@ export function StartScreen({firstAcquisition, needsOpeningType, week, businesse
         <span className="sim-dialog-kicker">GAME SETTINGS</span>
         <h2 id="sim-dialog-title">Make yourself comfortable.</h2>
         <label className="sim-setting"><span>Sound effects<small>Order bells, arrivals and cash-register sounds.</small></span><input type="checkbox" checked={!muted} onChange={onToggleMute}/></label>
-        <label className="sim-setting"><span>Week length<small>Real time at 1× speed. Weekly wages stay the same.</small></span><select value={weekMinutes} disabled={!canChangeWeekLength} onChange={e => onWeekLengthChange(Number(e.target.value) as 3 | 14)}><option value={3}>Fast · 3 minutes</option><option value={14}>Relaxed · 14 minutes</option></select></label>
+        <label className="sim-setting"><span>Week length<small>At 1× speed. Longer weeks allow more trading; staff keep their pace.</small></span><select value={weekMinutes} disabled={!canChangeWeekLength} onChange={e => onWeekLengthChange(Number(e.target.value) as WeekMinutes)}>{WEEK_LENGTHS.map(minutes=><option key={minutes} value={minutes}>{minutes} minutes</option>)}</select></label>
         {!canChangeWeekLength && <p className="sim-dialog-note">Finish the current trading week to change its length.</p>}
         <button className="sim-dialog-primary" onClick={closePanel}>Done</button>
       </>}

@@ -4,7 +4,7 @@ import {FAST_TRACK_CASH,marketSiteIdentity,earnedPlayerLevel,totalRentLiability,
 import {restaurantDepth} from '../career/restaurant';
 import {settleInternalRent,internalRentForWeek,advanceTenantTrade,closeTenantTurnover} from '../career/mallCompanies';
 import {ensureCrew} from '../career/crew';
-import {simulationRate} from '../career/settings';
+import {calendarRate,settings} from '../career/settings';
 import {closeMallWeek} from './mallDepth';
 import {ensureSupermarket} from './supermarket';
 import {ensureRestaurantStockroom} from '../inventory/restaurantStockroom';
@@ -166,15 +166,15 @@ export function setEmpireSpeed(empire:EmpireState,speed:number):EmpireState {
 }
 
 /** Advance every restaurant without mounting extra 3D scenes. Non-food businesses settle once at week end. */
-export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameState,d:number,weather?:WeatherDemand)=>GameState):EmpireState {
-  if(delta<=0||empire.speed===0||(Object.values(empire.restaurants).every(r=>r.phase==='planning')&&!Object.values(empire.district.businesses).some(b=>b.venue?.running)))return empire;
-  delta*=simulationRate(empire);
+export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameState,d:number,weather?:WeatherDemand,calendarRate?:number)=>GameState):EmpireState {
+  if(!Number.isFinite(delta)||delta<=0||empire.speed===0||(Object.values(empire.restaurants).every(r=>r.phase==='planning')&&!Object.values(empire.district.businesses).some(b=>b.venue?.running)))return empire;
+  const rate=calendarRate(empire);
   const venueOnly=Object.keys(empire.restaurants).length===0;
-  if(venueOnly)delta=Math.min(delta,Math.max(0,(100-(empire.clock?.time??0))*1.8));
-  const clock=venueOnly?{time:Math.min(100,(empire.clock?.time??0)+delta/1.8),phase:'service' as const}:empire.clock;
+  if(venueOnly)delta=Math.min(delta,Math.max(0,(100-(empire.clock?.time??0))*1.8/rate));
+  const clock=venueOnly?{time:Math.min(100,(empire.clock?.time??0)+delta*rate/1.8),phase:'service' as const}:empire.clock;
   let district=districtView(empire);
   const weather=weatherForDay(district.week,district.day,district.weatherSeed);
-  let restaurants=Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,simulate({...r,advanced:restaurantDepth(r),crew:ensureCrew(propertyById(id)!,district.businesses[id],r),stockDemandFactor:Math.min(1.2,Math.max(.8,weatherDemand(propertyById(id)!.kind,weather.kind).visits)),cashProtection:protectedObligations(propertyById(id)!,district.businesses[id],district,r)},delta,weatherDemand(propertyById(id)!.kind,weather.kind))]));
+  let restaurants=Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,simulate({...r,advanced:restaurantDepth(r),crew:ensureCrew(propertyById(id)!,district.businesses[id],r),stockDemandFactor:Math.min(1.2,Math.max(.8,weatherDemand(propertyById(id)!.kind,weather.kind).visits)),cashProtection:protectedObligations(propertyById(id)!,district.businesses[id],district,r)},delta,weatherDemand(propertyById(id)!.kind,weather.kind),rate)]));
   // Keep a readable weekly ledger without recording ten tiny entries each second.
   const businesses={...district.businesses};
   for(const [id,r] of Object.entries(restaurants)) {
@@ -185,7 +185,7 @@ export function advanceEmpire(empire:EmpireState,delta:number,simulate:(r:GameSt
     }
     businesses[id]=b;
   }
-  district=advanceVenues({...district,businesses},delta);
+  district=advanceVenues({...district,businesses},delta,rate);
   const current=Object.values(restaurants).filter(r=>r.week===district.week);
   const day=current.length?Math.min(7,Math.floor(Math.max(...current.map(r=>r.time))*7/100)+1):venueOnly?Math.min(7,Math.floor((clock?.time??0)*7/100)+1):7;
   while(district.day<day)district=nextDay(district,false);
@@ -260,6 +260,7 @@ export function parseEmpireSave(raw:string|null):EmpireState|null {
       if(!identified.restaurantType&&!isOpeningRestaurant(identified))identified={...chooseRestaurantType({...identified,phase:'planning'},identified.restaurantIdentity??defaultRestaurantType(id),false),phase:r.phase};
       value.restaurants[id]=ensureRestaurantStockroom(normalizeRestaurantCatalog(identified));
     }
+    if(value.settings)value.settings=settings(value);
     value.district=districtView(value);
     return value;
   } catch {return null;}

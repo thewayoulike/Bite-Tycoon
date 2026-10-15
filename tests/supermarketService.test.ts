@@ -48,7 +48,7 @@ test('selecting the full range does not send every shopper to unpurchased produc
 test('a shopper buys the last available unit instead of waiting forever for an impossible three-unit basket',()=>{
  let b=withShopper(fresh().businesses.shop);b={...b,retail:{...b.retail!,stock:{apples:1},batches:{apples:[{qty:1,costPerUnit:1.2}]},store:{...b.retail!.store!,shelf:{apples:1}}}};
  b=collectStoreBasket(b,1);assert.ok(b.venue!.visitors[0].basket);assert.equal(b.venue!.visitors[0].quantity,1);
- b={...b,venue:{...b.venue!,clock:b.venue!.visitors[0].checkoutReadyAt!}};const cash=b.cash;
+ b={...b,venue:{...b.venue!,activityClock:b.venue!.visitors[0].checkoutReadyAt!}};const cash=b.cash;
  b=checkoutStore(b,1,1);near(b.cash,cash+3);assert.equal(b.retail!.stock.apples,0);assert.equal(shelfQuantity(b,'apples'),0);
 });
 
@@ -120,10 +120,10 @@ test('mixed baskets walk between products, reserve every item and charge FIFO co
  const before=b,cash=b.cash;
  b=collectStoreBasket(b,1);assert.equal(b.venue!.visitors[0].basket,false);assert.equal(basketQuantity(b,'apples'),2);assert.equal(b.venue!.visitors[0].productId,'bread');
  assert.equal(collectStoreBasket(b,1),b,'no pickup while still walking');
- for(let i=0;i<2;i++){b={...b,venue:{...b.venue!,clock:b.venue!.visitors[0].browseReadyAt!}};b=collectStoreBasket(b,1);}
+ for(let i=0;i<2;i++){b={...b,venue:{...b.venue!,activityClock:b.venue!.visitors[0].browseReadyAt!}};b=collectStoreBasket(b,1);}
  const shopper=b.venue!.visitors[0];assert.equal(storeBasket(b,shopper).length,3);assert.equal(basketQuantity(b,'rice'),2);assert.ok(shopper.basket);
  // Changing today's menu cannot reprice groceries already picked up.
- b={...b,menu:{...b.menu,apples:{enabled:true,price:99}},venue:{...b.venue!,clock:shopper.checkoutReadyAt!}};
+ b={...b,menu:{...b.menu,apples:{enabled:true,price:99}},venue:{...b.venue!,activityClock:shopper.checkoutReadyAt!}};
  b=checkoutStore(b,1,1);near(b.cash-cash,22);assert.equal(b.venue!.week.served,1);
  for(const [id,qty]of [['apples',2],['bread',1],['rice',2]] as const){assert.equal(b.retail!.stock[id],before.retail!.stock[id]-qty);assert.equal(basketQuantity(b,id),0);}
  near(b.retail!.store!.sales.slice(-3).reduce((n,s)=>n+s.cost*s.qty,0),2.4+1.5+5);

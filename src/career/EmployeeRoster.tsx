@@ -23,7 +23,7 @@ function trainingBenefit(role:string,kind:Property['kind']){
  return 'Gets tired more slowly and keeps their assigned service covered for longer. Training does not create extra shop or facility slots.';
 }
 
-export function EmployeeRoster({crew,cash,name,kind,maxFloor,weekMinutes,onAction}:{crew:Employee[];cash:number;name:string;kind:Property['kind'];maxFloor:number;weekMinutes:number;onAction:(action:CrewAction)=>void}){
+export function EmployeeRoster({crew,cash,name,kind,maxFloor,onAction}:{crew:Employee[];cash:number;name:string;kind:Property['kind'];maxFloor:number;onAction:(action:CrewAction)=>void}){
  const weeklyPay=crew.reduce((sum,p)=>sum+p.pay,0);
  return <><h3>{name} · your team</h3>
   <p>Hire employees in Staff. Here you choose when and where they work, train them, or change their pay.</p>
@@ -32,11 +32,11 @@ export function EmployeeRoster({crew,cash,name,kind,maxFloor,weekMinutes,onActio
   {!crew.length&&<p>No employees yet. Hire someone in Staff to see their controls here.</p>}
   <div className="desk-cards">{crew.map(person=>{
    const cost=person.skill*100,nextPay=Math.min(person.basePay*2,person.pay+5),raise=nextPay-person.pay,trained=person.skill>=5;
-   const nextSkill=Math.min(5,person.skill+1),duration=Math.round(30*weekMinutes/3);
+   const nextSkill=Math.min(5,person.skill+1),duration=30;
    return <article className="mc-inner-panel" key={person.id} aria-label={`${person.name} employee controls`}>
     <h4>{person.name} · {roleName(person.role,kind)}</h4>
     <p>Skill {person.skill}/5 · energy {Math.round(person.energy)}% · <b>{money(person.pay)}/week</b></p>
-    <strong>{person.task}{person.training?` · ${Math.ceil(person.training*weekMinutes/3)}s remaining at normal speed`:''}</strong>
+    <strong>{person.task}{person.training?` · ${Math.ceil(person.training)}s remaining at normal speed`:''}</strong>
     <label>Shift<select aria-label={`${person.id} shift`} value={person.shift} onChange={v=>onAction({type:'shift',id:person.id,shift:v.target.value as Shift})}>{[['all','All day'],['morning','Morning · 06:00–14:00'],['afternoon','Afternoon · 14:00–22:00'],['night','Night · 22:00–06:00']].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
     <label>Work area<select aria-label={`${person.id} work area`} value={person.zone} onChange={v=>onAction({type:'zone',id:person.id,zone:Number(v.target.value)})}><option value={-1}>All open areas</option>{Array.from({length:maxFloor+1},(_,n)=><option key={n} value={n}>{n===0?'Ground / reception':`Floor ${n}`}</option>)}</select></label>
     {person.role==='chef'&&<label>Kitchen station<select aria-label={`${person.id} station`} value={person.station} onChange={v=>onAction({type:'station',id:person.id,station:v.target.value})}>{['all','grill','oven','cold','drinks'].map(v=><option key={v} value={v}>{v==='all'?'All stations':v}</option>)}</select></label>}

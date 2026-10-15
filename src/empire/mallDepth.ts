@@ -100,18 +100,18 @@ export function manageMallDepth(s:ExpansionState,id:string,a:MallDepthAction):Ex
  }
  return {...s,businesses:{...s.businesses,[id]:b},notice:note};
 }
-export function advanceMallDepth(p:Property,b:Business,dt:number,week:number,day:number,demand:number):Business{
+export function advanceMallDepth(p:Property,b:Business,dt:number,week:number,day:number,demand:number,calendarDelta=dt):Business{
  if(!b.plaza?.depth)return b;let next=b;const date=stockDay(week,day);
  if(b.plaza.depth.lastDay!==date)next=retryMallCollections(next,week,day);
  let d=next.plaza!.depth!;const occupied=next.venue!.units.filter(u=>u.occupied),mix=new Set(occupied.map(u=>u.shopType)).size;
- const zones=d.zones.map((z,f)=>{const traffic=next.venue!.units.slice(f*4,f*4+4).filter(u=>u.occupied).length;return {cleanliness:Math.max(0,z.cleanliness-dt*(.028+traffic*.008)),condition:Math.max(0,z.condition-dt*.012),safety:Math.max(0,z.safety-dt*.008)};});
+ const zones=d.zones.map((z,f)=>{const traffic=next.venue!.units.slice(f*4,f*4+4).filter(u=>u.occupied).length;return {cleanliness:Math.max(0,z.cleanliness-dt*(.028+traffic*.008)),condition:Math.max(0,z.condition-calendarDelta*.012),safety:Math.max(0,z.safety-calendarDelta*.008)};});
  const concierge=Math.min(4,(next.hires?.concierge??0)*2);
  const quality=zones.reduce((n,z)=>n+(z.cleanliness+z.condition)/2,0)/zones.length,security=Array.from({length:next.plaza!.openFloors},(_,f)=>mallRoleCoverage(next,'security',f)>0?1:0).reduce((n,v)=>n+v,0)/next.plaza!.openFloors;
  const amenities=MALL_FACILITIES.reduce((n,f)=>n+mallFacilityCoverage(next,f.id)*2,0),target=Math.min(100,quality*.7+10+concierge+security*8+Math.min(8,mix*2)+amenities);
  const satisfaction=d.satisfaction+(target-d.satisfaction)*Math.min(1,dt/100),clock=next.venue!.clock,hour=(8+clock/180*7*24)%24;
  const footfall=d.floorFootfall.map((n,f)=>{const shops=next.venue!.units.slice(f*4,f*4+4).filter(u=>u.occupied).length,appeal=1+MALL_FACILITIES.filter(v=>v.floor===f).reduce((v,a)=>v+a.appeal*mallFacilityCoverage(next,a.id),0),evening=f===3&&hour>=18&&hour<24?1.4:hour<7?.15:1;return n+shops*dt*.3*appeal*demand*evening;});
- const tenants={...d.tenants};for(const [key,t]of Object.entries(tenants)){const u=next.venue!.units[Number(key)];if(!u?.occupied)continue;const rate=u.rent??shopType(u.shopType).rent,healthTarget=Math.max(5,Math.min(100,satisfaction+(demand-1)*10+Math.min(10,mix*2)-Math.max(0,rate/shopType(u.shopType).rent-1)*60));tenants[Number(key)]={...t,health:t.health+(healthTarget-t.health)*Math.min(1,dt/180)};}
- next={...next,plaza:{...next.plaza!,depth:{...d,zones,tenants,satisfaction,lastDay:date,elapsed:d.elapsed+dt,occupiedSeconds:d.occupiedSeconds+occupied.length*dt,availableSeconds:d.availableSeconds+next.venue!.units.length*dt,floorFootfall:footfall,workTimer:d.workTimer+dt}}};
+ const tenants={...d.tenants};for(const [key,t]of Object.entries(tenants)){const u=next.venue!.units[Number(key)];if(!u?.occupied)continue;const rate=u.rent??shopType(u.shopType).rent,healthTarget=Math.max(5,Math.min(100,satisfaction+(demand-1)*10+Math.min(10,mix*2)-Math.max(0,rate/shopType(u.shopType).rent-1)*60));tenants[Number(key)]={...t,health:t.health+(healthTarget-t.health)*Math.min(1,calendarDelta/180)};}
+ next={...next,plaza:{...next.plaza!,depth:{...d,zones,tenants,satisfaction,lastDay:date,elapsed:d.elapsed+calendarDelta,occupiedSeconds:d.occupiedSeconds+occupied.length*calendarDelta,availableSeconds:d.availableSeconds+next.venue!.units.length*calendarDelta,floorFootfall:footfall,workTimer:d.workTimer+dt}}};
  if(next.plaza!.depth!.workTimer>=12){
   const floors=Array.from({length:next.plaza!.openFloors},(_,i)=>i).sort((a,c)=>next.plaza!.depth!.zones[a].cleanliness-next.plaza!.depth!.zones[c].cleanliness);
   let jobs=1+(next.hires?.care??0)+(next.hires?.cleaner??0);

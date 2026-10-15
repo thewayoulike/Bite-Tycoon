@@ -5,6 +5,7 @@ import {stripHotelLinen} from './hotelLaundry';
 import {Business,businessSupplies,businessWages,Property} from '../prototype/expansionModel';
 import {absoluteTime,ensureLodging,isLodging,lodgingClock,lodgingEntry,LodgingBooking,manageLodging,roomNeedsRepair,roomTypes,shiftActive,staffCount,unitReady,useLodgingSupplies,hotelWeeklyUpkeep} from './lodging';
 import type {VenueVisitor} from './venueSimulation';
+import {venueStep,venueActivityTime} from './simulationTime';
 const DAY=180/7;
 const bookingRoom=(b:Business,person:VenueVisitor)=>{const booking=b.lodging?.bookings.find(v=>v.id===person.bookingId);return b.venue!.units.findIndex((u,i)=>unitReady(u)&&(booking?.unit===undefined||i===booking.unit)&&(!person.offerId||u.type===person.offerId)&&!b.lodging?.bookings.some(other=>other.id!==booking?.id&&other.unit===i&&['reserved','waiting'].includes(other.status)));};
 export function lodgingBlocker(p:Property,b:Business,id?:number):string|null{
@@ -34,18 +35,18 @@ export function serveLodging(p:Property,b:Business,week:number,day:number,id?:nu
  if(p.kind==='hotel')return {...received,deferredIncome:(b.deferredIncome??0)+sale,books:received.books?{...received.books,revenue:received.books.revenue-sale}:undefined,lodging:{...received.lodging!,roomRevenue:received.lodging!.roomRevenue-sale},venue:{...received.venue!,week:{...received.venue!.week,revenue:received.venue!.week.revenue-sale},totalRevenue:received.venue!.totalRevenue-sale}};
  return {...received,cash:received.cash+rate*depositWeeks,tenantDeposits:(b.tenantDeposits??0)+rate*depositWeeks,lodging:{...received.lodging!,earnedRoomNights:(l.earnedRoomNights??0)+1,rentCollected:(l.rentCollected??0)+rate},ledger:depositWeeks?[...received.ledger,{week,day,label:'Refundable tenant deposit received',amount:rate}].slice(-60):received.ledger};
 }
-export function advanceLodging(p:Property,b:Business,delta:number,week:number,day:number,demand=1):Business{
+export function advanceLodging(p:Property,b:Business,delta:number,week:number,day:number,demand=1,calendarRate=1):Business{
  if(!b.venue?.running||delta<=0||!b.lodging)return b;
  if(p.kind==='apartments')b=prepareHouseholds(b,week);
- const dt=Math.min(delta,180-b.venue!.clock);if(dt<=0)return b;
- let v={...b.venue,clock:b.venue.clock+dt,serviceTimer:b.venue.serviceTimer+dt,careTimer:b.venue.careTimer+dt,arrivalTimer:b.venue.arrivalTimer-dt*demand,units:b.venue.units.map(u=>({...u})),visitors:b.venue.visitors.map(v=>({...v})),week:{...b.venue.week,wages:b.venue.week.wages+businessWages(p,b)*dt/180}},l={...b.lodging,homeProgress:{...b.lodging.homeProgress},occupiedHomeWeeks:b.lodging.occupiedHomeWeeks??0,completedNights:hotelCompletedNights(b),earnedRoomNights:b.lodging.earnedRoomNights??0,roomEarnings:{...b.lodging.roomEarnings},bookings:b.lodging.bookings.map(v=>({...v})),issues:b.lodging.issues.map(i=>({...i})),occupiedSeconds:b.lodging.occupiedSeconds+b.venue.units.filter(u=>u.occupied).length*dt,availableSeconds:b.lodging.availableSeconds+b.venue.units.length*dt};
+ const {activity:dt,calendar:calendarDelta}=venueStep(b.venue!.clock,delta,calendarRate);if(dt<=0)return b;
+ let v={...b.venue,clock:b.venue.clock+calendarDelta,activityClock:venueActivityTime(b.venue)+dt,serviceTimer:b.venue.serviceTimer+dt,careTimer:b.venue.careTimer+dt,arrivalTimer:b.venue.arrivalTimer-dt*demand,units:b.venue.units.map(u=>({...u})),visitors:b.venue.visitors.map(v=>({...v})),week:{...b.venue.week,wages:b.venue.week.wages+businessWages(p,b)*calendarDelta/180}},l={...b.lodging,homeProgress:{...b.lodging.homeProgress},occupiedHomeWeeks:b.lodging.occupiedHomeWeeks??0,completedNights:hotelCompletedNights(b),earnedRoomNights:b.lodging.earnedRoomNights??0,roomEarnings:{...b.lodging.roomEarnings},bookings:b.lodging.bookings.map(v=>({...v})),issues:b.lodging.issues.map(i=>({...i})),occupiedSeconds:b.lodging.occupiedSeconds+b.venue.units.filter(u=>u.occupied).length*calendarDelta,availableSeconds:b.lodging.availableSeconds+b.venue.units.length*calendarDelta};
  const now=absoluteTime(week,v.clock),clock=lodgingClock({...b,venue:v}),globalDay=Math.floor(now/DAY),isHotel=p.kind==='hotel';
  const stripped:number[]=[];let renewalRent=0,renewalAccrual=0;
  // Overnight stays finish in the morning; a checked-out unit is never immediately resold.
  v.units.forEach((u,i)=>{
   if(!u.occupied)return;
-  if(!isHotel){const lived=Math.min(dt,Math.max(0,(u.checkoutAt??now+dt)-(now-dt)));l.homeProgress[i]=(l.homeProgress[i]??0)+lived;while(l.homeProgress[i]>=180-1e-7){l.occupiedHomeWeeks++;l.homeProgress[i]=Math.max(0,l.homeProgress[i]-180);}}
-  u.cleanliness=Math.max(0,(u.cleanliness??100)-dt*(isHotel?.35:.1));u.condition=Math.max(0,(u.condition??100)-dt*(!isHotel&&u.furnishing==='unfurnished'?.05:.08));if(!isHotel&&(u.cleanliness??100)<45)u.dirty=true;
+  if(!isHotel){const lived=Math.min(calendarDelta,Math.max(0,(u.checkoutAt??now+calendarDelta)-(now-calendarDelta)));l.homeProgress[i]=(l.homeProgress[i]??0)+lived;while(l.homeProgress[i]>=180-1e-7){l.occupiedHomeWeeks++;l.homeProgress[i]=Math.max(0,l.homeProgress[i]-180);}}
+  u.cleanliness=Math.max(0,(u.cleanliness??100)-calendarDelta*(isHotel?.35:.1));u.condition=Math.max(0,(u.condition??100)-calendarDelta*(!isHotel&&u.furnishing==='unfurnished'?.05:.08));if(!isHotel&&(u.cleanliness??100)<45)u.dirty=true;
   if(!u.checkoutAt)u.checkoutAt=isHotel?now+Math.max(1,u.remaining):now+6*180;
   u.remaining=Math.max(0,u.checkoutAt-now);
   const contract=l.bookings.find(v=>v.id===u.bookingId);if(!isHotel&&contract&&u.checkoutAt-now<=180&&!contract.renewal)contract.noticeGiven=true;
@@ -80,7 +81,7 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
    if(person.patience<=dt){v.week.lost++;l.reputation=Math.max(0,l.reputation-.5);const booking=l.bookings.find(v=>v.id===person.bookingId);if(booking){booking.status='cancelled';if(booking.groupId)l.bookings.forEach(v=>{if(v.groupId===booking.groupId&&['reserved','waiting'].includes(v.status))v.status='cancelled';});}return [];}
    person.patience-=dt;
   }else if(person.state==='leaving'){person.remaining-=dt;if(person.remaining<=0)return [];}
-  else person.remaining=Math.max(0,person.remaining-dt);
+  else person.remaining=Math.max(0,person.remaining-calendarDelta);
   return[person];
  });
  // A booked rate is captured now, before arrival; later rate edits cannot change it.
@@ -116,7 +117,7 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
  }
  for(const issue of l.issues)if(!issue.resolved&&issue.deadline<=now){issue.resolved='unresolved at deadline';l.reputation=Math.max(0,l.reputation-6);}
  l.bookings=l.bookings.filter(v=>!['completed','cancelled'].includes(v.status)||(v.deposit??0)>0||(v.rentDue??0)>0||now-v.arrival<180*3).slice(-200);l.issues=l.issues.slice(-80);
- let next:Business={...b,cash:b.cash-refunds+rentPaid+renewalRent,deferredIncome:Math.max(0,(b.deferredIncome??0)-earned),tenantDeposits:Math.max(0,(b.tenantDeposits??0)-refunds),ledger:refunds?[...b.ledger,{week,day,label:'Refundable tenant deposit returned',amount:-refunds}].slice(-60):b.ledger,lodging:l,venue:v,books:b.books?{...b.books,revenue:b.books.revenue+earned+renewalAccrual,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*dt/180}:undefined};
+ let next:Business={...b,cash:b.cash-refunds+rentPaid+renewalRent,deferredIncome:Math.max(0,(b.deferredIncome??0)-earned),tenantDeposits:Math.max(0,(b.tenantDeposits??0)-refunds),ledger:refunds?[...b.ledger,{week,day,label:'Refundable tenant deposit returned',amount:-refunds}].slice(-60):b.ledger,lodging:l,venue:v,books:b.books?{...b.books,revenue:b.books.revenue+earned+renewalAccrual,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*calendarDelta/180}:undefined};
  if(renewalRent)next={...next,lodging:{...next.lodging!,rentCollected:(next.lodging!.rentCollected??0)+renewalRent},ledger:[...next.ledger,{week,day,label:'Renewed lease rent collected',amount:renewalRent}].slice(-60)};
  if(rentPaid)next={...next,lodging:{...next.lodging!,rentCollected:(next.lodging!.rentCollected??0)+rentPaid},ledger:[...next.ledger,{week,day,label:'Delayed tenant rent collected',amount:rentPaid}].slice(-60)};
  if(stripped.length)next=stripHotelLinen(next,stripped);
@@ -128,12 +129,12 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
   next={...next,venue:{...next.venue!,careTimer:0}};
  }
  const repairInterval=(l.facilities.includes('workshop')?7.5:10)/Math.max(1,staffCount(p,next,'maintenance'));
- if(staffCount(p,next,'maintenance')&&shiftActive(next,'maintenance')&&Math.floor(b.venue.clock/repairInterval)!==Math.floor(v.clock/repairInterval)){
+ if(staffCount(p,next,'maintenance')&&shiftActive(next,'maintenance')&&Math.floor(venueActivityTime(b.venue)/repairInterval)!==Math.floor(venueActivityTime(v)/repairInterval)){
   const index=next.venue!.units.findIndex((_,i)=>roomNeedsRepair(next,i)&&staffCount(p,next,'maintenance',1+Math.floor(i/(isHotel?4:3)))>0);if(index>=0)action('repair',index);
  }
  // A concierge handles one guest request at a time; repairs remain maintenance jobs.
  const concierge=staffCount(p,next,isHotel?'concierge':'supervisor'),conciergeInterval=8/Math.max(1,concierge);
- if(concierge&&shiftActive(next,isHotel?'concierge':'supervisor')&&Math.floor(b.venue.clock/conciergeInterval)!==Math.floor(v.clock/conciergeInterval)){
+ if(concierge&&shiftActive(next,isHotel?'concierge':'supervisor')&&Math.floor(venueActivityTime(b.venue)/conciergeInterval)!==Math.floor(venueActivityTime(v)/conciergeInterval)){
   const issue=next.lodging!.issues.find(i=>!i.resolved&&i.kind!=='repair'&&staffCount(p,next,isHotel?'concierge':'supervisor',1+Math.floor(i.unit/(isHotel?4:3)))>0);
   if(issue){const state={week,day,businesses:{[p.id]:next},loans:[],payroll:[],report:[],notice:''};next=manageLodging(state,p.id,{type:'issue',id:issue.id,choice:'help'}).businesses[p.id];}
  }
@@ -144,7 +145,7 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
  }
  if(!isHotel&&l.lastResidentDay!==globalDay){const occupied=next.venue!.units.filter(u=>u.occupied),target=occupied.length?occupied.reduce((n,u)=>n+Math.min(100,50+(u.condition??100)*.3+(u.cleanliness??100)*.15+l.facilities.length*2),0)/occupied.length:next.lodging!.reputation;next={...next,lodging:{...next.lodging!,lastResidentDay:globalDay,reputation:Math.max(0,Math.min(100,next.lodging!.reputation*.95+target*.05))}};}
  {
-  const expense=(isHotel?hotelWeeklyUpkeep(next):apartmentUpkeep(next))*dt/180,due=(next.lodging!.serviceDue??0)+expense,paid=Math.min(Math.max(0,next.cash),due);
+  const expense=(isHotel?hotelWeeklyUpkeep(next):apartmentUpkeep(next))*calendarDelta/180,due=(next.lodging!.serviceDue??0)+expense,paid=Math.min(Math.max(0,next.cash),due);
   next={...next,cash:next.cash-paid,lodging:{...next.lodging!,serviceDue:Math.max(0,due-paid)},books:next.books?{...next.books,maintenance:next.books.maintenance+expense}:undefined};
  }
  return next;

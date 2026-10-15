@@ -44,8 +44,8 @@ test('1×, 2× and 5× advance cooking, waiter routes, patience and wages by the
  }
 });
 
-test('real elapsed preparation is five times shorter at 5× in both week-length modes',()=>{
- for(const weekMinutes of [3,14] as const){
+test('real elapsed preparation is five times shorter at 5× at every week length',()=>{
+ for(const weekMinutes of [3,5,10] as const){
   const finish=(speed:number)=>{
    let e=createEmpire(ticket('italian',2));e.settings={mode:'career',weekMinutes,guide:true};
    e=setEmpireSpeed(e,speed);let realSeconds=0;

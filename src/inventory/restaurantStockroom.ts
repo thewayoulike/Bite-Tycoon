@@ -72,7 +72,7 @@ export function setRestaurantReorder(r:GameState,id:string,rule:ReorderRule|null
 }
 export function manageRestaurantStockroom(r:GameState,force=false):GameState{
  if(!r.stockroom||!r.staff.hasManager||!r.manager.enabled||crewPower(r.crew,'manager',(8+r.time*7*24/100)%24,1)<=0)return r;
- const day=restaurantDay(r),now=((r.week-1)+r.time/100)*SHIFT_SECONDS;
+ const day=restaurantDay(r),now=r.serviceClock??((r.week-1)+r.time/100)*SHIFT_SECONDS;
  // A morning-only check misses ingredients used later that day and newly freed cash.
  if(!force&&(r.phase==='planning'||now-(r.stockroom.lastRestaurantManagerCheck??-Infinity)<1-1e-8))return r;
  let next={...r,stockroom:{...r.stockroom,lastManagerDay:day,lastRestaurantManagerCheck:now}};

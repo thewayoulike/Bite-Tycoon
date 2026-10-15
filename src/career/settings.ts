@@ -1,11 +1,16 @@
 import {propertyById} from '../prototype/expansionModel';
 import {activeRecipes} from '../gameplay';
 import type {EmpireState} from '../empire/empire';
-export type CareerSettings={mode:'career'|'sandbox';weekMinutes:3|14;guide:boolean};
-export const settings=(e:EmpireState):CareerSettings=>({mode:e.testingUnlocked?'sandbox':'career',weekMinutes:e.settings?.weekMinutes===14?14:3,guide:e.settings?.guide!==false});
-export const simulationRate=(e:EmpireState)=>3/settings(e).weekMinutes;
+export const WEEK_LENGTHS=[3,5,10] as const;
+export type WeekMinutes=typeof WEEK_LENGTHS[number];
+export type CareerSettings={mode:'career'|'sandbox';weekMinutes:WeekMinutes;guide:boolean};
+// Older saves used 14 minutes. Preserve their progress and use the new long week.
+const weekLength=(minutes:unknown):WeekMinutes=>minutes===14?10:minutes===5||minutes===10?minutes:3;
+export const settings=(e:EmpireState):CareerSettings=>({mode:e.testingUnlocked?'sandbox':'career',weekMinutes:weekLength(e.settings?.weekMinutes),guide:e.settings?.guide!==false});
+export const calendarRate=(e:EmpireState)=>3/settings(e).weekMinutes;
+export const canChangeWeekLength=(e:EmpireState)=>e.clock?.phase!=='service'&&Object.values(e.restaurants).every(r=>r.phase==='planning')&&!Object.values(e.district.businesses).some(b=>b.venue?.running);
 export function changeSettings(e:EmpireState,changes:Partial<CareerSettings>):EmpireState{
- const old=settings(e);if(changes.weekMinutes!==undefined&&(![3,14].includes(changes.weekMinutes)||Object.values(e.restaurants).some(r=>r.phase!=='planning')))return e;
+ const old=settings(e);if(changes.weekMinutes!==undefined&&(!WEEK_LENGTHS.includes(changes.weekMinutes)||!canChangeWeekLength(e)))return e;
  return {...e,settings:{...old,...changes,mode:old.mode}};
 }
 export function careerMilestones(e:EmpireState,selectedId?:string){

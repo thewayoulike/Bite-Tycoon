@@ -38,7 +38,7 @@ export function serveCatering(r:GameState,id:string):GameState{
  for(const [key,qty] of Object.entries(recipe.ingredients)){const used=consumeBatches(batches[key]??[],qty*order.qty);inventory[key]-=qty*order.qty;batches[key]=used.left;cost+=used.cost;}
  return {...r,money:r.money+order.price,inventory,inventoryBatches:batches,advanced:{...d,catering:d.catering.filter(c=>c.week>=r.week-16).map(c=>c.id===id?{...c,status:'completed'}:c),notice:`Catering dispatched: ${order.qty} portions. Kitchen was clear and ingredients consumed.`},stats:{...r.stats,totalEarned:r.stats.totalEarned+order.price,itemsSold:{...r.stats.itemsSold,[recipe.id]:(r.stats.itemsSold[recipe.id]??0)+order.qty},itemRevenues:{...r.stats.itemRevenues,[recipe.id]:(r.stats.itemRevenues[recipe.id]??0)+order.price}},weekStats:{...r.weekStats,revenue:r.weekStats.revenue+order.price,foodCost:r.weekStats.foodCost+cost,itemsSold:{...r.weekStats.itemsSold,[recipe.id]:(r.weekStats.itemsSold[recipe.id]??0)+order.qty}}};
 }
-export function advanceRestaurantDepth(r:GameState,dt:number):GameState{
+export function advanceRestaurantDepth(r:GameState,dt:number,calendarDelta=dt):GameState{
  if(!r.advanced)return r;const d=restaurantDepth(r),day=(r.week-1)*7+Math.min(7,Math.floor(r.time*7/100)+1),stations={...d.stations};
  for(const station of Object.keys(stations) as Station[])if(r.orders.some(o=>o.state!=='ready'&&recipeStation(r.recipes.find(v=>v.id===o.recipeId)??r.recipes[0])===station))stations[station]=Math.max(0,stations[station]-dt*.025);
  let next={...r,advanced:{...d,stations,lastDay:day,catering:d.catering.filter(c=>c.week>=r.week-16).map(c=>['accepted','preparing'].includes(c.status)&&((c.week-1)*7+c.day)<day?{...c,status:'missed' as const}:c)}};
@@ -47,7 +47,7 @@ export function advanceRestaurantDepth(r:GameState,dt:number):GameState{
   next={...next,advanced:{...next.advanced,catering:next.advanced.catering.map(c=>c.id===order.id?{...c,progress:Math.min(100,(c.progress??0)+dt*100*power/Math.max(3,recipe.cookingTime*order.qty))}:c)}};
   next=serveCatering(next,order.id) as typeof next;
  }
- if(d.terrace&&r.phase==='service'){const cost=15*dt/180,operational=next.money>=cost;next={...next,advanced:{...next.advanced,terraceOperational:operational,notice:!operational?'Terrace temporarily closed: waiting for upkeep funds.':d.terraceOperational===false?'Terrace reopened after upkeep was funded.':next.advanced.notice},money:next.money-(operational?cost:0),stats:{...next.stats,maintenanceCosts:(next.stats.maintenanceCosts??0)+(operational?cost:0),totalExpenses:next.stats.totalExpenses+(operational?cost:0)}};}
+ if(d.terrace&&r.phase==='service'){const cost=15*calendarDelta/180,operational=next.money>=cost;next={...next,advanced:{...next.advanced,terraceOperational:operational,notice:!operational?'Terrace temporarily closed: waiting for upkeep funds.':d.terraceOperational===false?'Terrace reopened after upkeep was funded.':next.advanced.notice},money:next.money-(operational?cost:0),stats:{...next.stats,maintenanceCosts:(next.stats.maintenanceCosts??0)+(operational?cost:0),totalExpenses:next.stats.totalExpenses+(operational?cost:0)}};}
  return next;
 }
 export function repairStation(r:GameState,station:Station):GameState{

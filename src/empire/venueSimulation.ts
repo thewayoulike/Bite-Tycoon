@@ -1,3 +1,4 @@
+import {venueStep,venueActivityTime} from './simulationTime';
 import {advanceServices} from '../career/services';
 import {advanceRetailEvents,promotionDemand} from '../career/retailEvents';
 import {advanceTenantTrade} from '../career/mallCompanies';
@@ -22,7 +23,7 @@ export type ShoppingItem={id:string;quantity:number};
 export type BasketItem=ShoppingItem&{rate:number};
 export type VenueVisitor={id:number;seed:number;state:'waiting'|'using'|'leaving';patience:number;remaining:number;unit:number|null;productId?:string;quantity?:number;offerId?:string;bookingId?:number;agreedRate?:number;basket?:boolean;checkoutReadyAt?:number;shoppingTime?:number;queueAt?:number;shoppingList?:ShoppingItem[];basketItems?:BasketItem[];browseReadyAt?:number};
 export type VenueUnit={ownerCompany?:string;premiumFinish?:boolean;furnishing?:'unfurnished'|'partial'|'furnished';linenReady?:boolean;linen?:Record<string,StockBatch[]>;occupied:boolean;dirty:boolean;remaining:number;seed:number;rentWeek:number;rent?:number;type?:RoomType;rate?:number;condition?:number;cleanliness?:number;level?:number;bookingId?:number;checkoutAt?:number;leaseEnd?:number;shopType?:ShopType;tenantName?:string};
-export type VenueState={running:boolean;clock:number;arrivalTimer:number;serviceTimer:number;careTimer:number;serial:number;visitors:VenueVisitor[];units:VenueUnit[];week:{revenue:number;served:number;lost:number;wages:number};totalServed:number;totalRevenue:number};
+export type VenueState={running:boolean;arrivalsClosed?:boolean;clock:number;activityClock?:number;arrivalTimer:number;serviceTimer:number;careTimer:number;serial:number;visitors:VenueVisitor[];units:VenueUnit[];week:{revenue:number;served:number;lost:number;wages:number};totalServed:number;totalRevenue:number};
 export type VenueAction='serve'|'clean';
 export const VENUE_RULES={
   hotel:{rate:85,arrival:11,patience:32,stay:32,verb:'Check in',noun:'guests'},
@@ -34,7 +35,7 @@ export const VENUE_RULES={
 export const isVenue=(p:Property)=>p.kind in VENUE_RULES;
 export const venueRules=(p:Property)=>VENUE_RULES[p.kind as keyof typeof VENUE_RULES];
 export function createVenue(p:Property):VenueState {
-  return {running:false,clock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,serial:0,visitors:[],units:Array.from({length:isLodging(p)?roomsPerFloor(p):0},()=>newLodgingUnit(p)),week:{revenue:0,served:0,lost:0,wages:0},totalServed:0,totalRevenue:0};
+  return {running:false,clock:0,activityClock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,serial:0,visitors:[],units:Array.from({length:isLodging(p)?roomsPerFloor(p):0},()=>newLodgingUnit(p)),week:{revenue:0,served:0,lost:0,wages:0},totalServed:0,totalRevenue:0};
 }
 const priceFactor=(b:Business)=>({value:.85,standard:1,premium:1.3}[b.price]);
 function record(b:Business,week:number,day:number,label:string,amount:number):Business {
@@ -49,7 +50,7 @@ export function startVenueWeek(p:Property,b:Business,week:number):Business {
   b=ensurePlaza(p,ensureLodging(p,b));
   const previous=b.venue??createVenue(p);
   if(previous.running)return b;
-  let venue:VenueState={...previous,running:true,clock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,week:{revenue:0,served:0,lost:0,wages:0},visitors:previous.visitors.filter(v=>v.state==='using')};
+  let venue:VenueState={...previous,running:true,arrivalsClosed:false,clock:0,activityClock:0,arrivalTimer:2,serviceTimer:0,careTimer:0,week:{revenue:0,served:0,lost:0,wages:0},visitors:previous.visitors.filter(v=>v.state==='using')};
   let next={...b,venue};
   if(b.retail?.store)return startStoreWeek(next,week);
   if(p.kind==='plaza')return startPlazaWeek(next,week);
@@ -100,12 +101,12 @@ export function operateVenue(state:ExpansionState,id:string,action:VenueAction,v
   const next=action==='serve'?serveVenueVisitor(p,b,state.week,state.day,visitorOrUnit):cleanVenueUnit(p,b,visitorOrUnit);
   return next===b?state:{...state,businesses:{...state.businesses,[id]:next},notice:action==='serve'?`${p.name}: service completed; payment received in this business’s account.`:`${p.name}: maintenance completed using this property’s supplies.`};
 }
-export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:number,demand=1):Business {
-  if(b.retail?.store)return advanceSupermarket(p,b,delta,week,day,demand);
-  if(p.kind==='plaza')return advancePlaza(p,ensurePlaza(p,b),delta,week,day,demand);
-  if(isLodging(p))return advanceLodging(p,ensureLodging(p,b),delta,week,day,demand);
+export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:number,demand=1,calendarRate=1):Business {
+  if(b.retail?.store)return advanceSupermarket(p,b,delta,week,day,demand,calendarRate);
+  if(p.kind==='plaza')return advancePlaza(p,ensurePlaza(p,b),delta,week,day,demand,calendarRate);
+  if(isLodging(p))return advanceLodging(p,ensureLodging(p,b),delta,week,day,demand,calendarRate);
   if(!b.venue?.running||delta<=0)return b;
-  const dt=Math.min(delta,Math.max(0,180-b.venue.clock));if(!dt)return b;
+  const {activity:dt,calendar:calendarDelta}=venueStep(b.venue.clock,delta,calendarRate);if(!dt)return b;
   const rules=venueRules(p),old=b.venue;
   let lost=0;
   const visitors=old.visitors.flatMap(person=>{
@@ -121,7 +122,7 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
     if(p.kind==='apartments'&&u.occupied&&old.clock<80+i*9&&old.clock+dt>=80+i*9)return {...u,dirty:true};
     return u;
   });
-  let venue:VenueState={...old,clock:old.clock+dt,arrivalTimer:old.arrivalTimer-dt*demand,serviceTimer:old.serviceTimer+dt,careTimer:old.careTimer+dt,visitors,units,week:{...old.week,lost:old.week.lost+lost,wages:old.week.wages+businessWages(p,b)*dt/180}};
+  let venue:VenueState={...old,clock:old.clock+calendarDelta,activityClock:venueActivityTime(old)+dt,arrivalTimer:old.arrivalTimer-dt*demand,serviceTimer:old.serviceTimer+dt,careTimer:old.careTimer+dt,visitors,units,week:{...old.week,lost:old.week.lost+lost,wages:old.week.wages+businessWages(p,b)*calendarDelta/180}};
   const hasVacancy=p.kind!=='apartments'||units.some(u=>!u.occupied);
   if(venue.arrivalTimer<=0&&venue.clock<170&&hasVacancy){
     const interval=rules.arrival/(1+b.upgrade*.12)* (b.condition<35?1.6:1);
@@ -135,7 +136,7 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
     }
     else venue.week={...venue.week,lost:venue.week.lost+1};
   }
-  let next:Business={...b,venue,books:b.books?{...b.books,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*dt/180}:undefined};
+  let next:Business={...b,venue,books:b.books?{...b.books,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*calendarDelta/180}:undefined};
   if(venue.serviceTimer>=12/(1+(b.hires?.service??0)+b.upgrade*.25)){
     next=serveVenueVisitor(p,next,week,day);
     next={...next,venue:{...next.venue!,serviceTimer:0}};
@@ -147,17 +148,17 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
   }
   return next;
 }
-export function advanceVenues(state:ExpansionState,delta:number):ExpansionState {
+export function advanceVenues(state:ExpansionState,delta:number,calendarRate=1):ExpansionState {
   let next={...state,businesses:{...state.businesses}};
   for(const [id,b] of Object.entries(state.businesses)){
     const p=propertyById(id)!;if(!isVenue(p))continue;
-    // The shared week is 180 simulated seconds. A restaurant still closing must not keep the hotel, shop, or mall earning past that.
-    const clock=b.venue?.clock??0,step=Math.min(delta,Math.max(0,180-clock));
-    const date=Math.min(7,Math.floor((clock+step)*7/180)+1);
+    // Keep calendar-based bills and stays separate from service seconds, including while a restaurant finishes closing.
+    const clock=b.venue?.clock??0,{activity:step,calendar:calendarDelta}=venueStep(clock,delta,calendarRate);
+    const date=Math.min(7,Math.floor((clock+calendarDelta)*7/180)+1);
     const hour=(8+clock*7*24/180)%24;
     const staffed={...b,crew:advanceCrew(ensureCrew(p,b),step,hour,{service:b.venue?.visitors.some(v=>v.state==='waiting')?'Serving arrivals':'Ready',care:'Stock and cleaning rounds',maintenance:b.retail?.store?.events.some(e=>e.kind==='fridge'&&!e.resolved)?'Repairing refrigeration':b.venue?.units.some(u=>(u.condition??100)<90)?'Repair rounds':'Ready',manager:'Checking purchasing targets',concierge:'Helping visitors',security:'Patrolling shared areas',attendant:'Supervising play',operator:'Operating facilities',electronics:b.venue?.visitors.length?'Advising shoppers':'Ready',receiving:Object.values(b.retail?.store?.receiving??{}).some(n=>n>0)?'Handling deliveries':'Ready',handling:b.retail?.store?.deliveries?.length?'Dispatching orders':'Ready',cleaner:'Cleaning shared spaces',laundry:'Sorting and washing linen',supervisor:'Resident service rounds',specialist:'Preparing fresh counter'})};
     const stocked=advanceRetailEvents(advanceBusinessStockroom(p,staffed,state.week,date),state.week,date);
-    next.businesses[id]=advanceVenue(p,stocked,step,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits*promotionDemand(stocked));
+    next.businesses[id]=advanceVenue(p,stocked,step,state.week,state.day,weatherDemand(p.kind,weatherForDay(state.week,state.day,state.weatherSeed).kind).visits*promotionDemand(stocked),calendarRate);
     if(step>0){
       next.businesses[id]=advanceServices(p,next.businesses[id],step,state.week,date);
       next.businesses[id]=advanceTenantTrade(next.businesses[id],step,state.week);

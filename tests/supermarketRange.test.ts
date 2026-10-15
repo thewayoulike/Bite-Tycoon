@@ -76,7 +76,7 @@ test('each category can be ordered, received, put on a shelf and sold through a 
   b=receiveStoreGoods(b);b=replenishShelf(b,id);assert.equal(shelfQuantity(b,id),2);
   b={...b,venue:{...b.venue!,running:true,clock:index*100,visitors:[{id:index+1,seed:index,state:'waiting',patience:100,remaining:0,unit:null,productId:id,quantity:1,shoppingTime:100}]}};
   b=collectStoreBasket(b,index+1,true);assert.ok(b.venue!.visitors[0].basket,id);
-  b={...b,venue:{...b.venue!,clock:b.venue!.visitors[0].checkoutReadyAt!}};const cash=b.cash;
+  b={...b,venue:{...b.venue!,activityClock:b.venue!.visitors[0].checkoutReadyAt!}};const cash=b.cash;
   b=checkoutStore(b,1,1,index+1);near(b.cash,cash+retailPrice(b,id));assert.equal(b.retail!.stock[id],1);assert.equal(b.retail!.store!.metrics[department(id)]!.units,1);
   s={...s,businesses:{...s.businesses,shop:b}};const f=venueFinancials(propertyById('shop')!,b,s);near(f.assets,f.liabilities+f.equity);
  }

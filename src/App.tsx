@@ -4,7 +4,7 @@ import {LAND_PLOTS} from './empire/propertyMarket';
 import {restaurantStockViews} from './inventory/restaurantStockroom';
 import React, { useState, useEffect, useRef } from 'react';
 import {CareerDesk} from './career/CareerDesk';
-import {settings,simulationRate,changeSettings} from './career/settings';
+import {settings,changeSettings,canChangeWeekLength} from './career/settings';
 import {resetSaveSlots} from './empire/saveSlots';
 import {newGame} from './empire/newGame';
 import { useGameLoop, GameOptions } from './hooks/useGameLoop';
@@ -102,7 +102,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const milestone = nextMilestone(state);
   const payroll = state.pendingPayroll[0];
   const dayOfWeek = clock.day;
-  const allPlanning=Object.values(empire.restaurants).every(r=>r.phase==='planning')&&!Object.values(district.businesses).some(b=>b.venue?.running);
+  const allPlanning=canChangeWeekLength(empire);
   const shownId=focusedProperty??empire.activeRestaurantId;
   const shownProperty=propertyById(shownId,district.businesses[shownId])!;
   const businessName=shownProperty.name;
@@ -208,7 +208,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
       {showDesk&&<CareerDesk onMarket={district.market?()=>{setShowDesk(false);setShowMarket('market');}:undefined} initialPane={deskPane} empire={{...empire,district}} id={shownId} onChange={actions.updateEmpire} onEnter={id=>enterBuilding(id)} onClose={()=>setShowDesk(false)}/>}
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
-        <WorldComponent state={{...state,gameSpeed:state.gameSpeed*simulationRate(empire)}} worldProgress={worldProgress} restaurants={Object.fromEntries(Object.entries(empire.restaurants).map(([id,r])=>[id,{...r,gameSpeed:r.gameSpeed*simulationRate(empire)}]))} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)} viewRequest={prototype&&proposal?{request:proposal.request,floor:proposal.floor,detail:proposal.screen==='exterior'?'exterior':'room'}:undefined}/>
+        <WorldComponent state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)} viewRequest={prototype&&proposal?{request:proposal.request,floor:proposal.floor,detail:proposal.screen==='exterior'?'exterior':'room'}:undefined}/>
       </div>
 
       {/* Retro HUD Overlay */}

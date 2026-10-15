@@ -5,7 +5,7 @@ import {createEmpire,unlockTestDistrict,applyDistrictUpdate,updateRestaurant,sta
 import {chooseRestaurantType} from '../src/restaurantTypes';
 import {propertyById,hireBusinessStaff} from '../src/prototype/expansionModel';
 import {ensureCrew,editCrew,advanceCrew,crewPower} from '../src/career/crew';
-import {changeSettings,simulationRate} from '../src/career/settings';
+import {changeSettings,calendarRate} from '../src/career/settings';
 import {paymentCalendar} from '../src/career/calendar';
 import {buildStockroom,manageCrew} from '../src/career/manage';
 import {storageCellAllowed,storagePlan,expandedStorage,expandStorage} from '../src/career/storage';
@@ -44,10 +44,10 @@ test('training leaves salary unchanged; a raise only adds future earned wages, n
  const base=advanceGame({...r,phase:'service',time:0,crew},1),higher=advanceGame({...r,phase:'service',time:0,crew:raised},1);
  near(higher.weekStats.wages-base.weekStats.wages,5/180);
 });
-test('longer weeks scale the entire simulation together and cannot change midway',()=>{
- const fast=startEmpireWeek(fresh()),slow=startEmpireWeek(changeSettings(fresh(),{weekMinutes:14}));
- assert.equal(simulationRate(slow),3/14);assert.equal(changeSettings(slow,{weekMinutes:3}),slow);
- const a=advanceEmpire(fast,1,advanceGame),b=advanceEmpire(slow,14/3,advanceGame);
+test('longer weeks keep weekly wage totals and cannot change midway',()=>{
+ const fast=startEmpireWeek(fresh()),slow=startEmpireWeek(changeSettings(fresh(),{weekMinutes:10}));
+ assert.equal(calendarRate(slow),3/10);assert.equal(changeSettings(slow,{weekMinutes:3}),slow);
+ const a=advanceEmpire(fast,1,advanceGame),b=advanceEmpire(slow,10/3,advanceGame);
  near(a.restaurants.diner.time,b.restaurants.diner.time);near(a.restaurants.diner.weekStats.wages,b.restaurants.diner.weekStats.wages);
  assert.equal(changeSettings(slow,{mode:'sandbox'}).settings!.mode,'career');
 });

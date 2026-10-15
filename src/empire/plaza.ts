@@ -141,11 +141,12 @@ export function managePlaza(state:ExpansionState,id:string,action:PlazaAction):E
  }
  return {...state,businesses:{...state.businesses,[id]:b},notice:note};
 }
-export function advancePlaza(p:Property,old:Business,delta:number,week:number,day:number,demand=1):Business{
+import {venueStep,venueActivityTime} from './simulationTime';
+export function advancePlaza(p:Property,old:Business,delta:number,week:number,day:number,demand=1,calendarRate=1):Business{
  if(!old.venue?.running||!old.plaza||delta<=0)return old;
- const dt=Math.min(delta,180-old.venue.clock);if(dt<=0)return old;
- const wage=businessWages(p,old)*dt/180,clock=old.venue.clock+dt;
- let b:Business={...old,plaza:{...old.plaza,enquiryTimer:old.plaza.enquiryTimer-dt*demand,applications:old.plaza.applications.filter(a=>a.expiresAt>(week-1)*180+clock)},venue:{...old.venue,clock,careTimer:old.venue.careTimer+dt,serviceTimer:old.venue.serviceTimer+dt,units:old.venue.units.map(u=>u.occupied?{...u,condition:Math.max(0,(u.condition??100)-dt*.035),cleanliness:Math.max(0,(u.cleanliness??100)-dt*.15)}:u),week:{...old.venue.week,wages:old.venue.week.wages+wage}},books:old.books?{...old.books,wagesAccrued:old.books.wagesAccrued+wage}:undefined};
+ const {activity:dt,calendar:calendarDelta}=venueStep(old.venue.clock,delta,calendarRate);if(dt<=0)return old;
+ const wage=businessWages(p,old)*calendarDelta/180,clock=old.venue.clock+calendarDelta;
+ let b:Business={...old,plaza:{...old.plaza,enquiryTimer:old.plaza.enquiryTimer-dt*demand,applications:old.plaza.applications.filter(a=>a.expiresAt>(week-1)*180+clock)},venue:{...old.venue,clock,activityClock:venueActivityTime(old.venue)+dt,careTimer:old.venue.careTimer+dt,serviceTimer:old.venue.serviceTimer+dt,units:old.venue.units.map(u=>u.occupied?{...u,condition:Math.max(0,(u.condition??100)-calendarDelta*.035),cleanliness:Math.max(0,(u.cleanliness??100)-dt*.15)}:u),week:{...old.venue.week,wages:old.venue.week.wages+wage}},books:old.books?{...old.books,wagesAccrued:old.books.wagesAccrued+wage}:undefined};
  if(b.plaza!.enquiryTimer<=0&&clock<170){
   const vacant=b.venue!.units.map((u,i)=>({u,i})).filter(({u,i})=>!u.occupied&&!b.plaza!.applications.some(a=>a.unit===i));
   const serial=b.plaza!.nextApplicant,slot=vacant[serial%Math.max(1,vacant.length)];
@@ -160,5 +161,5 @@ export function advancePlaza(p:Property,old:Business,delta:number,week:number,da
   const broken=b.venue!.units.findIndex((u,i)=>(u.condition??100)<65&&crewPower(crew,'maintenance',hour,0,Math.floor(i/4))>0);if(broken>=0)b=care(p,b,broken,week,day,true);
   b={...b,venue:{...b.venue!,careTimer:0}};
  }
- const units=b.venue!.units;return advanceMallDepth(p,{...b,condition:Math.round(units.reduce((n,u)=>n+(u.condition??100),0)/units.length)},dt,week,day,demand);
+ const units=b.venue!.units;return advanceMallDepth(p,{...b,condition:Math.round(units.reduce((n,u)=>n+(u.condition??100),0)/units.length)},dt,week,day,demand,calendarDelta);
 }

@@ -20,7 +20,7 @@ const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<.001,`${a} != ${b}`);
 const put=(s:ExpansionState,b:Business)=>({...s,businesses:{...s.businesses,shop:b}});
 function level(n:number){let s=fresh().district;s=put(s,{...s.businesses.shop,venue:{...s.businesses.shop.venue!,totalServed:1000}});for(let i=1;i<n;i++)s=advanceStoreLevel(s,'shop');return s;}
 function shopper(b:Business,item='apples',id=1,quantity=2):Business{return {...b,venue:{...b.venue!,running:true,visitors:[...b.venue!.visitors,{id,seed:id,state:'waiting',patience:50,remaining:0,unit:null,productId:item,quantity,shoppingTime:30}]}};}
-function readyCheckout(b:Business){return {...b,venue:{...b.venue!,clock:Math.max(b.venue!.clock,...b.venue!.visitors.map(v=>v.checkoutReadyAt??0))}};}
+function readyCheckout(b:Business){return {...b,venue:{...b.venue!,activityClock:Math.max(b.venue!.activityClock??b.venue!.clock,...b.venue!.visitors.map(v=>v.checkoutReadyAt??0))}};}
 function balanced(b:Business,s:ExpansionState){const f=venueFinancials(p,b,s);near(f.assets,f.liabilities+f.equity);near(f.closingCash,b.cash);}
 
 test('supermarket starts with grocery departments and earns five sequential fit-outs; clicks cannot skip milestones or charge twice',()=>{
