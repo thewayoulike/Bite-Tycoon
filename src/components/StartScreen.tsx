@@ -18,9 +18,12 @@ type Props = {
   onToggleMute: () => void;
   onWeekLengthChange: (minutes: WeekMinutes) => void;
   children?: ReactNode;
+  sandboxHref?:string;
+  savedGamesHref?:string;
+  newCareerMessage?:string;
 };
 
-export function StartScreen({firstAcquisition, needsOpeningType, week, businesses, cash, sandbox, muted, weekMinutes, canChangeWeekLength, onPlay, onNewCareer, onToggleMute, onWeekLengthChange, children}: Props) {
+export function StartScreen({firstAcquisition, needsOpeningType, week, businesses, cash, sandbox, muted, weekMinutes, canChangeWeekLength, onPlay, onNewCareer, onToggleMute, onWeekLengthChange, children, sandboxHref='/?mode=sandbox', savedGamesHref='/save-slots.html', newCareerMessage}: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const [panel, setPanel] = useState<'settings' | 'new' | 'type'>('settings');
@@ -62,9 +65,9 @@ export function StartScreen({firstAcquisition, needsOpeningType, week, businesse
         </div>
         <nav className="sim-modes" aria-label="Ways to play">
           <button onClick={() => openPanel('new')}><BriefcaseBusiness size={17}/> NEW CAREER</button>
-          <a href="/?mode=sandbox"><FlaskConical size={18}/> SANDBOX</a>
+          <a href={sandboxHref}><FlaskConical size={18}/> SANDBOX</a>
         </nav>
-        <a className="sim-saves" href="/save-slots.html"><FolderOpen size={15}/> Saved games</a>
+        <a className="sim-saves" href={savedGamesHref}><FolderOpen size={15}/> Saved games</a>
         <small className="sim-save-note">Progress saves automatically in this browser.</small>
       </div>
     </section>
@@ -85,7 +88,7 @@ export function StartScreen({firstAcquisition, needsOpeningType, week, businesse
         <span className="sim-dialog-kicker">A FRESH START</span>
         <h2 id="sim-dialog-title">Start a new career?</h2>
         <p>Begin at Level 1 with <strong>$250,000</strong>. Lease an empty shop, buy a running business, or buy land and build.</p>
-        <div className="sim-career-info"><Building2 size={25}/><p>Your current Career slot will be replaced. Its previous progress will be kept as a backup in Saved games. Sandbox and older save slots stay separate.</p></div>
+        <div className="sim-career-info"><Building2 size={25}/><p>{newCareerMessage??'Your current Career slot will be replaced. Its previous progress will be kept as a backup in Saved games. Sandbox and older save slots stay separate.'}</p></div>
         {error && <p role="alert" className="sim-dialog-error">{error}</p>}
         <button className="sim-dialog-primary" onClick={() => {try {onNewCareer();} catch {setError('The new career could not be saved. Your previous progress has been kept. Please check browser storage and try again.');}}}><Play size={17} fill="currentColor"/> Start new career</button>
         <button className="sim-dialog-cancel" onClick={closePanel}>Keep playing my current game</button>

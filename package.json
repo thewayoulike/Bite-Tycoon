@@ -7,6 +7,8 @@
     "test": "tsx --test tests/*.test.ts",
     "dev": "vite --host=127.0.0.1 --port=4189 --strictPort",
     "build": "vite build",
+    "unity:publish": "node tools/publish-unity-comparison.mjs && node tools/comparison-status.mjs",
+    "unity:city": "tsx tools/export-unity-city.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

@@ -1,6 +1,6 @@
 import {StartScreen} from './components/StartScreen';
 import {PropertyMarket} from './empire/PropertyMarketPanel';
-import {LAND_PLOTS} from './empire/propertyMarket';
+import {LAND_PLOTS,siteOffer} from './empire/propertyMarket';
 import {restaurantStockViews} from './inventory/restaurantStockroom';
 import React, { useState, useEffect, useRef } from 'react';
 import {CareerDesk} from './career/CareerDesk';
@@ -25,7 +25,6 @@ import { StatsModal } from './components/StatsModal';
 import { AnalysisModal } from './components/AnalysisModal';
 import { LayoutsModal } from './components/LayoutsModal';
 import { UpgradesModal } from './components/UpgradesModal';
-import { WeekSummaryModal } from './components/DaySummaryModal';
 import { activeRecipes, nextMilestone, shiftLabel } from './gameplay';
 import { soundEngine } from './utils/audio';
 import {changeBusiness,propertyById} from './prototype/expansionModel';
@@ -58,7 +57,7 @@ console.warn = (...args) => {
 };
 
 export type ProposalNavigation={propertyId:string;screen:string;request:number;floor:number;restaurantProfiles?:Record<string,{name:string;ingredientIds:string[];signatureIds:string[]}>};
-export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false,proposal}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean;proposal?:ProposalNavigation}={}) {
+export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=false,proposal,startScreen}:{gameOptions?:GameOptions;WorldComponent?:typeof GameWorld3D;prototype?:boolean;proposal?:ProposalNavigation;startScreen?:{onNewCareer?:()=>void;sandboxHref?:string;savedGamesHref?:string;newCareerMessage?:string}}={}) {
   const [gamePhase, setGamePhase] = useState<'menu' | 'playing'>(prototype?'playing':'menu');
   const { state, actions, empire, district, saveError, saveKept, watching } = useGameLoop(gamePhase==='playing',gameOptions);
   const [showDesk,setShowDesk]=useState(false);
@@ -192,7 +191,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   ).length;
 
   if (gamePhase === 'menu') {
-    return <StartScreen firstAcquisition={firstAcquisition} needsOpeningType={needsOpeningType} week={district.week} businesses={Object.keys(district.businesses).length} cash={district.market?.ownerCash??0} sandbox={!!empire.testingUnlocked} muted={isMuted} weekMinutes={settings(empire).weekMinutes} canChangeWeekLength={allPlanning} onToggleMute={()=>setIsMuted(soundEngine.toggleMute())} onWeekLengthChange={minutes=>actions.updateEmpire(e=>changeSettings(e,{weekMinutes:minutes}))} onNewCareer={()=>{resetSaveSlots(localStorage,['fast-track'],id=>JSON.stringify(newGame(id)));window.location.assign('/?mode=fast-track');}} onPlay={()=>{if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}}>
+    return <StartScreen firstAcquisition={firstAcquisition} needsOpeningType={needsOpeningType} week={district.week} businesses={Object.keys(district.businesses).length} cash={district.market?.ownerCash??0} sandbox={!!empire.testingUnlocked} muted={isMuted} weekMinutes={settings(empire).weekMinutes} canChangeWeekLength={allPlanning} onToggleMute={()=>setIsMuted(soundEngine.toggleMute())} onWeekLengthChange={minutes=>actions.updateEmpire(e=>changeSettings(e,{weekMinutes:minutes}))} onNewCareer={()=>{resetSaveSlots(localStorage,['fast-track'],id=>JSON.stringify(newGame(id)));window.location.assign('/?mode=fast-track');}} onPlay={()=>{if(needsOpeningType)actions.chooseRestaurantType(openingType);setGamePhase('playing');}} {...startScreen}>
       {needsOpeningType&&<RestaurantTypePicker value={openingType} onChange={setOpeningType} id="starting-restaurant-type"/>}
     </StartScreen>;
   }
@@ -406,7 +405,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </div>
       </details>}
 
-      {!focusedProperty&&!selectedProperty&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{district.market?`${LAND_PLOTS.filter(p=>!district.market!.parcels[p.id]).length} commercial sites available. Green signs: empty land. Gold signs: buy & redevelop.`:nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}
+      {!focusedProperty&&!selectedProperty&&<div className="world-context"><strong>{focusedProperty?`${businessName} · inside`:'Your neighborhood · click a building'}</strong><p>{district.market?`${LAND_PLOTS.filter(p=>!district.market!.parcels[p.id]&&siteOffer(p,district.market!.listingSeed,district.week).mode!=='scenery').length} commercial sites available. Green: vacant land. Blue: empty units to lease. Gold: operating businesses to buy.`:nonFood?'Click visitors or service areas to work here. Staff, stock, and finances are in the bottom bar.':empire.testingUnlocked?'Testing mode · all 7 properties unlocked · separate accounts':'Select a property to buy, rent, or run it.'}</p>{district.notice.startsWith('Finish this week')&&<p role="status">{district.notice}</p>}</div>}
       {nonFood&&focusedProperty&&!selectedProperty&&<VenueHUD p={shownProperty} b={district.businesses[shownId]} onAction={interactWithVenue}/>}
       {selectedProperty&&propertyById(selectedProperty)&&<WorldPropertyPanel key={'property-'+selectedProperty} id={selectedProperty} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setSelectedProperty(null)} initialTab={propertyTab} selectedUnit={selectedUnit} inside={insideVenue===selectedProperty}/>}
       {showDistrictReport&&<WorldWeekReport state={district} restaurants={empire.restaurants} onClose={()=>setShowDistrictReport(false)}/>}
@@ -457,7 +456,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
               </div>
 
               <p className="text-[10px] font-black text-[#64748b] uppercase">
-                Each week ends with a paused report. Wages are paid three game days after the week ends.
+                Review weekly results in Financials, then use Start Week when you are ready. Wages are paid three game days after the week ends.
               </p>
 
               <button
@@ -593,6 +592,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                     state={state}
                     account={businessFinance(empire,empire.activeRestaurantId)}
                     weeklyReport={weeklyProfitLoss(propertyById(empire.activeRestaurantId)!,district.businesses[empire.activeRestaurantId],district,state)}
+                    closedReport={district.closedWeek?.reports.find(report=>report.id===empire.activeRestaurantId)}
                   />
                 )}
 
@@ -658,10 +658,6 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
         </AnimatePresence>
       </div>
 
-      {/* End-of-Day Financial Summary & Ledger Modal */}
-      {state.weekSummary && allPlanning && (
-        <WeekSummaryModal summary={state.weekSummary} onClose={actions.dismissWeekSummary} />
-      )}
     </div>
   );
 }

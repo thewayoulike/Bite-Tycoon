@@ -1,6 +1,7 @@
 import type {Business,BusinessKind,ExpansionState,Property} from '../prototype/expansionModel';
 import type {GameState} from '../hooks/useGameLoop';
 import {COMMERCIAL_PARCELS} from '../graphics/commercialParcels';
+import {addressHash,commercialBuildingKind,commercialArchitecture,citySceneryBusiness,cityBusinessName} from '../graphics/commercialBuildingProfiles';
 
 export const FAST_TRACK_CASH=250_000;
 export type PlotId=string;
@@ -9,8 +10,8 @@ export type AcquisitionRecord={method:'purchase'|'lease'|'construction';cost:num
 export type LeaseTerms={weeklyRent:number;intervalWeeks:4;nextPaymentWeek:number};
 export const LAND_PLOTS=[
   {id:'commercial',name:'Market Street commercial land',position:[50,0,25] as [number,number,number],land:55_000,kinds:['restaurant','shop','hotel','apartments'] as BusinessKind[],area:'Town centre',vacant:true,description:'A serviced plot for a restaurant, supermarket, hotel or apartment building.'},
-  {id:'large',name:'Park Avenue development land',position:[50,0,-28] as [number,number,number],land:15_000,kinds:['restaurant','shop','hotel','apartments','plaza'] as BusinessKind[],area:'Town centre',vacant:true,description:'A large serviced site, suitable for every business type including a shopping mall.'},
-  ...COMMERCIAL_PARCELS.map(p=>({...p,land:15_000,kinds:['restaurant','shop','hotel','apartments'] as BusinessKind[],description:p.vacant?'Serviced commercial land. Choose the business you want to build.':'Buy this commercial site and redevelop it. Clearing the existing buildings is included in the build quote.'})),
+  {id:'large',name:'Park Avenue development land',position:[50,0,-28] as [number,number,number],land:15_000,kinds:['restaurant','shop','hotel','apartments','plaza'] as BusinessKind[],area:'Town centre',vacant:true,description:'Serviced land for a restaurant, supermarket, hotel or apartment building. Shopping malls must be bought as existing buildings.'},
+  ...COMMERCIAL_PARCELS.map(p=>({...p,land:15_000,kinds:['restaurant','shop','hotel','apartments'] as BusinessKind[],description:p.vacant?'Serviced commercial land. Choose the business you want to build.':'Existing premises. The building stays in place when its business changes hands.'})),
 ];
 export type LandPlot=typeof LAND_PLOTS[number];
 const PLOTS_BY_ID=new Map(LAND_PLOTS.map(p=>[p.id,p]));
@@ -25,21 +26,36 @@ export function constructionIdentity(id:string){
   const plot=landPlotById(match[1]),kind=match[2] as BusinessKind;
   return plot&&plot.kinds.includes(kind)?{plot,kind}:null;
 }
-export const canConstruct=(id:string)=>{const c=constructionIdentity(id);return !!c&&c.plot.kinds.includes(c.kind);};
-function addressHash(value:string){let hash=2166136261;for(const char of value)hash=Math.imul(hash^char.charCodeAt(0),16777619);return hash>>>0;}
-export type SiteOffer={mode:'land'|'lease'|'purchase';kind:'restaurant'|'shop';id:string};
-/** Stable for a saved career. Reloading or opening the market never rerolls a property. */
-export function siteOffer(plot:LandPlot,seed=0):SiteOffer{
- const hash=addressHash(`${seed}:${plot.id}`),kind=hash%2?'restaurant':'shop';
- const mode=plot.vacant?'land':hash%3===0?'land':hash%3===1?'lease':'purchase';
- return {mode,kind,id:mode==='land'?'plot-'+plot.id:`${mode==='lease'?'unit':'trading'}-${plot.id}-${kind}`};
+// Retain constructionIdentity for old saves; new construction is vacant-land only.
+export const buildableKinds=(plot:LandPlot):BusinessKind[]=>plot.vacant&&!citySceneryBusiness(plot.id)?plot.kinds.filter(kind=>kind!=='plaza'):[];
+export const canConstruct=(id:string)=>{const c=constructionIdentity(id);return !!c&&buildableKinds(c.plot).includes(c.kind);};
+export type ListedBusinessKind='restaurant'|'shop'|'hotel'|'apartments';
+export type SiteOffer={mode:'land'|'lease'|'purchase'|'scenery';kind:ListedBusinessKind;id:string;name:string;nextReviewWeek?:number;category?:string;floors:number};
+function tenancy(id:string,seed:number,week:number,initialLease?:boolean){
+ const hash=addressHash(`${seed}:${id}`),period=8+hash%8,offset=Math.floor(hash/17)%4;
+ const phase=Math.floor((Math.max(1,week)-1+offset)/period);
+ const initial=initialLease===undefined?(hash>>>9)%2:initialLease?0:1;
+ return {lease:(initial+phase)%2===0,tenant:Math.floor((initial+phase)/2),nextReviewWeek:(phase+1)*period-offset+1};
+}
+/** Only tenancy changes, on staggered game-week boundaries; the building never rerolls. */
+export function siteOffer(plot:LandPlot,seed=0,week=1):SiteOffer{
+ const scenery=citySceneryBusiness(plot.id),kind=commercialBuildingKind(plot.id),floors=commercialArchitecture(plot.id).floors;
+ if(scenery)return {mode:'scenery',kind:'shop',id:'city-business-'+plot.id,name:scenery.name,category:scenery.category,floors};
+ if(plot.vacant)return {mode:'land',kind:'restaurant',id:'plot-'+plot.id,name:plot.name,floors:0};
+ const t=tenancy(plot.id,seed,week),mode=canLease(kind)&&t.lease?'lease':'purchase';
+ return {mode,kind,id:`${mode==='lease'?'unit':'trading'}-${plot.id}-${kind}`,name:mode==='lease'?`Empty shop · ${plot.name}`:cityBusinessName(kind,plot.id,seed,canLease(kind)?t.tenant:0),floors,...(canLease(kind)?{nextReviewWeek:t.nextReviewWeek}:{})};
+}
+export function corePropertyOffer(p:Property,seed=0,week=1){
+ const t=tenancy(p.id,seed,week,p.id==='diner'||p.id==='cafe');
+ const mode=canLease(p.kind)&&t.lease?'lease' as const:'purchase' as const;
+ return {mode,name:mode==='lease'?`Empty ${p.kind==='shop'?'shop':'restaurant'} · ${p.address}`:p.id==='park'?p.name:cityBusinessName(p.kind,p.id,seed,canLease(p.kind)?t.tenant:0),...(canLease(p.kind)?{nextReviewWeek:t.nextReviewWeek}:{})};
 }
 export function listedPropertyIdentity(id:string){
- const match=/^(unit|trading)-(.+)-(restaurant|shop)$/.exec(id);if(!match)return null;
- const plot=landPlotById(match[2]);return plot&&!plot.vacant?{plot,kind:match[3] as 'restaurant'|'shop',mode:match[1]==='unit'?'lease' as const:'purchase' as const}:null;
+ const match=/^(unit|trading)-(.+)-(restaurant|shop|hotel|apartments)$/.exec(id);if(!match)return null;
+ const plot=landPlotById(match[2]);return plot&&!plot.vacant?{plot,kind:match[3] as ListedBusinessKind,mode:match[1]==='unit'?'lease' as const:'purchase' as const}:null;
 }
 export const marketSiteIdentity=(id:string)=>constructionIdentity(id)??listedPropertyIdentity(id);
-export const offerLabel=(mode:SiteOffer['mode'])=>mode==='lease'?'Empty shop · for lease':mode==='purchase'?'Operating business · for sale':'Land · buy & build';
+export const offerLabel=(mode:SiteOffer['mode'])=>mode==='lease'?'Empty shop · for lease':mode==='purchase'?'Operating business · for sale':mode==='scenery'?'Local business · not available':'Vacant land · buy & build';
 /** Modern careers label owned businesses; the market signs describe unowned opportunities. */
 export const showPropertyLabel=(modern:boolean,owned:boolean,near:boolean,selected:boolean)=>modern?owned||selected:near;
 export function earnedPlayerLevel(restaurants:Record<string,GameState>,businesses:Record<string,Business>,previous=1){
@@ -50,7 +66,7 @@ const LEASE:Record<string,number>={diner:18_000,cafe:12_000,bistro:20_000,shop:2
 const CONSTRUCTION:Partial<Record<BusinessKind,number>>={restaurant:160_000,shop:165_000,hotel:38_000,apartments:46_000,plaza:64_000};
 export function acquisitionQuote(p:Property,method:AcquisitionRecord['method'],modern=true){
   const construction=constructionIdentity(p.id),listing=listedPropertyIdentity(p.id),variation=listing?addressHash(p.id)%5:0;
-  const cost=method==='construction'?((CONSTRUCTION[p.kind]??0)+(['hotel','apartments','plaza'].includes(p.kind)?Math.max(0,(construction?.plot.land??0)-15_000):0)):modern?listing?(method==='lease'?(p.kind==='shop'?24_000:18_000):p.kind==='shop'?95_000:70_000)+variation*(method==='lease'?1500:5000):(method==='lease'?LEASE[p.id]:PURCHASE[p.id])??0:method==='lease'?p.deposit:p.buy;
+  const cost=method==='construction'?((CONSTRUCTION[p.kind]??0)+(['hotel','apartments','plaza'].includes(p.kind)?Math.max(0,(construction?.plot.land??0)-15_000):0)):modern?listing?(method==='lease'?(p.kind==='shop'?24_000:18_000):p.kind==='hotel'?58_000:p.kind==='apartments'?68_000:p.kind==='shop'?95_000:70_000)+variation*(method==='lease'?1500:5000):(method==='lease'?LEASE[p.id]:PURCHASE[p.id])??0:method==='lease'?p.deposit:p.buy;
   const land=method==='construction'?(construction?.plot.land??0):modern&&method==='purchase'?Math.round(cost*.25):0;
   const weeklyRent=method==='lease'?(listing?(p.kind==='shop'?155:180)+variation*15:p.id==='diner'?180:p.rent):0;
   const leaseEntry=method==='lease'?Math.round(cost*.2):0;

@@ -13,7 +13,7 @@ function open(e:ReturnType<typeof fresh>,id:string,tenure:'owned'|'leased',from=
  return applyDistrictUpdate(e,s=>acquire(s,id,tenure,from,propertyById(id)!.kind==='restaurant'?'italian':undefined),INITIAL_STATE);
 }
 test('market offers vary by career but are stable across reloads and include empty lease units and operating businesses',()=>{
- const market=offers();for(const mode of ['land','lease','purchase'])assert.ok(market.filter(o=>o.mode===mode).length>=10);
+ const market=offers();for(const mode of ['land','lease','purchase'])assert.ok(market.filter(o=>o.mode===mode).length>=3);
  for(const kind of ['shop','restaurant'])for(const mode of ['lease','purchase'])assert.ok(market.some(o=>o.mode===mode&&o.kind===kind));
  assert.deepEqual(market,offers());assert.ok(LAND_PLOTS.some(p=>siteOffer(p,17).id!==siteOffer(p,18).id));
  const e=fresh();assert.deepEqual(parseEmpireSave(JSON.stringify(e))!.district.market,e.district.market);

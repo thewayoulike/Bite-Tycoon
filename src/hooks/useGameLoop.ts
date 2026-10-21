@@ -1,3 +1,4 @@
+import {addDeparture} from '../empire/customerDepartures';
 import {saveRevision,canWriteSave} from '../empire/saveSlots';
 import {advanceRestaurantDepth,restaurantDepth,recipeStation} from '../career/restaurant';
 import {advanceCrew,crewPremium,available} from '../career/crew';
@@ -136,6 +137,7 @@ export interface CleanerEntity {
 }
 
 export interface GameState {
+  customerDepartures?:import("../empire/customerDepartures").CustomerDeparture[];
   crew?:import("../career/crew").Employee[];
   advanced?:import("../career/restaurant").RestaurantDepth;
   stockroom?:Stockroom;
@@ -478,6 +480,7 @@ function advanceRestaurantStep(prevState: GameState, delta: number, weather:Weat
         newC.state = 'leaving';
         newC.actionTimer = 0;
         lostThisTick += 1;
+        newState.customerDepartures=addDeparture(newState.customerDepartures,{week:newState.week,subject:isPickup(c.tableId)?"Pickup order":"Delivery order",reason:isPickup(c.tableId)?"Pickup customer left while waiting for food":"Delivery cancelled after waiting too long for the kitchen",count:1});
         refundUnserved(newState, orders.filter(o => o.customerId === newC.id));
         orders = orders.filter(o => o.customerId !== newC.id);
       }
@@ -488,6 +491,7 @@ function advanceRestaurantStep(prevState: GameState, delta: number, weather:Weat
         const table = tables.find(t => t.id === newC.tableId);
         newC.actionTimer = table ? customerTravelTime(table,newC.partySize||1,tables) : 1;
         lostThisTick += (newC.partySize || 1);
+        newState.customerDepartures=addDeparture(newState.customerDepartures,{week:newState.week,subject:"Dining party",reason:c.state==="waiting_order"?"Left before their order was taken":"Left while waiting for food",count:newC.partySize||1});
         refundUnserved(newState, orders.filter(o => o.customerId === newC.id));
         orders = orders.filter(o => o.customerId !== newC.id);
         tables = tables.map(t => t.id === newC.tableId ? { ...t, isDirty: true } : t);
@@ -700,6 +704,7 @@ function advanceRestaurantStep(prevState: GameState, delta: number, weather:Weat
           } else {
             customers = customers.map(cust => cust.id === targetCustomer.id ? { ...cust, state: 'leaving', actionTimer: 5 } : cust);
             lostThisTick += (targetCustomer.partySize || 1);
+            newState.customerDepartures=addDeparture(newState.customerDepartures,{week:newState.week,subject:"Dining party",reason:"No active dish could be prepared with the available ingredients",count:targetCustomer.partySize||1});
           }
         });
         w.state = 'walking_to_counter_empty'; w.targetTableId = null;
@@ -824,7 +829,7 @@ function advanceRestaurantStep(prevState: GameState, delta: number, weather:Weat
     if (stuck.size) {
       for (const id of stuck) {
         const guest = customers.find(c => c.id === id && c.state === 'waiting_food');
-        if (guest) lostThisTick += guest.partySize || 1;
+        if (guest) {lostThisTick += guest.partySize || 1;newState.customerDepartures=addDeparture(newState.customerDepartures,{week:newState.week,subject:isPickup(guest.tableId)?"Pickup order":"Delivery order",reason:isPickup(guest.tableId)?"Kitchen could not complete this pickup before closing":"Kitchen could not complete this delivery before closing",count:guest.partySize||1});}
       }
       refundUnserved(newState, orders.filter(o => stuck.has(o.customerId)));
       customers = customers.filter(c => !stuck.has(c.id) || c.state !== 'waiting_food');
@@ -903,6 +908,7 @@ export function takeCustomerOrder(prev: GameState, customerId: string): GameStat
      return {
        ...prev,
        customers: prev.customers.map(c => c.id === customerId ? { ...c, state: 'leaving', actionTimer: 5 } : c),
+       customerDepartures:addDeparture(prev.customerDepartures,{week:prev.week,subject:"Dining party",reason:"No active dish could be prepared with the available ingredients",count:customer.partySize}),
        stats: { ...prev.stats, customersLost: prev.stats.customersLost + customer.partySize },
        weekStats: { ...prev.weekStats, lost: prev.weekStats.lost + customer.partySize }
      };

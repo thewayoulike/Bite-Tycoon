@@ -109,7 +109,7 @@ export function ExpansionMap({selected,businesses,onSelect}:{selected:string;bus
   </Canvas></>;
 }
 
-export function DistrictScenery({market,selected,businesses,onSelect,interiorId=null,labels=true,gameSpeed=1,isNight=false,restaurants={},wet=0,snow=0}:{market?:MarketState;wet?:number;snow?:number;restaurants?:Record<string,GameState>;selected:string;businesses:Record<string,Business>;onSelect:(id:string)=>void;interiorId?:string|null;labels?:boolean;gameSpeed?:number;isNight?:boolean}){
+export function DistrictScenery({week=1,market,selected,businesses,onSelect,interiorId=null,labels=true,gameSpeed=1,isNight=false,restaurants={},wet=0,snow=0}:{week?:number;market?:MarketState;wet?:number;snow?:number;restaurants?:Record<string,GameState>;selected:string;businesses:Record<string,Business>;onSelect:(id:string)=>void;interiorId?:string|null;labels?:boolean;gameSpeed?:number;isNight?:boolean}){
 const [nearCenter,setNearCenter]=useState(false),previousNear=useRef(false);
 useFrame(({camera})=>{const near=camera.position.length()<230;if(near!==previousNear.current){previousNear.current=near;setNearCenter(near);}});
 const businessLabels=labels&&nearCenter;
@@ -127,7 +127,7 @@ return <CitySnowContext.Provider value={snow}>
     ].map(area=><Html key={area.name} position={area.position as [number,number,number]} center zIndexRange={[2,0]} style={{pointerEvents:'none'}}><div className="city-district-label"><strong>{area.name}</strong><small>{area.note}</small></div></Html>)}
     <SharedBlocks/><StreetscapeDetails3D isNight={isNight}/>
     <NeighborhoodDistricts3D isNight={isNight} snow={snow} developments={!!market} developmentKey={developmentKey} onSelect={onSelect}/>
-    {market&&<CommercialPlots3D listingSeed={market.listingSeed} developmentKey={developmentKey} onSelect={onSelect} labels={labels}/>}
+    {market&&<CommercialPlots3D week={week} listingSeed={market.listingSeed} developmentKey={developmentKey} onSelect={onSelect} labels={labels}/>}
     <PublicGarden labels={businessLabels} gameSpeed={gameSpeed} isNight={isNight}/>
     {[...PROPERTIES,...Object.values(market?.parcels??{}).map(id=>propertyById(id!)!)].filter(p=>p.id!==interiorId).map(p=>propertyById(p.id,businesses[p.id])!).map(p=>(p.kind==='restaurant'||p.kind==='cafe')?<RestaurantProperty3D key={p.id} p={p} state={restaurants[p.id]} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)} isNight={isNight}/>:p.kind==='plaza'?<PlazaBuilding3D key={p.id} p={p} floors={businesses[p.id]?.plaza?.openFloors??1} isNight={isNight} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)}/>:<Building key={p.id} floorsOverride={businesses[p.id]?.lodging?.openFloors??(p.id.startsWith('built-')&&p.kind==='shop'?(businesses[p.id]?.retail?.electronicsUnlocked?1:0):undefined)} isNight={isNight} p={p} selected={selected===p.id} owned={!!businesses[p.id]} labels={labels&&showPropertyLabel(!!market,!!businesses[p.id],nearCenter,selected===p.id)} onSelect={()=>onSelect(p.id)}/>)}
     {[-25,0,25].flatMap(x=>[-25,0,25].filter(z=>!(x===0&&(z===0||z===-25))).map((z,i)=><StylizedTree3D key={`${x}:${z}`} position={[x+8.65,.1,z+6.5]} seed={i} scale={.75}/>))}

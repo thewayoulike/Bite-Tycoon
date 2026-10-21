@@ -1,0 +1,7 @@
+PBR surface textures: wood_floor, brick_wall_003, floor_pavement.
+Source: https://polyhaven.com/a/wood_floor
+https://polyhaven.com/a/brick_wall_003
+https://polyhaven.com/a/floor_pavement
+License: CC0, https://polyhaven.com/license
+Downloaded 1K diffuse and OpenGL normal maps for the Unity visual prototype.
+Asphalt: Quaternius Downtown City MegaKit, CC0. See Quaternius-license.txt.

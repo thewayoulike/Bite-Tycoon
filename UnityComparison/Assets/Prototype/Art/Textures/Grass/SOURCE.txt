@@ -1,0 +1,7 @@
+Grass Ground - Charlotte Baglioni / Poly Haven
+Asset: https://polyhaven.com/a/grass_ground
+Files: grass_ground_diff_1k.jpg, grass_ground_nor_gl_1k.jpg
+Downloaded from the asset's official 1K file URLs via https://api.polyhaven.com/files/grass_ground
+License: CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+Poly Haven license confirmation: https://polyhaven.com/license
+Retrieved 2026-10-20. Original files retained; tiling and tint applied in the game shader.

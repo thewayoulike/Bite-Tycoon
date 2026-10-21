@@ -1,0 +1,5 @@
+Derived from this game's existing covered 100-person cast in ../people-preview/cast.
+The original character identities, materials, clothing, face geometry and rig are retained.
+Blender removes body faces hidden underneath full-length outfits to prevent
+skin/clothing intersections during animation. No source browser-game asset is overwritten.
+Rebuild: tools/refine-unity-assets.py using Blender 4.5.9 LTS.

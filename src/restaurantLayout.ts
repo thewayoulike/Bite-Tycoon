@@ -89,14 +89,18 @@ export function customerSeatPath(table:Table,index:number,tables:Table[]):Point[
  const cached=seatRoutes.get(cacheKey);if(cached)return cached;
  const seat=DINING_SEATS[index%4],cx=mapPos(table.x),cz=mapPos(table.y);
  const ux=seat.x/2.8,uz=seat.z/2.8,tx=-uz,tz=ux;
- const approach={x:cx+ux*4.1+tx*1.25,z:cz+uz*4.1+tz*1.25};
- const beside={x:cx+seat.x+tx*1.25,z:cz+seat.z+tz*1.25};
- const aisle=walkingPath({x:0,z:ROOM.entry},approach,tables);
- if(aisle.length<2)return aisle;
- const route=[...aisle,beside,seatPoint(table,index)];
- if(seatRoutes.size>=128)seatRoutes.delete(seatRoutes.keys().next().value!);
- seatRoutes.set(cacheKey,route);
- return route;
+ // A planter can block one side of an otherwise reachable chair near the entrance.
+ for(const side of [1,-1]){
+  const approach={x:cx+ux*4.1+tx*1.25*side,z:cz+uz*4.1+tz*1.25*side};
+  const beside={x:cx+seat.x+tx*1.25*side,z:cz+seat.z+tz*1.25*side};
+  const aisle=walkingPath({x:0,z:ROOM.entry},approach,tables);
+  if(aisle.length<2)continue;
+  const route=[...aisle,beside,seatPoint(table,index)];
+  if(seatRoutes.size>=128)seatRoutes.delete(seatRoutes.keys().next().value!);
+  seatRoutes.set(cacheKey,route);
+  return route;
+ }
+ return [{x:0,z:ROOM.entry}];
 }
 export function customerTravelTime(table:Table,partySize:number,tables:Table[]){
  return Math.max(...Array.from({length:Math.max(1,Math.min(4,partySize))},(_,i)=>pathLength(customerSeatPath(table,i,tables))/4+i*.35))+.6;

@@ -1,3 +1,4 @@
+import {addDeparture} from './customerDepartures';
 import {venueStep,venueActivityTime} from './simulationTime';
 import {advanceServices} from '../career/services';
 import {advanceRetailEvents,promotionDemand} from '../career/retailEvents';
@@ -108,10 +109,10 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
   if(!b.venue?.running||delta<=0)return b;
   const {activity:dt,calendar:calendarDelta}=venueStep(b.venue.clock,delta,calendarRate);if(!dt)return b;
   const rules=venueRules(p),old=b.venue;
-  let lost=0;
+  let lost=0,departures=b.customerDepartures;
   const visitors=old.visitors.flatMap(person=>{
     if(person.state==='waiting'){
-      if(person.patience<=dt){lost++;return [];}
+      if(person.patience<=dt){lost++;departures=addDeparture(departures,{week,day,subject:`Visitor #${person.id}`,reason:serviceBlocker(p,b,person.id)??"Left after waiting too long for service",count:1});return [];}
       return [{...person,patience:person.patience-dt}];
     }
     if(person.remaining<=dt)return person.state==='leaving'?[]:[{...person,state:'leaving' as const,remaining:4}];
@@ -134,9 +135,9 @@ export function advanceVenue(p:Property,b:Business,delta:number,week:number,day:
       const demand=Math.exp(-2.5*Math.max(0,ratio-1));
       if((venue.serial*37%100)/100<demand)venue.visitors=[...visitors,{id:venue.serial,seed:venue.serial*17+p.id.length*31,state:'waiting',patience:rules.patience,remaining:0,unit:null,productId,quantity:productId?(retailProductFloor(productId)===1?1:1+venue.serial%3):undefined,offerId:offer?.id}];
     }
-    else venue.week={...venue.week,lost:venue.week.lost+1};
+    else {venue.week={...venue.week,lost:venue.week.lost+1};departures=addDeparture(departures,{week,day,subject:"Arriving visitor",reason:"Service queue was too crowded",count:1});}
   }
-  let next:Business={...b,venue,books:b.books?{...b.books,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*calendarDelta/180}:undefined};
+  let next:Business={...b,customerDepartures:departures,venue,books:b.books?{...b.books,wagesAccrued:b.books.wagesAccrued+businessWages(p,b)*calendarDelta/180}:undefined};
   if(venue.serviceTimer>=12/(1+(b.hires?.service??0)+b.upgrade*.25)){
     next=serveVenueVisitor(p,next,week,day);
     next={...next,venue:{...next.venue!,serviceTimer:0}};

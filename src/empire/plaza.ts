@@ -1,3 +1,4 @@
+import {addDeparture} from './customerDepartures';
 import {crewPower,ensureCrew} from '../career/crew';
 import {ensureMallDepth,startMallDepthWeek,mallAccrueRent,payMallUpkeep,mallFloorChecks,mallFacilityCoverage,advanceMallDepth} from './mallDepth';
 import type {MallDepth,MallTerm} from './mallDepth';
@@ -126,7 +127,7 @@ export function managePlaza(state:ExpansionState,id:string,action:PlazaAction):E
  }else if(action.type==='accept'||action.type==='decline'){
   const app=b.plaza.applications.find(a=>a.id===action.id);if(!app)return state;
   if(action.type==='accept'){const blocker=plazaLeaseBlocker(b,app,state.week);if(blocker)return refuse(blocker);b=signLease(b,app,state.week,state.day);note=`${app.name} signed a ${app.term??8}-week lease. First week rent received.`;}
-  else {b={...b,plaza:{...b.plaza,applications:b.plaza.applications.filter(a=>a.id!==app.id)}};note='Application declined. New enquiries can arrive.';}
+  else {b={...b,customerDepartures:addDeparture(b.customerDepartures,{week:state.week,day:state.day,subject:app.name,reason:'Lease application declined by the owner',count:1}),plaza:{...b.plaza,applications:b.plaza.applications.filter(a=>a.id!==app.id)}};note='Application declined. New enquiries can arrive.';}
  }else if('unit' in action){
   const u=b.venue.units[action.unit];if(!u)return state;
   if(action.type==='rate'){
@@ -161,5 +162,6 @@ export function advancePlaza(p:Property,old:Business,delta:number,week:number,da
   const broken=b.venue!.units.findIndex((u,i)=>(u.condition??100)<65&&crewPower(crew,'maintenance',hour,0,Math.floor(i/4))>0);if(broken>=0)b=care(p,b,broken,week,day,true);
   b={...b,venue:{...b.venue!,careTimer:0}};
  }
+ for(const app of old.plaza.applications.filter(a=>a.expiresAt<=(week-1)*180+clock))b={...b,customerDepartures:addDeparture(b.customerDepartures,{week,day,subject:app.name,reason:'Lease application expired before it was accepted',count:1})};
  const units=b.venue!.units;return advanceMallDepth(p,{...b,condition:Math.round(units.reduce((n,u)=>n+(u.condition??100),0)/units.length)},dt,week,day,demand,calendarDelta);
 }

@@ -1,3 +1,4 @@
+import {addDeparture} from './customerDepartures';
 import {householdPayment,prepareHouseholds} from '../career/services';
 import {apartmentTerm,tenantDepositWeeks,apartmentUpkeep,apartmentRentBase} from './apartments';
 import {hotelCompletedNights} from './hotelProgression';
@@ -78,7 +79,13 @@ export function advanceLodging(p:Property,b:Business,delta:number,week:number,da
  v.visitors=v.visitors.flatMap(person=>{
   if(person.state==='waiting'){
    if(l.bookings.find(v=>v.id===person.bookingId)?.status==='cancelled')return [];
-   if(person.patience<=dt){v.week.lost++;l.reputation=Math.max(0,l.reputation-.5);const booking=l.bookings.find(v=>v.id===person.bookingId);if(booking){booking.status='cancelled';if(booking.groupId)l.bookings.forEach(v=>{if(v.groupId===booking.groupId&&['reserved','waiting'].includes(v.status))v.status='cancelled';});}return [];}
+   if(person.patience<=dt){
+    const reason=lodgingBlocker(p,{...b,venue:v,lodging:l},person.id)??'Waited too long for reception to complete check-in';
+    const booking=l.bookings.find(v=>v.id===person.bookingId),affected=booking?.groupId?l.bookings.filter(x=>x.groupId===booking.groupId&&['reserved','waiting'].includes(x.status)):booking?[booking]:[];
+    const count=Math.max(1,affected.length);v.week.lost+=count;l.reputation=Math.max(0,l.reputation-.5);
+    for(const item of affected){item.status='cancelled';item.cancellationReason=reason;}
+    b={...b,customerDepartures:addDeparture(b.customerDepartures,{week,day,subject:booking?.name??(isHotel?'Walk-in guest':'Apartment applicant'),reason,count})};return [];
+   }
    person.patience-=dt;
   }else if(person.state==='leaving'){person.remaining-=dt;if(person.remaining<=0)return [];}
   else person.remaining=Math.max(0,person.remaining-calendarDelta);

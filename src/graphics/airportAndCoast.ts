@@ -65,7 +65,7 @@ function buildTerminal(solid:ModelParts,glass:ModelParts,lights:ModelParts){
   // shape stays recognizable at city scale, with fine framing at street level.
   solid.box([-319,.55,-48],[35,.8,98],'#e1ddcf');
   solid.box([-319,6.4,-48],[33,.35,95],'#d7dbd5');
-  solid.box([-319,6.7,-48],[8,12,44],'#b2bfb9');
+  solid.box([-319,6.7,-48],[4,12,18],'#b2bfb9');
   glass.add(terminalRoofPatch(-.72,.72),'#89bdce');
   solid.add(terminalRoofPatch(-1.16,-.72),'#eef0e5');
   solid.add(terminalRoofPatch(.72,1.16),'#eef0e5');
@@ -125,6 +125,20 @@ function buildTerminal(solid:ModelParts,glass:ModelParts,lights:ModelParts){
       lights.box([x,12.8,z],[.18,.08,7],'#ffe5bb');
     }
     solid.box([-310,7.2,z],[2.2,1.2,5],'#c3b89e');
+  }
+  // Ground-floor check-in islands and grouped seats, visible through the glazing.
+  for(let n=0;n<6;n++){
+    const z=-80+n*7;
+    solid.box([-312,1.55,z],[2.1,1.2,3.8],'#d3c8ae');
+    solid.box([-312,2.2,z],[2.35,.14,4],'#3f5963');
+    solid.box([-311.3,2.65,z+.9],[.12,.7,.95],'#233d4a');
+    lights.box([-311.22,2.65,z+.9],[.025,.52,.74],'#8bc9d4');
+    solid.box([-309,.98,z],[2.7,.025,3.8],'#8eaaa7');
+    for(const x of [-307.5,-304.5]){
+      solid.box([x,1.6,z],[1,.2,2.8],'#3c6674');
+      solid.box([x-.4,2,z],[.16,.85,2.8],'#3c6674');
+      for(const dz of [-.9,.9])solid.box([x,1.2,z+dz],[.65,.6,.08],'#718486');
+    }
   }
 }
 /** Reusable regional airliner, +Z forward, modeled once for parked and moving aircraft. */

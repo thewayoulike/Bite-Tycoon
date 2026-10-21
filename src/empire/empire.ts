@@ -1,4 +1,5 @@
 import {buildingDesign,cleanBusinessName} from './buildingDesigns';
+import {unlockSandboxFeatures} from './sandbox';
 import {expansionFunding} from './expansionFunding';
 import {FAST_TRACK_CASH,marketSiteIdentity,earnedPlayerLevel,totalRentLiability,weeklyLeaseExpense} from './propertyMarket';
 import {restaurantDepth} from '../career/restaurant';
@@ -126,7 +127,7 @@ export function applyDistrictUpdate(empire:EmpireState,update:(s:ExpansionState)
     if(isVenue(propertyById(id)!)&&!b.venue)changed.businesses[id]={...b,venue:createVenue(propertyById(id)!)};
   }
   const next={...empire,activeRestaurantId:!Object.keys(view.businesses).length&&acquired.length?acquired[0]:empire.activeRestaurantId,restaurants,district:changed};
-  return {...next,district:districtView(next)};
+  return unlockSandboxFeatures({...next,district:districtView(next)});
 }
 
 export function startEmpireWeek(empire:EmpireState):EmpireState {

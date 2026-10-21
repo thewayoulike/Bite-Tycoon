@@ -1,3 +1,4 @@
+import {addDeparture} from './empire/customerDepartures';
 import type {GameState,Customer,Order} from './hooks/useGameLoop';
 import type {Recipe} from './data/recipes';
 import {restaurantLevel} from './restaurantProgression';
@@ -12,7 +13,7 @@ export interface RestaurantServicePlan {
 }
 export interface BistroBooking {
   id:string; week:number; day:number; time:number; name:string; party:number;
-  tableId:string; status:'accepted'|'seated'|'missed'|'cancelled';
+  tableId:string; cancellationReason?:string; status:'accepted'|'seated'|'missed'|'cancelled';
 }
 export function servicePlan(state:GameState):RestaurantServicePlan {
   return {pickup:false,pace:'busy',pastryBatch:1,coffeeFirst:false,specialId:'',...state.servicePlan};
@@ -63,7 +64,7 @@ export function bookBistroTable(state:GameState,id:string):GameState {
   return {...state,bookings:[...(state.bookings??[]).filter(b=>b.week===state.week),{...offer,tableId:table.id,status:'accepted'}]};
 }
 export function cancelBistroBooking(state:GameState,id:string):GameState {
-  return {...state,bookings:state.bookings?.map(b=>b.id===id&&b.status==='accepted'&&state.time<b.time?{...b,status:'cancelled'}:b)};
+  return {...state,bookings:state.bookings?.map(b=>b.id===id&&b.status==='accepted'&&state.time<b.time?{...b,status:'cancelled',cancellationReason:'Cancelled by the owner before arrival'}:b)};
 }
 export function reservedTableIds(state:GameState){
   return (state.bookings??[]).filter(b=>b.week===state.week&&b.status==='accepted'&&state.time>=b.time-6).map(b=>b.tableId);
@@ -82,7 +83,7 @@ export function advanceBistroBookings(state:GameState):GameState {
       const customer:Customer={id:`guest-${booking.id}`,tableId:table.id,state:'entering',patience:120,maxPatience:120,actionTimer:customerTravelTime(table,booking.party,next.tables),currentBill:0,isVIP:false,vipBonus:0,partySize:booking.party,tipModifier:1,bookingName:booking.name};
       next.customers.push(customer);next.tables=next.tables.map(t=>t.id===table.id?{...t,customerId:customer.id}:t);booking.status='seated';
     }else if(state.time>booking.time+4||state.phase==='closing'){
-      booking.status='missed';next.stats.customersLost+=booking.party;next.weekStats.lost+=booking.party;
+      booking.status='missed';booking.cancellationReason=state.isRestaurantOpen?'Reserved table was occupied or dirty at arrival':'Restaurant was closed at the reserved arrival time';next.stats.customersLost+=booking.party;next.weekStats.lost+=booking.party;next.customerDepartures=addDeparture(next.customerDepartures,{week:state.week,day:booking.day,subject:booking.name,reason:booking.cancellationReason,count:booking.party});
     }
   }
   return next;

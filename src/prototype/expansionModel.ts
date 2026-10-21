@@ -1,7 +1,9 @@
+import {addDeparture} from '../empire/customerDepartures';
 import {cleanBusinessName,validateBusinessSetup,type BusinessSetup,type BuildingDesignId} from '../empire/buildingDesigns';
 import {crewPremium} from '../career/crew';
 import {recordStoreLoss} from '../empire/supermarket';
-import {acquisitionQuote,canConstruct,canLease,constructionIdentity,listedPropertyIdentity,marketSiteIdentity,siteOffer,marketKindName,leaseReserve,weeklyLeaseExpense,type MarketState,type AcquisitionRecord,type LeaseTerms} from '../empire/propertyMarket';
+import {acquisitionQuote,canConstruct,canLease,constructionIdentity,listedPropertyIdentity,marketSiteIdentity,siteOffer,corePropertyOffer,marketKindName,leaseReserve,weeklyLeaseExpense,type MarketState,type AcquisitionRecord,type LeaseTerms} from '../empire/propertyMarket';
+import {cityBusinessName} from '../graphics/commercialBuildingProfiles';
 import {hotelWeeklyOccupancy} from '../empire/hotelProgression';
 import type {Stockroom} from '../inventory/stockroom';
 import {orderBusinessStock,manageBusinessStockroom,businessStockViews} from '../inventory/businessStockroom';
@@ -35,6 +37,8 @@ export const PROPERTIES: Property[] = [
 export const PUBLIC_GARDEN:Property={...PROPERTIES[6],id:'public-garden',name:'Willow Gardens',kind:'park',position:[0,0,0],description:'Public gardens · open to everyone',unit:'visitors'};
 export type LedgerEntry = {week:number; day:number; label:string; amount:number};
 export type Business = {
+  customerDepartures?:import("../empire/customerDepartures").CustomerDeparture[];
+ sandboxUnlockVersion?:number;
   name?:string; design?:BuildingDesignId;
   acquisition?:AcquisitionRecord;
   leaseTerms?:LeaseTerms;
@@ -73,7 +77,7 @@ export function propertyById(id:string,business?:Pick<Business,'name'|'design'>)
 function basePropertyById(id:string):Property|undefined{
  const base=PROPERTIES.find(p=>p.id===id);if(base)return base;
  const listing=listedPropertyIdentity(id);
- if(listing){const template=PROPERTIES.find(p=>p.kind===listing.kind)!;return {...template,id,name:`${listing.kind==='shop'?'Supermarket':'Restaurant'} · ${listing.plot.name}`,address:listing.plot.name,position:listing.plot.position};}
+ if(listing){const template=PROPERTIES.find(p=>p.kind===listing.kind)!;return {...template,id,name:cityBusinessName(listing.kind,listing.plot.id),address:listing.plot.name,position:listing.plot.position};}
  const construction=constructionIdentity(id);
  if(construction){const template=PROPERTIES.find(p=>p.kind===construction.kind)!;return {...template,id,name:`${marketKindName(construction.kind)} · ${construction.plot.name}`,address:construction.plot.name,position:construction.plot.position};}
  const child=/^mall-(cafe|shop)-(\d+)(?:@(built-.+-plaza))?$/.exec(id);if(!child||Number(child[2])>=20)return undefined;
@@ -155,7 +159,7 @@ export function retryLease(p:Property,b:Business,state:Pick<ExpansionState,'week
 export function acquire(state:ExpansionState,id:string,tenure:Business['tenure'],fundingId='diner',restaurantType?:RestaurantType,term:10|20|40=40,setup:BusinessSetup={}):ExpansionState{
   const p=propertyById(id),source=state.businesses[fundingId];if(![10,20,40].includes(term)||!p||state.businesses[id])return state;
   if(constructionIdentity(id)&&(!state.market||!canConstruct(id)))return {...state,notice:'Choose a business type supported by this land plot.'};
-  if(tenure==='leased'&&!canLease(p.kind))return {...state,notice:p.kind==='plaza'?'Malls cannot be leased. Buy an existing mall or build one on the large plot.':'Only restaurants and supermarkets can be leased. Buy this building or construct it on land.'};
+  if(tenure==='leased'&&!canLease(p.kind))return {...state,notice:p.kind==='plaza'?'Malls are purchase-only. Buy an existing mall.':'Only empty restaurant and supermarket units can be leased. This building is purchase-only.'};
   if(state.market)return acquireMarketProperty(state,id,tenure,fundingId,restaurantType,term,setup);
   const setupError=validateBusinessSetup(setup,false);if(setupError)return {...state,notice:setupError};
   if(!source)return state;
@@ -170,9 +174,10 @@ export function acquireMarketProperty(state:ExpansionState,id:string,tenure:Busi
   const market=state.market,p=propertyById(id);if(!market||!p||state.businesses[id]||!['owned','leased'].includes(tenure)||![10,20,40].includes(term))return state;
   const built=constructionIdentity(id),listing=listedPropertyIdentity(id),site=marketSiteIdentity(id),method=built?'construction':tenure==='leased'?'lease':'purchase',quote=acquisitionQuote(p,method);
   const setupError=validateBusinessSetup(setup,!!built);if(setupError)return {...state,notice:setupError};
-  if(listing&&(siteOffer(listing.plot,market.listingSeed).id!==id||method!==listing.mode))return {...state,notice:'This offer has different terms. Reopen its current market listing.'};
+  const currentOffer=listing?siteOffer(listing.plot,market.listingSeed,state.week):!built?corePropertyOffer(p,market.listingSeed,state.week):null;
+  if(currentOffer&&(currentOffer.mode!==method||(listing&&method==='purchase'&&'kind' in currentOffer&&currentOffer.kind!==p.kind)))return {...state,notice:'The offer has changed or has different terms. Reopen the current listing. Operating businesses are purchase-only; only empty shop units can be leased.'};
   if(site&&market.parcels[site.plot.id])return {...state,notice:'This site already belongs to one of your businesses.'};
-  if(built&&!canConstruct(id))return {...state,notice:'Choose a business type supported by this land plot.'};
+  if(built&&!canConstruct(id))return {...state,notice:p.kind==='plaza'?'Shopping malls are purchase-only. Choose an existing mall.':'This site already contains a building. New construction is only available on vacant land.'};
   if(built&&(tenure!=='owned'||market.parcels[built.plot.id]))return {...state,notice:'This plot has already been developed.'};
   if(tenure==='leased'&&!canLease(p.kind))return {...state,notice:'This building is purchase-only.'};
   if(market.level<quote.level)return {...state,notice:`Reach player Level ${quote.level} before opening ${marketKindName(p.kind).toLowerCase()}.`};
@@ -182,7 +187,8 @@ export function acquireMarketProperty(state:ExpansionState,id:string,tenure:Busi
   const first=!market.firstPropertyId&&Object.keys(state.businesses).length===0;
   const source=state.businesses[fundingId],total=quote.cost+(first?0:quote.workingCash);
   if(quote.cost<=0||(first?market.ownerCash:(source?.cash??0))<total)return {...state,notice:`You need $${total.toLocaleString()} for this opening package.`};
-  const business:Business={...createBusiness(tenure),...(setup.name?{name:cleanBusinessName(setup.name)}:{}),...(built?{design:setup.design??'heritage'}:{}),...(food?{restaurantType}:{}),acquisition:{method,cost:quote.cost,land:quote.land,capital:first?market.startingCapital:0},...(tenure==='leased'?{leaseTerms:{weeklyRent:quote.weeklyRent,intervalWeeks:4,nextPaymentWeek:state.week+3},leaseChargedWeek:state.week-1,leaseAccrued:0}:{}),ledger:[]};
+  const name=cleanBusinessName(setup.name)??(currentOffer?.mode==='purchase'?currentOffer.name:cityBusinessName(p.kind,site?.plot.id??id,market.listingSeed));
+  const business:Business={...createBusiness(tenure),name,...(built?{design:setup.design??'heritage'}:{}),...(food?{restaurantType}:{}),acquisition:{method,cost:quote.cost,land:quote.land,capital:first?market.startingCapital:0},...(tenure==='leased'?{leaseTerms:{weeklyRent:quote.weeklyRent,intervalWeeks:4,nextPaymentWeek:state.week+3},leaseChargedWeek:state.week-1,leaseAccrued:0}:{}),ledger:[]};
   let next:ExpansionState={...state,businesses:{...state.businesses,[id]:business},report:[]};
   if(first){next.businesses[id]=record(business,state,'Owner starting capital',market.ownerCash);}
   else next=lendCash(next,fundingId,id,total,term,'property');
@@ -271,7 +277,8 @@ export function finishWeek(state:ExpansionState,autoLoans=true):ExpansionState{
     if(b.venue){
       let next=payWeeklyLease(propertyById(id,state.businesses[id])!,b,state);
       if(b.retail?.store)next=recordStoreLoss(next,'closing',b.venue.visitors.filter(v=>v.state==='waiting').length);
-      return[id,{...next,spending:0,helped:false,...(b.lodging?{lodging:{...b.lodging,bookings:b.lodging.bookings.map(booking=>booking.status==='waiting'?{...booking,status:'cancelled' as const}:booking),lastReport:{week:state.week,occupancy:propertyById(id,state.businesses[id])!.kind==='hotel'?hotelWeeklyOccupancy(b):b.lodging.availableSeconds?b.lodging.occupiedSeconds/b.lodging.availableSeconds*100:0,averageRate:b.lodging.roomNights?b.lodging.roomRevenue/b.lodging.roomNights:0,reputation:b.lodging.reputation,served:b.venue.week.served,lost:b.venue.week.lost,revenue:b.venue.week.revenue}}}:{}),venue:{...b.venue,running:false,visitors:b.venue.visitors.filter(v=>v.state==='using'),week:{...b.venue.week,lost:b.venue.week.lost+b.venue.visitors.filter(v=>v.state==='waiting').length}},manager:b.manager?{...b.manager,spent:0}:undefined}];
+      const left=b.venue.visitors.filter(v=>v.state==='waiting').length;if(left&&!b.retail)next={...next,customerDepartures:addDeparture(next.customerDepartures,{week:state.week,day:7,subject:'Visitors still waiting',reason:'Trading week closed before service was completed',count:left})};
+      return[id,{...next,spending:0,helped:false,...(b.lodging?{lodging:{...b.lodging,bookings:b.lodging.bookings.map(booking=>booking.status==='waiting'?{...booking,status:'cancelled' as const,cancellationReason:'Trading week closed before check-in was completed'}:booking),lastReport:{week:state.week,occupancy:propertyById(id,state.businesses[id])!.kind==='hotel'?hotelWeeklyOccupancy(b):b.lodging.availableSeconds?b.lodging.occupiedSeconds/b.lodging.availableSeconds*100:0,averageRate:b.lodging.roomNights?b.lodging.roomRevenue/b.lodging.roomNights:0,reputation:b.lodging.reputation,served:b.venue.week.served,lost:b.venue.week.lost,revenue:b.venue.week.revenue}}}:{}),venue:{...b.venue,running:false,visitors:b.venue.visitors.filter(v=>v.state==='using'),week:{...b.venue.week,lost:b.venue.week.lost+b.venue.visitors.filter(v=>v.state==='waiting').length}},manager:b.manager?{...b.manager,spent:0}:undefined}];
     }
     let next=payWeeklyLease(propertyById(id,state.businesses[id])!,record(b,state,'Weekly sales collected',result.revenue),state);
     return[id,{...next,inventory:Object.fromEntries(businessSupplies(propertyById(id,state.businesses[id])!,b).map(i=>[i.id,Math.max(0,i.quantity-35)])),stock:Math.max(0,b.stock-35),condition:Math.max(0,b.condition-Math.max(2,12-(b.hires?.care??0)*4)),helped:false,spending:0,manager:b.manager?{...b.manager,spent:0}:undefined}];

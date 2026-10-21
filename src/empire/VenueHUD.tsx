@@ -1,3 +1,4 @@
+import {CustomerDepartureList} from './CustomerDepartureList';
 import {venueActivityTime} from './simulationTime';
 import {STORE_LEVELS,storeLevel} from './supermarket';
 import {SupermarketLossAdvice} from './SupermarketLossAdvice';
@@ -21,6 +22,7 @@ export function VenueHUD({p,b,onAction}:{p:Property;b:Business;onAction:(action:
     {blocked&&waiting.length>0&&<p className="venue-warning">{blocked}</p>}
     {!!dirty&&<button className="venue-clean" onClick={()=>onAction('clean')}> {p.kind==='hotel'?'Clean next room':'Handle next repair'}</button>}
     {b.retail&&<SupermarketLossAdvice b={b} compact onAction={onAction}/>}
+    {!b.retail&&<CustomerDepartureList items={b.customerDepartures}/>}
     <footer>Goal: {b.retail?.store?(storeLevel(b)>=5?'All departments open · review margins and stock flow':`Level ${storeLevel(b)+1}: ${v.totalServed}/${STORE_LEVELS[storeLevel(b)].shoppers} shoppers · see Upgrades`):b.plaza?(b.plaza.openFloors>=PLAZA_FLOORS?'All mall floors open · improve tenant mix':`Next floor: ${Math.min(b.plaza.leasesSigned,plazaFloorMilestone(b))}/${plazaFloorMilestone(b)} leases · $${plazaFloorCost(b).toLocaleString()}`):b.lodging?(b.lodging.openFloors>=maxFloors(p)?'All floors open · improve rooms and reputation':p.kind==='hotel'?`Next floor: ${hotelCompletedNights(b)}/${HOTEL_FLOORS[b.lodging.openFloors]?.nights} completed room-nights · see Upgrades`:`Next floor: ${apartmentWeeks(b)}/${APARTMENT_FLOORS[b.lodging.openFloors]?.weeks} occupied-home weeks · see Upgrades`):v.totalServed>=25?'Upgrade this property to grow capacity':`Serve ${v.totalServed}/25 ${rules.noun}`} · staff and stock below</footer>
   </section>;
 }

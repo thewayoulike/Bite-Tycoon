@@ -8,3 +8,40 @@ public/models/game-fit/*.glb
 *.log
 .env*
 !.env.example
+
+# Retired project and browser build must not be reintroduced
+/UnityPrototype/
+/public/unity-game/
+
+# Active Unity project's generated files and licensed third-party assets
+/UnityComparison/[Ll]ibrary/
+/UnityComparison/[Tt]emp/
+/UnityComparison/[Oo]bj/
+/UnityComparison/[Ll]ogs/
+/UnityComparison/[Uu]ser[Ss]ettings/
+/UnityComparison/[Bb]uilds/
+/UnityComparison/.vs/
+/UnityComparison/*.csproj
+/UnityComparison/*.sln*
+/UnityComparison/Assets/Brick Project Studio/
+/UnityComparison/Assets/LeartesStudios/
+/UnityComparison/Assets/Free Food-BreakfastTime/
+/UnityComparison/Assets/Food Pack-Demo/
+/UnityComparison/Assets/FastMesh/
+/UnityComparison/Assets/RPG Food & Drinks Pack/
+/UnityComparison/Assets/Realistic Tree/
+/UnityComparison/Assets/YelScryptFireStudio/
+/UnityComparison/Assets/UrbanBuilding/
+/UnityComparison/Assets/UK Terraced Houses FREE/
+/UnityComparison/Assets/EasyRoads3D/
+/UnityComparison/Assets/EasyRoads3D scenes/
+/UnityComparison/Assets/CuteMagic_Room/
+/UnityComparison/Assets/EmbersStorm - AirStrike Aviation Pack/
+/UnityComparison/Assets/POLYGON city pack/
+/UnityComparison/Assets/Lowpoly_Holiday_House/
+/UnityComparison/Assets/Industrial building/
+/UnityComparison/Assets/Boats/
+/UnityComparison/Assets/HQ Boats/
+/UnityComparison/Assets/ComparisonPrepared/
+/UnityComparison/Assets/Screenshots/
+/public/unity-comparison/Build/

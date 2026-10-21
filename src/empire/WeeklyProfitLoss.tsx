@@ -30,8 +30,13 @@ export function WeeklyProfitLoss({report:r,closed=false}:{report:WeeklyReport;cl
  </section>;
 }
 
-export function FinancialPeriodView({report,children,payroll}:{report?:WeeklyReport;children:ReactNode;payroll?:PayrollSummary}){
- const[period,setPeriod]=useState<'week'|'all'>('week');
+export function FinancialPeriodView({report,closedReport,children,payroll}:{report?:WeeklyReport;closedReport?:WeeklyReport;children:ReactNode;payroll?:PayrollSummary}){
+ const[period,setPeriod]=useState<'week'|'last'|'all'>('week');
  if(!report)return <>{payroll&&<PayrollStatus {...payroll}/ >}{children}</>;
- return <div className="financial-period-view">{payroll&&<PayrollStatus {...payroll}/>}<div className="pc-subtabs financial-period-tabs" role="tablist" aria-label="Financial reporting period"><button role="tab" className={period==='week'?'mc-button-selected':'mc-button'} aria-selected={period==='week'} onClick={()=>setPeriod('week')}>This week · {report.week}</button><button role="tab" className={period==='all'?'mc-button-selected':'mc-button'} aria-selected={period==='all'} onClick={()=>setPeriod('all')}>All time · full statements</button></div>{period==='week'?<WeeklyProfitLoss report={report}/>:children}</div>;
+ const selectedPeriod=period==='last'&&!closedReport?'week':period;
+ return <div className="financial-period-view">{payroll&&<PayrollStatus {...payroll}/>}<div className="pc-subtabs financial-period-tabs" role="tablist" aria-label="Financial reporting period">
+  <button role="tab" className={selectedPeriod==='week'?'mc-button-selected':'mc-button'} aria-selected={selectedPeriod==='week'} onClick={()=>setPeriod('week')}>This week · {report.week}</button>
+  {closedReport&&<button role="tab" className={selectedPeriod==='last'?'mc-button-selected':'mc-button'} aria-selected={selectedPeriod==='last'} onClick={()=>setPeriod('last')}>Last week · {closedReport.week}</button>}
+  <button role="tab" className={selectedPeriod==='all'?'mc-button-selected':'mc-button'} aria-selected={selectedPeriod==='all'} onClick={()=>setPeriod('all')}>All time · full statements</button>
+ </div>{selectedPeriod==='last'&&closedReport?<WeeklyProfitLoss report={closedReport} closed/>:selectedPeriod==='week'?<WeeklyProfitLoss report={report}/>:children}</div>;
 }

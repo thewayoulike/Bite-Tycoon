@@ -1,3 +1,20 @@
+# Business Simulator — active game
+
+The main game now uses **UnityComparison**, promoted from the comparison edition. Continue all city, graphics and Unity gameplay presentation work in `UnityComparison`. The retired `UnityPrototype` project and its old browser builds have been removed.
+
+- `/` and `/?mode=fast-track`: Career.
+- `/?mode=sandbox`: the same Unity city and simulation, with seven manageable properties, all levels and floors open, every room/product type available, and testing capital. Optional facilities and upgrades remain usable purchases; existing bookings, inventory and trading history are preserved.
+- `/?saves=1`: continue, export, restart or restore saves.
+- Previous Unity/comparison game URLs redirect to the main game. Existing comparison saves keep their storage keys and have priority; earlier Unity/React saves are imported once only if the corresponding main save is absent. Career and Sandbox never share balances.
+
+Run `npm run dev`. Build the WebGL scene in **UnityComparison**, then use `npm run unity:publish` to publish that project. Both modes use `public/unity-comparison/Build`; the internal folder name is retained to avoid needless changes to asset and save references. The shared `src/unity` bridge and old URL redirects remain in use for the main game and save migration.
+
+The four-plot mall uses `ComparisonMallSite.Apply()` for its civic relocations and road cut, plus `tools/prepare-comparison-mall.ts` for perimeter traffic and walks. Run the city and mall checks after regenerating scenery.
+
+For furniture and room changes, follow [the interior layout instructions](docs/INTERIOR_LAYOUT.md). Measure imported asset axes and rendered footprints, check circulation and seating orientation, and inspect every changed room category before publishing.
+
+---
+
 <div align="center">
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
@@ -33,7 +50,7 @@ Open the game at `http://127.0.0.1:4189/`. The neighborhood is the game world: c
 - Paid facilities unlock with additional floors: breakfast restaurant (hotel), gym, conference lounge and rooftop lounge. The amenities floor becomes selectable in 3D. Weekly reports show occupancy, average agreed rate, income and reputation; financials retain P&L, balance sheet, cash flow, wages owed and business loans.
 - All businesses share a calendar, but their cash is separate. **Finance** records loans and repayments; borrowing is not sales income. Rent is paid once at week end, and wages are paid after the first three days of the following week.
 - Kitchens keep running while you visit another property. Use the global pause control while planning; a restaurant without a waiter still needs you to take and serve orders.
-- Progress saves automatically in this browser on this device every two seconds and on page exit. There is no offline income. The separate `expansion.html` prototype still uses sample money and does not change the main save. The detailed `property-preview.html` prototype demonstrates all seven properties, native restaurant recipe/ingredient screens, and matching three-statement financial reports. Its sample accounts reset on reload.
+- Progress saves automatically in this browser on this device every two seconds and on page exit. There is no offline income. Use Sandbox in the main game for testing buildings and their financial reports; the separate expansion and property preview pages have been removed.
 - **Testing · unlock all** opens all seven properties between weeks and tops each separate account up to $25,000. Recipes and staff milestones become available without changing sales history, existing staff, inventories, or loans. **Testing · top up funds** can replenish funds again; balances above $25,000 stay intact. Test grants are capital, not trading income, and persist in the save.
 
 Validation: `npm test`, `npm run lint`, and `npm run build`.

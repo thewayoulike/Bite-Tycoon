@@ -51,7 +51,8 @@ test('new cleaners spawn clear of furniture and can reach every table',()=>{
 });
 
 test('every guest approaches their own chair without crossing any tabletop or other chair, including on departure',()=>{
- for(const tables of [full(),full().map((t,i)=>i===0?{...t,x:storedPos(-15.5)}:t)])for(const table of tables)for(let seat=0;seat<4;seat++){
+ const movedEntranceTables=[[-15,18],[-15,-2.5],[15,-2.5],[15,18]].map(([x,z],i)=>({...full()[i],x:storedPos(x),y:storedPos(z)}));
+ for(const tables of [full(),full().map((t,i)=>i===0?{...t,x:storedPos(-15.5)}:t),movedEntranceTables])for(const table of tables)for(let seat=0;seat<4;seat++){
   const route=customerSeatPath(table,seat,tables);
   assert.ok(route.length>2,table.id+' chair '+seat+' reachable');
   assert.deepEqual(route.at(-1),seatPoint(table,seat));

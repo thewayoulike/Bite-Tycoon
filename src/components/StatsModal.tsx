@@ -1,3 +1,4 @@
+import {CustomerDepartureList} from '../empire/CustomerDepartureList';
 import {transitValue} from '../inventory/stockroom';
 import React, { useState } from 'react';
 import { Users, DollarSign, TrendingUp, TrendingDown, PieChart, Landmark, FileText, Activity } from 'lucide-react';
@@ -11,9 +12,10 @@ interface StatsModalProps {
   state: GameState;
   account?:ReturnType<typeof businessFinance>;
   weeklyReport?:WeeklyProfitLoss;
+  closedReport?:WeeklyProfitLoss;
 }
 
-export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,account={depreciation:0,leaseDue:0,openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
+export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,closedReport,account={depreciation:0,leaseDue:0,openingCash:STARTING_MONEY,initialContribution:STARTING_MONEY+INITIAL_INVENTORY_VALUE,propertyCost:0,loansPayable:0,loansReceivable:0} }) => {
   const [activeSubTab, setActiveSubTab] = useState<'statements' | 'kpis'>('statements');
 
   const formatMoney = (val: number) => {
@@ -54,8 +56,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({ state,weeklyReport,accou
   const laborRatio = state.stats.totalEarned > 0 ? Math.round(((state.stats.salaryCosts + state.stats.managerCosts) / state.stats.totalEarned) * 100) : 0;
 
   return (
-    <FinancialPeriodView report={weeklyReport} payroll={{cash:state.money,owed:unpaidWages,due:state.pendingPayroll.filter(p=>state.week>p.dueWeek||(state.week===p.dueWeek&&state.time>=300/7)).reduce((sum,p)=>sum+p.amount,0)}}>
-    <div className="flex flex-col h-full font-mono">
+    <FinancialPeriodView report={weeklyReport} closedReport={closedReport} payroll={{cash:state.money,owed:unpaidWages,due:state.pendingPayroll.filter(p=>state.week>p.dueWeek||(state.week===p.dueWeek&&state.time>=300/7)).reduce((sum,p)=>sum+p.amount,0)}}>
+    <div className="flex flex-col h-full font-mono"><CustomerDepartureList items={state.customerDepartures} week={state.week}/>
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-4 border-[#8b8b8b] pb-3 mb-3">
         <div className="flex items-center gap-2.5">

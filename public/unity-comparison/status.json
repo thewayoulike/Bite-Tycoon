@@ -1,0 +1,90 @@
+{
+  "stage": "ready",
+  "version": "705199cd13b773eb",
+  "message": "CITY buildings retain their architecture when acquired. Willow Galleria now occupies a four-plot city block, with broad shopping wings, a glass atrium and roads routed around its perimeter. Shops have colourful neon nameboards at night. The city also includes a petrol station and 12 controlled traffic-light junctions. Seven selected packs and nine additional packs are active; the other two remain imported. The first browser download is about 114 MB. Business rules, staffing, stock and progression use the same game logic.",
+  "packs": [
+    {
+      "id": 229716,
+      "name": "European Forests - Realistic Trees",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/3f15e120-9ae4-436d-ae17-b89e10fddc61.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/vegetation/trees/european-forests-realistic-trees-229716",
+      "use": "Birch, ash and spruce trees, with reduced detail at longer viewing distances.",
+      "status": "integrated"
+    },
+    {
+      "id": 124055,
+      "name": "Apartment Kit",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/c59c42fc-2e1f-4140-a786-6c766e086add.png?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/environments/apartment-kit-124055",
+      "use": "Beds, lounge seating and coffee equipment in business interiors.",
+      "status": "integrated"
+    },
+    {
+      "id": 381394,
+      "name": "Low Poly Road Vehicles Free Package",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/b71995d0-bfbe-4ab6-8a0e-eebfe28a1169.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/vehicles/land/low-poly-road-vehicles-free-package-381394",
+      "use": "Sedans, pickups, sports cars, vans and factory delivery trucks on the existing road routes.",
+      "status": "integrated"
+    },
+    {
+      "id": 130318,
+      "name": "Urban building",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/fc90b141-0205-487f-acce-e84fd4eba757.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/props/exterior/urban-building-130318",
+      "use": "Imported and retained for comparison; the active scenery now uses CITY package buildings.",
+      "status": "available"
+    },
+    {
+      "id": 63481,
+      "name": "UK Terraced Houses Pack FREE",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/cab7412b-7dff-459c-81a2-e63ee5d71880.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/environments/urban/uk-terraced-houses-pack-free-63481",
+      "use": "Imported and retained; CITY package houses are now active in this edition.",
+      "status": "available"
+    },
+    {
+      "id": 987,
+      "name": "EasyRoads3D Free v3",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/1f9c50d8-274c-4327-83ef-4a2bfc74e072.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/characters/easyroads3d-free-v3-987",
+      "use": "Only the asphalt normal texture is used. Road meshes, intersections and layout were not built with the EasyRoads3D editor.",
+      "status": "texture-only"
+    },
+    {
+      "id": 375558,
+      "name": "Cute Low Poly Kitchen Pack - Colorful Interior Props",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/4d553ee7-3312-4fc4-88de-a88260d4c8eb.png?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/props/cute-low-poly-kitchen-pack-colorful-interior-props-375558",
+      "use": "Kitchen racks and bread displays in restaurants.",
+      "status": "integrated"
+    },
+    {
+      "id": 383550,
+      "name": "EmbersStorm - Free Air Vehicles Planes, Helicopters & Fighter Jets Pack",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/d84af0dc-4ed1-447c-96a8-5f8336762d7f.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/vehicles/air/embersstorm-free-air-vehicles-planes-helicopters-fighter-jets-pa-383550",
+      "use": "Airliners at the terminal and on the existing arrival and departure routes.",
+      "status": "integrated"
+    },
+    {
+      "id": 107224,
+      "name": "CITY package",
+      "image": "https://assetstorev1-prd-cdn.unity3d.com/key-image/2e89e5d2-c21b-4926-8c68-6d9dedad9bd5.jpg?v=1",
+      "url": "https://assetstore.unity.com/packages/3d/environments/urban/city-package-107224",
+      "use": "26 prepared designs: six house models and 20 commercial styles across 319 homes and 80 scenery parcels. Existing CITY buildings retain their exterior when acquired; new construction uses the glass-fronted business models.",
+      "status": "integrated"
+    }
+  ],
+  "additional": [
+    "Industrial Building / Garage — airport maintenance building",
+    "Old Rowboat — small harbour boats",
+    "HQ Motorboats — motorboats along the waterfront",
+    "Coffee Shop Environment — dining tables and chairs",
+    "Fast Food Restaurant Kit — countertop display",
+    "Table Pack — apartment furniture",
+    "Free Food: Breakfast Time — breakfast boards, cups and fruit",
+    "RPG Food & Drinks — served meals and produce",
+    "Food Pack Free Demo — supermarket produce"
+  ]
+}

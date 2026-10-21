@@ -1,0 +1,9 @@
+Furniture Kit by Kenney: https://kenney.nl/assets/furniture-kit
+Food Kit by Kenney: https://kenney.nl/assets/food-kit
+Both downloaded from the creator's official site, licensed CC0.
+Original license text is retained in each asset subfolder.
+
+Selected furniture was refined in Blender 4.5.9 LTS: rounded edges and weighted
+normals. Only five furniture and four produce assets are included in the game.
+tools/refine-unity-assets.py reproduces the refinements from the source archives.
+The concierge counter under Art/Original is an original Blender model.
