@@ -1,12 +1,13 @@
 import {venueStep,venueActivityTime,CALENDAR_WEEK_SECONDS} from './simulationTime';
 import {crewPower,ensureCrew} from '../career/crew';
+import {advanceStoreLogistics} from './supermarketLogistics';
 const team=(b:Business,role:string,base=0,zone=-1)=>crewPower(ensureCrew(propertyById('shop')!,b),role,(8+(b.venue?.clock??0)*7*24/180)%24,base+(b.hires?.[role]??0),zone);
 import {supermarketTravelSeconds,supermarketBrowseSeconds,supermarketProductPoint} from './supermarketLayout';
 import type {Business,Property} from '../prototype/expansionModel';
 import {businessWages,propertyById} from '../prototype/expansionModel';
 import {retailProduct,retailProductFloor,retailPrice,consumeRetailStock,retailStockLevel,retailItemValue} from './retail';
 import {recordStockUse,stockDay} from '../inventory/stockroom';
-import {STORE_LEVELS,storeBasket,basketQuantity,shelfQuantity,backroomQuantity,productUnlocked,department,coldProduct,metric,replenishShelf,receiveStoreGoods,recordStoreSale,dispatchStoreDelivery,largeAppliance,storeLevel,recordStoreLoss,STORE_LOSS_LABELS,type StoreLossReason} from './supermarket';
+import {STORE_LEVELS,storeBasket,basketQuantity,shelfQuantity,backroomQuantity,productUnlocked,department,coldProduct,metric,recordStoreSale,dispatchStoreDelivery,largeAppliance,storeLevel,recordStoreLoss,STORE_LOSS_LABELS,type StoreLossReason} from './supermarket';
 import type {StoreEvent} from './supermarket';
 import {STORE_REPAIR_COST,STORE_REPAIR_SECONDS,resolveStoreEvent} from './supermarket';
 import type {VenueVisitor,ShoppingItem,BasketItem} from './venueSimulation';
@@ -168,7 +169,7 @@ function storeEvents(b:Business,week:number,day:number):Business{
 }
 export function advanceSupermarket(p:Property,b:Business,delta:number,week:number,day:number,demand=1,calendarRate=1):Business{
  if(!b.venue?.running||!b.retail?.store||delta<=0)return b;const {activity:dt,calendar:calendarDelta}=venueStep(b.venue.clock,delta,calendarRate);if(dt<=0)return b;
- let next=advanceStoreMaintenance(p,storeEvents(b,week,day),dt,week,day),st=next.retail!.store!,v=next.venue!;
+ let next=advanceStoreLogistics(advanceStoreMaintenance(p,storeEvents(b,week,day),dt,week,day),dt),st=next.retail!.store!,v=next.venue!;
  const visitors:VenueVisitor[]=[],reserved:Record<string,number>={};let lost=0;
  for(const old of v.visitors){let person={...old};if(person.state==='waiting'){
    const actuallyWaiting=person.basket?(person.checkoutReadyAt??0)<=venueActivityTime(v):reachedProduct(next,person)&&!!storeCollectionBlocker(next,person);
@@ -216,10 +217,8 @@ export function advanceSupermarket(p:Property,b:Business,delta:number,week:numbe
   }
  }
  st=next.retail!.store!;
- const replenish=st.replenishTimer+dt,receiving=st.receivingTimer+dt,delivery=st.deliveryTimer+dt;
- next={...next,retail:{...next.retail!,store:{...st,replenishTimer:replenish,receivingTimer:receiving,deliveryTimer:delivery,jobProgress:Math.min(1,(st.jobProgress??0)+dt/4)}}};
- if(receiving>=1/(team(next,'care',1,0)+team(next,'receiving',0,0)*2)){next=receiveStoreGoods(next);next={...next,retail:{...next.retail!,store:{...next.retail!.store!,receivingTimer:0}}};}
- if(replenish>=1.2/team(next,'care',1,0)){next=replenishShelf(next);next={...next,retail:{...next.retail!,store:{...next.retail!.store!,replenishTimer:0}}};}
+ const delivery=st.deliveryTimer+dt;
+ next={...next,retail:{...next.retail!,store:{...st,deliveryTimer:delivery,jobProgress:Math.min(1,(st.jobProgress??0)+dt/4)}}};
  for(const person of next.venue!.visitors.filter(v=>v.state==='waiting'&&!v.basket)){
   next=collectStoreBasket(next,person.id);
   next=recoverGroceryShopping(next,person.id);

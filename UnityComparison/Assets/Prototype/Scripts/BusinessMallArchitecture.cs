@@ -9,7 +9,7 @@ public sealed partial class BusinessGameBridge
     const float MallFloorHeight=4.4f;
     static bool GalleriaSite(BusinessProperty p)=>p.kind=="plaza"&&p.id=="park";
     static Vector3 SiteExtent(BusinessProperty p)=>GalleriaSite(p)?new(41.2f,4,41.2f):new(16.8f,4,16.8f);
-    static float StoreyHeight(BusinessProperty p)=>p.kind=="plaza"?MallFloorHeight:2.9f;
+    static float StoreyHeight(BusinessProperty p)=>p.kind=="plaza"?MallFloorHeight:p.kind=="shop"?5.55f:2.9f;
     static Vector3 SiteOffset(BusinessProperty p)=>GalleriaSite(p)?new(12.5f,0,-9.5f):Vector3.zero;
     static Vector3 SiteCenter(BusinessProperty p)=>new Vector3(p.x,0,p.z)+SiteOffset(p);
     static readonly Vector3 GalleriaPlanScale=new(1.7f,1,1.32f);

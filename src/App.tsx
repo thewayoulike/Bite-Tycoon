@@ -9,9 +9,10 @@ import {resetSaveSlots} from './empire/saveSlots';
 import {newGame} from './empire/newGame';
 import { useGameLoop, GameOptions } from './hooks/useGameLoop';
 import {
-  ChefHat, Coffee, Utensils, DollarSign, Users, Clock, ArrowUpCircle,
-  BookOpen, Package, PaintBucket, TrendingUp, Beaker, AlertTriangle,
-  Sparkles, Layers, CheckCircle2, UserCheck, Eraser, Info, Building2
+  ChefHat, Utensils, DollarSign, Users, ArrowUpCircle,
+  BookOpen, Package, TrendingUp, Beaker, AlertTriangle,
+  Sparkles, Layers, CheckCircle2, UserCheck, Eraser, Info, Building2,
+  Play, Pause, Volume2, VolumeX, BriefcaseBusiness, ArrowUpRight, Sun, Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GameWorld3D } from './components/GameWorld3D';
@@ -23,7 +24,6 @@ import {BusinessPurchasing} from './empire/BusinessPurchasing';
 import { RecipesModal } from './components/RecipesModal';
 import { StatsModal } from './components/StatsModal';
 import { AnalysisModal } from './components/AnalysisModal';
-import { LayoutsModal } from './components/LayoutsModal';
 import { UpgradesModal } from './components/UpgradesModal';
 import { activeRecipes, nextMilestone, shiftLabel } from './gameplay';
 import { soundEngine } from './utils/audio';
@@ -49,6 +49,7 @@ import {weeklyProfitLoss} from './empire/weeklyFinance';
 import {WorldPropertyPanel,WorldWeekReport} from './empire/WorldPropertyPanel';
 import type {ManagementTab,RestaurantSection} from './prototype/BusinessManagement';
 import './graphics/gameLook.css';
+import './graphics/forestHud.css';
 
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -66,7 +67,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const [firstMarketHidden,setFirstMarketHidden]=useState(false);
   const firstAcquisition=!!district.market&&!Object.keys(district.businesses).length;
   const [deskPane,setDeskPane]=useState<'guide'|'storage'>('guide');
-  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'layouts' | 'analysis' | 'lab'>('restaurant');
+  const [activeTab, setActiveTab] = useState<'restaurant' | 'upgrades' | 'recipes' | 'inventory' | 'stats' | 'analysis' | 'lab'>('restaurant');
   const [focusedProperty,setFocusedProperty]=useState<string|null>(prototype||!Object.keys(district.businesses).length?null:empire.activeRestaurantId);
   const [selectedProperty,setSelectedProperty]=useState<string|null>(null);
   const [propertyTab,setPropertyTab]=useState<ManagementTab>('run');
@@ -76,16 +77,22 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   const [showWelcome, setShowWelcome] = useState(!prototype&&!district.market&&state.week===1&&state.stats.customersServed===0&&Object.keys(empire.restaurants).length===1);
   const [isMuted, setIsMuted] = useState(!soundEngine.enabled);
   const headerRef=useRef<HTMLElement|null>(null);
+  const dockRef=useRef<HTMLElement|null>(null);
   const [hudBottom,setHudBottom]=useState(96);
+  const [dockHeight,setDockHeight]=useState(64);
   const [openingType,setOpeningType]=useState<RestaurantType>('diner');
 
   useEffect(()=>{
     if(gamePhase!=='playing'||!headerRef.current)return;
     const header=headerRef.current;
-    const observer=new ResizeObserver(()=>setHudBottom(header.getBoundingClientRect().bottom-(header.closest('.game-ui')?.getBoundingClientRect().top??0)+10));
+    const observer=new ResizeObserver(()=>{
+      setHudBottom(header.getBoundingClientRect().bottom-(header.closest('.game-ui')?.getBoundingClientRect().top??0)+12);
+      if(dockRef.current)setDockHeight(dockRef.current.getBoundingClientRect().height);
+    });
     observer.observe(header);
+    if(dockRef.current)observer.observe(dockRef.current);
     return ()=>observer.disconnect();
-  },[gamePhase]);
+  },[gamePhase,firstAcquisition]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -152,6 +159,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
       return;
     }
     setFocusedProperty(empire.activeRestaurantId);setSelectedProperty(null);
+    if(id==='layouts'){setActiveTab('restaurant');return;}
     setActiveTab(activeTab===id?'restaurant':id as typeof activeTab);
   };
 
@@ -166,7 +174,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
     if(empire.restaurants[id]){
       actions.enterRestaurant(id);setSelectedProperty(screen==='loans'?id:null);
       setPropertyTab('finance');setInsideVenue(null);
-      setActiveTab(inside||screen==='loans'?'restaurant':screen as RestaurantSection);
+      setActiveTab(inside||screen==='loans'||screen==='layouts'?'restaurant':screen as RestaurantSection);
     }else{
       setInsideVenue(id);setActiveTab(screen==='inventory'?'inventory':'restaurant');
       setSelectedProperty(inside||screen==='inventory'?null:id);
@@ -199,40 +207,38 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
   if(firstAcquisition)return <div className="game-ui w-screen h-dvh relative bg-stone-900"><WorldComponent state={state} worldProgress={0} restaurants={{}} district={district} actions={actions} focus={null} selected={selectedProperty} onSelect={id=>{setShowMarket(id);setFirstMarketHidden(false);}} onOverview={()=>setSelectedProperty(null)} onInteract={()=>{}} testing={false} onTestUnlock={()=>{}} onReport={()=>{}}/>{!firstMarketHidden?<PropertyMarket key={showMarket??'first'} state={district} restaurants={{}} onChange={actions.updateDistrict} onEnter={enterBuilding} onClose={()=>setFirstMarketHidden(true)} onLocate={locateSite} initialId={showMarket??undefined}/>:<div className="market-first-guide"><strong>Choose how to open your first business</strong><p>Blue: empty shops to lease · Gold: operating businesses for sale · Green: land</p><button className="mc-button" onClick={()=>setFirstMarketHidden(false)}>Open property market · $250,000</button></div>}{gameOptions?.persist===false&&<div className="market-preview-note">Preview · changes are not saved</div>}</div>;
 
   return (
-    <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`} as React.CSSProperties}>
-      {district.market&&<button className="mc-button market-launch" onClick={()=>setShowMarket('market')}>Property market · Level {district.market.level}</button>}
+    <div className="game-ui w-screen h-dvh overflow-hidden font-sans select-none relative bg-stone-900" style={{'--world-hud-bottom':`${hudBottom}px`,'--hud-dock-height':`${dockHeight}px`} as React.CSSProperties}>
+      {district.market&&<button className="mc-button market-launch" onClick={()=>setShowMarket('market')}><Building2 size={17} aria-hidden="true"/><span>Property market<small>Level {district.market.level}</small></span><ArrowUpRight size={15} aria-hidden="true"/></button>}
       {showMarket&&district.market&&<PropertyMarket key={showMarket} initialId={showMarket==='market'?undefined:showMarket} state={district} restaurants={empire.restaurants} onChange={actions.updateDistrict} onEnter={id=>{enterBuilding(id);setDeskPane('guide');setShowDesk(true);}} onClose={()=>setShowMarket(null)} onLocate={locateSite}/>}
       {gameOptions?.persist===false&&!proposal&&<div className="market-preview-note">Preview · changes are not saved</div>}
-      <button className="mc-button desk-launch" onClick={()=>{setDeskPane('guide');setShowDesk(true);}}>Business desk · plans & people</button>
+      <button className="mc-button desk-launch" title="Plans, people and business settings" onClick={()=>{setDeskPane('guide');setShowDesk(true);}}><BriefcaseBusiness size={16} aria-hidden="true"/>Business desk</button>
       {showDesk&&<CareerDesk onMarket={district.market?()=>{setShowDesk(false);setShowMarket('market');}:undefined} initialPane={deskPane} empire={{...empire,district}} id={shownId} onChange={actions.updateEmpire} onEnter={id=>enterBuilding(id)} onClose={()=>setShowDesk(false)}/>}
       {/* 3D Canvas Viewport */}
       <div className="absolute inset-0 z-0">
         <WorldComponent state={state} worldProgress={worldProgress} restaurants={empire.restaurants} district={district} actions={actions} focus={focusedProperty} selected={selectedProperty} onSelect={selectBuilding} onOverview={overview} onInteract={interactWithVenue} testing={!!empire.testingUnlocked} onTestUnlock={()=>{actions.unlockTestDistrict();setShowWelcome(false);overview();}} onReport={()=>setShowDistrictReport(true)} viewRequest={prototype&&proposal?{request:proposal.request,floor:proposal.floor,detail:proposal.screen==='exterior'?'exterior':'room'}:undefined}/>
       </div>
 
-      {/* Retro HUD Overlay */}
+      {/* Shared Forest & gold HUD for Career and Sandbox. */}
       <div className="game-overlay absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-2 md:p-3">
         {/* Top Header Bar */}
         <header
           ref={headerRef}
-          className="game-topbar mc-panel p-2.5 flex flex-wrap justify-between items-center pointer-events-auto shadow-xl font-mono gap-2"
-          style={{ imageRendering: 'pixelated' }}
+          className="game-topbar pointer-events-auto"
         >
           {/* Brand & Table Status */}
-          <div className="flex items-center gap-2 md:gap-3">
-            <div className="bg-[#475569] text-yellow-300 p-2 mc-slot flex items-center justify-center">
-              <Utensils size={18} />
+          <div className="hud-business">
+            <div className="hud-business-icon">
+              {nonFood?<Building2 size={21} aria-hidden="true"/>:<Utensils size={21} aria-hidden="true"/>}
             </div>
             <div>
-              <h1 className="text-base md:text-lg font-black tracking-widest text-[#2b2b2b] uppercase leading-none">
+              <h1 title={businessName}>
                 {businessName}
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[9px] font-bold text-[#555555] uppercase flex items-center gap-1">
-                  <Coffee size={10} className="text-[#3b82f6]" />
+              <div className="hud-business-detail">
+                <span>
                   {nonFood?(shownProperty.kind==='shop'?`Level ${district.businesses[shownId].retail?.store?.level??1} · ${district.businesses[shownId].retail?.shelves.length??0} selected products · ${district.businesses[shownId].retail?.electronicsUnlocked?'2 floors':'ground floor'}`:`${district.businesses[shownId].venue?.units.length || shownProperty.capacity} ${shownProperty.kind==='plaza'?'shops':shownProperty.unit}`):`Tables: ${occupiedTables} / ${state.tables.length}`}
                 </span>
-                <span className="text-[9px] font-bold text-[#555555] uppercase hidden sm:inline">
+                <span>
                   {nonFood?'Own staff · own inventory':`• ${state.staff.chefs} Chefs • ${state.staff.waiters} Waiters`}
                 </span>
               </div>
@@ -240,88 +246,79 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
           </div>
 
           {/* Center: Big Tactile Restaurant Status Button & Low Stock Alert */}
-          <div className="flex items-center gap-2">
+          <div className="hud-actions">
             <button
               onClick={() => focusedRestaurant?actions.toggleRestaurantState():actions.startEmpireWeek()}
               disabled={focusedRestaurant?(state.phase === "closing"||(state.phase==='planning'&&!allPlanning)):!allPlanning}
-              className={`px-5 py-2 font-black text-xs md:text-sm tracking-widest transition-all active:scale-95 flex items-center gap-2 ${
-                state.isRestaurantOpen
-                  ? 'mc-button-red animate-none'
-                  : 'mc-button-green animate-pulse'
-              }`}
+              className="hud-service-button"
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${state.isRestaurantOpen ? 'bg-white animate-ping' : 'bg-white'}`} />
+              {state.isRestaurantOpen?<Pause size={15} aria-hidden="true"/>:<Play size={15} aria-hidden="true"/>}
               <span>{!focusedRestaurant?(allPlanning?`START WEEK ${district.week}`:'WEEK IN PROGRESS'):state.phase === "planning" ? (allPlanning?`START WEEK ${state.week}`:'OTHER KITCHENS FINISHING') : state.phase === "closing" ? "FINISHING SERVICE" : state.isRestaurantOpen ? "PAUSE ARRIVALS" : "RESUME ARRIVALS"}</span>
             </button>
 
             {!nonFood && lowStockCount > 0 && (
               <button
                 onClick={() => navigate('inventory')}
-                className="mc-button-gold px-2.5 py-2 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow"
+                className="hud-stock-alert"
                 title="Critical low stock in active recipes! Click to open Pantry."
               >
-                <AlertTriangle size={13} className="text-red-700 animate-bounce" />
-                <span className="hidden sm:inline">Low Stock:</span>
+                <AlertTriangle size={14} aria-hidden="true" />
+                <span>Low stock ·</span>
                 <span>{lowStockCount}</span>
               </button>
             )}
           </div>
 
           {/* Right: Cash Treasury, Calendar & Shift Clock */}
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="hud-status">
             {/* Money Box */}
-            <div title={`${businessName} cash only`} className="flex items-center gap-1.5 mc-slot text-[#2b2b2b] px-3 py-1.5 font-black bg-[#f1f5f9]">
-              <DollarSign size={16} className="text-[#2e7d32]" />
-              <span className="text-sm md:text-base tracking-wider font-black text-[#1b5e20]">
-                {(district.businesses[shownId]?.cash??state.money).toLocaleString(undefined,{maximumFractionDigits:0})}
-              </span>
+            <div title={`${businessName} cash only`} className="hud-cash">
+              <span className="hud-eyebrow">Business cash</span>
+              <strong>${(district.businesses[shownId]?.cash??state.money).toLocaleString(undefined,{maximumFractionDigits:0})}</strong>
             </div>
 
             {/* Time / Week Tracker */}
-            <div className="flex items-center gap-2 text-[#2b2b2b] font-bold mc-slot px-3 py-1.5 bg-[#f1f5f9]">
-              <Clock size={15} className="text-[#c62828]" />
-              <div className="flex flex-col">
-                <span className="tracking-wider uppercase text-[9px] font-black text-[#475569] leading-none">
-                  Wk {currentWeek}, Day {dayOfWeek} · {clock.label} {clock.isNight?'☾':'☀'}
-                </span>
-                <div className="w-16 sm:w-20 h-2 bg-[#94a3b8] overflow-hidden mt-1 rounded-sm border border-[#475569]">
+            <div className="hud-clock">
+                <strong>Week {currentWeek} · Day {dayOfWeek}</strong>
+                <span>{clock.isNight?<Moon size={13} aria-hidden="true"/>:<Sun size={13} aria-hidden="true"/>}{clock.label} · {clock.isNight?'Night':'Daytime'}</span>
+                <div className="hud-week-track" role="progressbar" aria-label="Week progress" aria-valuenow={Math.round(worldProgress)} aria-valuemin={0} aria-valuemax={100}>
                   <div
-                    className="h-full bg-[#2e7d32] transition-all duration-100 ease-linear shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                    className="hud-week-progress"
                     style={{ width: `${worldProgress}%` }}
                   />
                 </div>
-              </div>
             </div>
 
             {/* Game Speed Multipliers */}
-            <div className="flex items-center gap-0.5 mc-slot p-1 bg-[#f1f5f9]">
+            <div className="hud-speed" role="group" aria-label="Game speed">
               <button
                 onClick={() => actions.setGameSpeed(0)}
-                className={`px-1.5 py-0.5 text-[10px] font-black rounded transition-colors ${state.gameSpeed === 0 ? 'bg-red-600 text-white' : 'hover:bg-stone-200 text-stone-700'}`}
+                aria-pressed={state.gameSpeed === 0}
+                aria-label="Pause game"
                 title="Pause Game"
               >
-                ⏸
+                <Pause size={15} aria-hidden="true"/>
               </button>
               <button
                 onClick={() => actions.setGameSpeed(1)}
-                className={`px-1.5 py-0.5 text-[10px] font-black rounded transition-colors ${state.gameSpeed === 1 ? 'bg-blue-600 text-white' : 'hover:bg-stone-200 text-stone-700'}`}
+                aria-pressed={state.gameSpeed === 1}
                 title="1x Normal Speed"
               >
-                1X
+                1×
               </button>
               <button
                 onClick={() => actions.setGameSpeed(2)}
-                className={`px-1.5 py-0.5 text-[10px] font-black rounded transition-colors ${state.gameSpeed === 2 ? 'bg-amber-500 text-white' : 'hover:bg-stone-200 text-stone-700'}`}
+                aria-pressed={state.gameSpeed === 2}
                 title="2x Fast Speed"
               >
-                2X
+                2×
               </button>
               <button
                 onClick={() => actions.setGameSpeed(5)}
-                className={`px-1.5 py-0.5 text-[10px] font-black rounded transition-colors ${state.gameSpeed === 5 ? 'bg-emerald-600 text-white' : 'hover:bg-stone-200 text-stone-700'}`}
+                aria-pressed={state.gameSpeed === 5}
                 title="5x Rush Speed"
               >
-                5X
+                5×
               </button>
             </div>
 
@@ -331,19 +328,22 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                 const muted = soundEngine.toggleMute();
                 setIsMuted(muted);
               }}
-              className="mc-slot p-1.5 px-2 bg-[#f1f5f9] hover:bg-white text-stone-700 font-black text-xs active:scale-95 transition-all"
+              className="hud-sound"
+              aria-label={isMuted ? "Unmute audio" : "Mute audio"}
+              aria-pressed={!isMuted}
               title={isMuted ? "Unmute Audio" : "Mute Audio"}
             >
-              {isMuted ? '🔇' : '🔊'}
+              {isMuted ? <VolumeX size={16} aria-hidden="true"/> : <Volume2 size={16} aria-hidden="true"/>}
             </button>
           </div>
         </header>
 
         {/* Bottom Hotbar Navigation Dock */}
         <div className="game-dock p-2 flex justify-center pointer-events-auto pb-4">
-          <div
-            className="game-dock-panel mc-panel p-1.5 flex gap-1.5 font-mono overflow-x-auto custom-scrollbar max-w-full shadow-2xl"
-            style={{ imageRendering: 'pixelated' }}
+          <nav
+            ref={dockRef}
+            aria-label="Business management"
+            className="game-dock-panel"
           >
             {(nonFood?[
               {id:'district',label:'Neighborhood',icon:<Building2 size={18}/>,badge:null},
@@ -361,7 +361,6 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
               { id: 'recipes', label: 'Menu & Prices', icon: <BookOpen size={18} />, badge: null },
               { id: 'lab', label: 'Research Lab', icon: <Beaker size={18} />, badge: state.money >= 2500 ? '⭐' : null },
               { id: 'inventory', label: 'Pantry', icon: <Package size={18} />, badge: lowStockCount > 0 ? `${lowStockCount}!` : null },
-              { id: 'layouts', label: 'Decor', icon: <PaintBucket size={18} />, badge: null },
               { id: 'stats', label: 'Financials', icon: <Users size={18} />, badge: null },
               { id: 'analysis', label: 'Sales Mix', icon: <TrendingUp size={18} />, badge: null },
               { id: 'loans', label: 'Loans', icon: <DollarSign size={18} />, badge: null }
@@ -375,24 +374,22 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                   aria-pressed={isActive}
                   title={tab.label}
                   onClick={() => navigate(tab.id)}
-                  className={`px-3 py-2 font-black flex items-center gap-1.5 transition-all outline-none whitespace-nowrap text-xs relative ${
-                    isActive ? 'mc-button-selected scale-95' : 'mc-button'
-                  }`}
+                  className="hud-nav-button"
                 >
                   {tab.icon}
-                  <span className="uppercase tracking-wider text-[10px]">
+                  <span className="hud-nav-label">
                     {tab.label}
                   </span>
 
                   {tab.badge && (
-                    <span className="absolute -top-1.5 -right-1 bg-red-600 text-white rounded-full px-1 py-0.2 text-[8px] font-black border border-stone-800 shadow animate-pulse">
+                    <span className="hud-nav-badge">
                       {tab.badge}
                     </span>
                   )}
                 </button>
               );
             })}
-          </div>
+          </nav>
         </div>
       </div>
 
@@ -495,7 +492,6 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                      activeTab === 'recipes' ? <BookOpen size={20} /> :
                      activeTab === 'lab' ? <Beaker size={20} /> :
                      activeTab === 'stats' ? <Users size={20} /> :
-                     activeTab === 'layouts' ? <PaintBucket size={20} /> :
                      activeTab === 'analysis' ? <TrendingUp size={20} /> :
                      <Package size={20} />}
                   </div>
@@ -505,7 +501,6 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                        activeTab === 'recipes' ? 'Menu & Prices' :
                        activeTab === 'lab' ? 'Culinary Research & Development' :
                        activeTab === 'stats' ? 'Financial Reports' :
-                       activeTab === 'layouts' ? 'Diner Architecture & Decor' :
                        activeTab === 'analysis' ? 'Sales Mix & Performance Analytics' :
                        nonFood?'Inventory':'Pantry'}
                     </h2>
@@ -601,17 +596,6 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
                     itemsSold={state.stats.itemsSold}
                     itemRevenues={state.stats.itemRevenues}
                     recipes={state.recipes}
-                  />
-                )}
-
-                {activeTab === 'layouts' && (
-                  <LayoutsModal
-                    restaurantLayout={state.restaurantLayout}
-                    wallColor={state.wallColor}
-                    frameColor={state.frameColor}
-                    onSetLayout={actions.setRestaurantLayout}
-                    onSetWallColor={actions.setWallColor}
-                    onSetFrameColor={actions.setFrameColor}
                   />
                 )}
 

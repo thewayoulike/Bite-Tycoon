@@ -1,3 +1,4 @@
+import {acquisitionInterior} from '../empire/interiorStyles';
 import {addDeparture} from '../empire/customerDepartures';
 import {cleanBusinessName,validateBusinessSetup,type BusinessSetup,type BuildingDesignId} from '../empire/buildingDesigns';
 import {crewPremium} from '../career/crew';
@@ -54,6 +55,7 @@ export type Business = {
   leaseDue?:number;leaseChargedWeek?:number;leaseLastAttemptDay?:number;
   deferredIncome?:number;tenantDeposits?:number;
   restaurantType?:RestaurantType;
+  interiorStyle?:import('../empire/interiorStyles').RestaurantInteriorId;
   tenure:'owned'|'leased'; cash:number; price:'value'|'standard'|'premium'; stock:number; condition:number;
   upgrade:number; helped:boolean; spending:number; inventory?:Record<string,number>; hires?:Record<string,number>;
   manager?:{enabled:boolean;budget:number;spent:number;reserve:number}; ledger:LedgerEntry[];
@@ -162,11 +164,12 @@ export function acquire(state:ExpansionState,id:string,tenure:Business['tenure']
   if(tenure==='leased'&&!canLease(p.kind))return {...state,notice:p.kind==='plaza'?'Malls are purchase-only. Buy an existing mall.':'Only empty restaurant and supermarket units can be leased. This building is purchase-only.'};
   if(state.market)return acquireMarketProperty(state,id,tenure,fundingId,restaurantType,term,setup);
   const setupError=validateBusinessSetup(setup,false);if(setupError)return {...state,notice:setupError};
+  const interior=acquisitionInterior(p.kind,tenure==='leased'?'lease':'purchase',restaurantType,setup.interiorStyle);if(interior.error)return {...state,notice:interior.error};
   if(!source)return state;
   const cost=tenure==='owned'?p.buy:p.deposit,total=cost+OPENING_CASH;
   if(cost<=0||source.cash<total)return{...state,notice:`The funding business needs $${total.toLocaleString()}, including $${OPENING_CASH} opening cash.`};
   if(restaurantType!==undefined&&(!['restaurant','cafe'].includes(p.kind)||!validRestaurantType(restaurantType)))return state;
-  const funded=lendCash({...state,businesses:{...state.businesses,[id]:{...createBusiness(tenure),...(setup.name?{name:cleanBusinessName(setup.name)}:{}),...(restaurantType?{restaurantType}:{})}}},fundingId,id,total,term,'property');
+  const funded=lendCash({...state,businesses:{...state.businesses,[id]:{...createBusiness(tenure),...(interior.style?{interiorStyle:interior.style}:{}),...(setup.name?{name:cleanBusinessName(setup.name)}:{}),...(restaurantType?{restaurantType}:{})}}},fundingId,id,total,term,'property');
   return changed({...funded,report:[]},id,record(funded.businesses[id],state,tenure==='owned'?'Building purchase & setup':'Lease deposit & setup',-cost),`${p.name} opened with its own $${OPENING_CASH} cash. ${propertyById(fundingId,state.businesses[fundingId])!.name} lent $${total.toLocaleString()} for acquisition and setup.`);
 }
 /** A first investment uses owner capital; subsequent business-to-business funding remains a loan. */
@@ -184,11 +187,12 @@ export function acquireMarketProperty(state:ExpansionState,id:string,tenure:Busi
   const food=['restaurant','cafe'].includes(p.kind);
   if(food&&!validRestaurantType(restaurantType))return {...state,notice:'Choose the restaurant type before opening.'};
   if(!food&&restaurantType!==undefined)return state;
+  const interior=acquisitionInterior(p.kind,method,restaurantType,setup.interiorStyle);if(interior.error)return {...state,notice:interior.error};
   const first=!market.firstPropertyId&&Object.keys(state.businesses).length===0;
   const source=state.businesses[fundingId],total=quote.cost+(first?0:quote.workingCash);
   if(quote.cost<=0||(first?market.ownerCash:(source?.cash??0))<total)return {...state,notice:`You need $${total.toLocaleString()} for this opening package.`};
   const name=cleanBusinessName(setup.name)??(currentOffer?.mode==='purchase'?currentOffer.name:cityBusinessName(p.kind,site?.plot.id??id,market.listingSeed));
-  const business:Business={...createBusiness(tenure),name,...(built?{design:setup.design??'heritage'}:{}),...(food?{restaurantType}:{}),acquisition:{method,cost:quote.cost,land:quote.land,capital:first?market.startingCapital:0},...(tenure==='leased'?{leaseTerms:{weeklyRent:quote.weeklyRent,intervalWeeks:4,nextPaymentWeek:state.week+3},leaseChargedWeek:state.week-1,leaseAccrued:0}:{}),ledger:[]};
+  const business:Business={...createBusiness(tenure),name,...(interior.style?{interiorStyle:interior.style}:{}),...(built?{design:setup.design??'heritage'}:{}),...(food?{restaurantType}:{}),acquisition:{method,cost:quote.cost,land:quote.land,capital:first?market.startingCapital:0},...(tenure==='leased'?{leaseTerms:{weeklyRent:quote.weeklyRent,intervalWeeks:4,nextPaymentWeek:state.week+3},leaseChargedWeek:state.week-1,leaseAccrued:0}:{}),ledger:[]};
   let next:ExpansionState={...state,businesses:{...state.businesses,[id]:business},report:[]};
   if(first){next.businesses[id]=record(business,state,'Owner starting capital',market.ownerCash);}
   else next=lendCash(next,fundingId,id,total,term,'property');

@@ -37,12 +37,19 @@ public sealed partial class BusinessGameBridge
     }
     void ComparisonMeal(GameObject table,BusinessContents state,BusinessTable t)
     {
-        var meal=table.transform.Find("Comparison plated meal");
-        bool eating=state.customers?.Any(c=>c.table==t.id&&c.state=="eating")==true;
-        if(eating&&!meal){
-            var group=Group(table.transform,"Comparison plated meal");
-            ComparisonProp(group,"ServedMeal",new(0,1.23f,0),.3f);
-            ComparisonProp(group,"BreakfastCup",new(.43f,1.23f,0),.11f);
-        }else if(!eating&&meal)Destroy(meal.gameObject);
+        var meals=t.dirty?Array.Empty<BusinessMeal>():t.meals??Array.Empty<BusinessMeal>();
+        var marker=table.GetComponent<BusinessMealDisplay>();if(!marker)marker=table.AddComponent<BusinessMealDisplay>();
+        string key=string.Join("|",meals.Select(m=>m.id));if(marker.signature==key)return;marker.signature=key;
+        var old=table.transform.Find("Ordered dishes");if(old){old.gameObject.SetActive(false);Destroy(old.gameObject);}
+        if(meals.Length==0)return;
+        var group=Group(table.transform,"Ordered dishes");
+        // Use the actual dining surface, including the imported cafe table.
+        var surfaces=table.GetComponentsInChildren<Renderer>().Where(r=>r.name=="Dining tabletop"||r.name.Contains("CoffeeTable")||r.name.Contains("Table_8")).ToArray();
+        float height=surfaces.Length>0?surfaces.Max(r=>table.transform.InverseTransformPoint(new Vector3(r.bounds.center.x,r.bounds.max.y,r.bounds.center.z)).y):1.31f;
+        for(int n=0;n<Math.Min(6,meals.Length);n++){
+            var at=meals.Length<=4?new Vector3(new[]{-.49f,.49f,0f,0f}[n],height+.008f,new[]{0f,0f,.39f,-.39f}[n]):new Vector3((n%3-1)*.47f,height+.008f,(n/3-.5f)*.48f);
+            var dish=CreateDish(group,meals[n]);dish.localPosition=at;
+        }
     }
 }
+public sealed class BusinessMealDisplay:MonoBehaviour {public string signature;}

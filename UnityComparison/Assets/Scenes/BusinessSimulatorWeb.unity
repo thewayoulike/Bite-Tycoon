@@ -189,6 +189,16 @@ MonoBehaviour:
   greenery: {fileID: 2100000, guid: 46f7cc9f2fef2854999ec2eca469f6b8, type: 2}
   fontMaterial: {fileID: 2100000, guid: 3876b651b05079443b15351ab071d32f, type: 2}
   lighting: {fileID: 1672632990}
+  itemAssets:
+  - {fileID: 4409960376404088802, guid: 7207c168b96a3d64aac8a6ada01ec2de, type: 3}
+  - {fileID: 4803492907152913384, guid: e64a51faa80e90641b61a7ad2c0ba6c1, type: 3}
+  - {fileID: 2058876862218567717, guid: e1e8da2d8c656d74f845aa9dedb6c5b5, type: 3}
+  - {fileID: 8949744478997216816, guid: 39429631e4ad9fd48aab86e790c166c9, type: 3}
+  - {fileID: 3150297489450598828, guid: aeb5848a5c0c663409fe72498c13e132, type: 3}
+  - {fileID: 3450292552407821161, guid: 8c860e6d93f1a884ba3507425c75309d, type: 3}
+  - {fileID: 5014806331251779227, guid: de861fbd9afb397419b2fcac1012cfbc, type: 3}
+  - {fileID: 4804944230620276824, guid: 05c9463dbe20284428468c4e6b2df61c, type: 3}
+  - {fileID: 6048485145239522324, guid: 3b9f7d749b2f78442b3ea703bc97bc25, type: 3}
   sharedCityPrefab: {fileID: 379076908310394391, guid: f05adfabc7b0c4c47bc316b46071c8ee, type: 3}
   sharedCityData: {fileID: 4900000, guid: 1312bac13891f5a49aa53b6e94f1bf5c, type: 3}
   furnishingAssets:

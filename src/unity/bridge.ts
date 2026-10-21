@@ -1,3 +1,4 @@
+import {defaultInterior} from '../empire/interiorStyles';
 import type {GameState} from '../hooks/useGameLoop';
 import {PROPERTIES,PUBLIC_GARDEN,propertyById,type ExpansionState} from '../prototype/expansionModel';
 import {LAND_PLOTS,siteOffer,corePropertyOffer,listedPropertyIdentity} from '../empire/propertyMarket';
@@ -12,6 +13,7 @@ import {parseEmpireSave} from '../empire/empire';
 import {decideSave} from '../empire/sessionGuard';
 import {characterSeed,diningCastId,gameCastMember,type GameCharacterRole} from '../characters/gameCast';
 import {CAST_BY_ID} from '../people-preview/cast';
+import {dishVisual,retailVisual} from './itemVisuals';
 
 export type UnityView={floor:number;detail:string;area:string;cutaway:boolean;revision?:number;fast?:boolean;meter?:boolean};
 export type UnityWorldInput={state:GameState;restaurants:Record<string,GameState>;district:ExpansionState;worldProgress:number;focus:string|null;selected:string|null};
@@ -26,7 +28,7 @@ export function unityFrame(input:UnityWorldInput,view:UnityView){
   const business=district.businesses[id],p=propertyById(id,business);if(!p)return [];
   const listing=listedPropertyIdentity(id),offer=corePropertyOffer(p,district.market?.listingSeed,district.week);
   const floors=business?.lodging?.openFloors??business?.plaza?.openFloors??(business?.retail?.electronicsUnlocked?2:1);
-  const exteriorFloors=listing?commercialArchitecture(listing.plot.id).floors:id==='park'?5:id==='hotel'?4:id==='apartments'?5:floors;
+  const exteriorFloors=listing?commercialArchitecture(listing.plot.id).floors:id==='park'?5:id==='hotel'?4:id==='apartments'?5:p.kind==='shop'?1:floors;
   return [{id,name:business?p.name:district.market?offer.name:p.name,kind:p.kind,x:p.position[0],z:p.position[2],owned:!!business,tenure:business?.tenure,offer:business?.mallCompany?'internal':business?'owned':district.market?offer.mode:'purchase',floors,exteriorFloors,preserveExterior:!!listing,siteId:listing?.plot.id,existing:!!listing,accent:restaurants[id]?.frameColor??p.accent,wall:restaurants[id]?.wallColor,design:p.design??'',stock:business?.retail?retailStockLevel(business.retail):business?.stock??100}];
  });
  for(const plot of district.market?LAND_PLOTS:[]){
@@ -46,14 +48,16 @@ function unityContents(input:UnityWorldInput,focus:string|null,view:UnityView){
  const {district,restaurants}=input,restaurant=focus?restaurants[focus]:undefined,business=focus?district.businesses[focus]:undefined;
  const time=worldTime(input.worldProgress),property=focus?propertyById(focus,business):undefined;
  const crew=business&&property?ensureCrew(property,business):undefined;
- return {facilities:business?.lodging?.facilities??business?.plaza?.facilities??[],restaurantType:restaurant?.restaurantType??'',
-  tables:restaurant?.tables.map(t=>({id:t.id,x:mapPos(t.x),z:mapPos(t.y),dirty:t.isDirty,customer:t.customerId??''}))??[],
+ return {facilities:business?.lodging?.facilities??business?.plaza?.facilities??[],restaurantType:restaurant?.restaurantType??'',interiorStyle:business?.interiorStyle??defaultInterior(restaurant?.restaurantType),
+  tables:restaurant?.tables.map(t=>({id:t.id,x:mapPos(t.x),z:mapPos(t.y),dirty:t.isDirty,customer:t.customerId??'',
+   meals:t.isDirty?[]:(restaurant.customers.find(c=>c.id===t.customerId&&c.tableId===t.id&&c.state==='eating')?.servedRecipeIds??[])
+    .flatMap(id=>{const recipe=restaurant.recipes.find(r=>r.id===id);return recipe?[dishVisual(recipe)]:[];})}))??[],
   customers:restaurant?.customers.map(c=>({id:c.id,table:c.tableId,state:c.state,party:c.partySize,patience:c.patience,cast:Array.from({length:Math.min(4,c.partySize)},(_,seat)=>{const member=CAST_BY_ID.get(diningCastId(characterSeed(c.id),seat,c.partySize))!;return {id:member.id,height:member.heightMetres};}),routes:Array.from({length:Math.min(4,c.partySize)},(_,seat)=>{const table=restaurant.tables.find(t=>t.id===c.tableId);return {points:table?customerSeatPath(table,seat,restaurant.tables):[]};})}))??[],
   staff:[...(restaurant?.waiterEntities.map(w=>({id:w.id,role:'waiter',state:w.state,x:w.x,z:w.y,cast:cast('waiter',w.id)}))??[]),...(restaurant?.cleanerEntities.map(w=>({id:w.id,role:'cleaner',state:w.state,x:w.x,z:w.y,cast:cast('cleaner',w.id)}))??[]),...(restaurant?.chefEntities.map((w,index)=>({id:w.id,role:'chef',state:w.state,x:-5+index*4,z:-15,cast:cast('chef',w.id)}))??[])],
   units:business?.venue?.units.map((u,index)=>({index,type:u.type??u.shopType??'',occupied:u.occupied,dirty:u.dirty,condition:u.condition??100,cleanliness:u.cleanliness??100,tenant:u.tenantName??'',cast:cast('customer',u.seed)}))??[],
   visitors:business?.venue?.visitors.filter(v=>!business.retail||retailProductFloor(v.productId??'')===view.floor).map(v=>({id:String(v.id),state:v.state,unit:v.unit??-1,seed:v.seed,basket:!!v.basket,cast:cast('customer',v.seed)}))??[],
   crew:crew?['service','care','cleaner','maintenance','receiving','electronics','handling'].map(role=>({role,count:Math.ceil(crewPower(crew,role,time.hours,0,view.floor))})):[],
-  stock:business?.retail?business.retail.shelves.map(id=>({id,category:retailProduct(id)?.category??'',quantity:shelfQuantity(business,id),capacity:shelfCapacity(business,id),floor:retailProductFloor(id)})):[],
+  stock:business?.retail?business.retail.shelves.map(id=>({id,category:retailProduct(id)?.category??'',...retailVisual(retailProduct(id)!),quantity:shelfQuantity(business,id),capacity:shelfCapacity(business,id),floor:retailProductFloor(id)})):[],
  };
 }
 

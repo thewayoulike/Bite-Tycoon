@@ -107,12 +107,12 @@ public sealed partial class BusinessGameBridge
                     new BusinessTable{id="display-1",x=-11,z=12},new BusinessTable{id="display-2",x=11,z=12},
                     new BusinessTable{id="display-3",x=-11,z=1},new BusinessTable{id="display-4",x=11,z=1}}};
                 RestaurantState(p,state,room.root,room.tables,room.people);
-            }else if(p.kind=="shop"&&state!=null){
-                var stock=(state.stock??Array.Empty<BusinessStock>()).Where(s=>s.floor==0).ToArray();
+            }else if(p.kind=="shop"){
+                var stock=(state?.stock??new[]{"apples","bananas","carrots","tomatoes","bread","milk","rice","juice"}.Select(id=>new BusinessStock{id=id,name=id,category=id is "apples" or "bananas" or "carrots" or "tomatoes"?"Produce":"Pantry",form=id=="bread"?"loaf":id=="juice"?"bottle":"box",quantity=20,capacity=20}).ToArray()).Where(s=>s.floor==0).ToArray();
                 ShowShelfStock(room.stock,stock.Where(s=>s.category!="Produce").ToArray());
                 ShowShelfStock(room.fresh,stock.Where(s=>s.category=="Produce").ToArray());
                 var live=new HashSet<string>();
-                foreach(var visitor in (state.visitors??Array.Empty<BusinessVisitor>()).Take(12)){
+                foreach(var visitor in (state?.visitors??Array.Empty<BusinessVisitor>()).Take(12)){
                     string id="visitor-"+visitor.id;live.Add(id);
                     int slot=Math.Abs(visitor.seed)%6;
                     var at=new Vector3(-5.7f+(slot%3)*6.1f,.44f,-2+slot/3*3);
@@ -174,23 +174,13 @@ public sealed partial class BusinessGameBridge
     }
     void AddFoodDisplays(Transform root)
     {
-        if(foodAssets.Length==0)return;
-        foreach(var label in root.GetComponentsInChildren<TextMesh>(true)){
-            if(label.text=="LEMONS")label.text="BANANAS";
-            if(label.text=="ORANGES")label.text="CARROTS";
+        // Disable the old anonymous models before static batching. Actual SKU
+        // facings are added by ShowShelfStock and remain stock-controlled.
+        foreach(var item in root.GetComponentsInChildren<Transform>(true).Where(t=>t.name is "Fresh produce" or "Stock product")){
+            PrepareFacing(item);
+            foreach(var renderer in item.GetComponentsInChildren<Renderer>(true))renderer.enabled=false;
         }
-        // Upgrade the original stock-controlled produce facings. Empty stock
-        // still hides these exact parent objects, including their imported model.
-        var facings=root.GetComponentsInChildren<Transform>(true).Where(t=>t.name=="Fresh produce").ToArray();
-        for(int n=0;n<facings.Length;n++){
-            var facing=facings[n];var source=foodAssets[(n/30)%foodAssets.Length];if(!source)continue;
-            var original=facing.GetComponent<Renderer>();if(original)original.enabled=false;
-            var item=Instantiate(source,facing);item.transform.localPosition=Vector3.zero;
-            var rs=item.GetComponentsInChildren<Renderer>();if(rs.Length==0)continue;
-            // Measure in the unscaled model's local space, not the property's fitted scale.
-            var bounds=LocalModelBounds(item.transform);
-            float scale=.95f/Mathf.Max(.01f,bounds.size.x,bounds.size.z);
-            item.transform.localScale=Vector3.one*scale;item.transform.localPosition=-bounds.center*scale;
-        }
+        foreach(var label in root.GetComponentsInChildren<TextMesh>(true))
+            if(new[]{"APPLES","LEMONS","PEARS","ORANGES","BANANAS","CARROTS"}.Contains(label.text))label.text="FRESH PRODUCE";
     }
 }

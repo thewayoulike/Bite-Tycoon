@@ -1,56 +1,127 @@
-# Business Simulator — active game
+# Business Simulator
 
-The main game now uses **UnityComparison**, promoted from the comparison edition. Continue all city, graphics and Unity gameplay presentation work in `UnityComparison`. The retired `UnityPrototype` project and its old browser builds have been removed.
+A browser business-management game with a Unity 3D city and a shared React/TypeScript simulation and interface. **UnityComparison is the active Unity project** for Career and Sandbox. Its folder name is retained for asset and save compatibility.
 
-- `/` and `/?mode=fast-track`: Career.
-- `/?mode=sandbox`: the same Unity city and simulation, with seven manageable properties, all levels and floors open, every room/product type available, and testing capital. Optional facilities and upgrades remain usable purchases; existing bookings, inventory and trading history are preserved.
-- `/?saves=1`: continue, export, restart or restore saves.
-- Previous Unity/comparison game URLs redirect to the main game. Existing comparison saves keep their storage keys and have priority; earlier Unity/React saves are imported once only if the corresponding main save is absent. Career and Sandbox never share balances.
+Reviewed against the current source on **21 October 2026**.
 
-Run `npm run dev`. Build the WebGL scene in **UnityComparison**, then use `npm run unity:publish` to publish that project. Both modes use `public/unity-comparison/Build`; the internal folder name is retained to avoid needless changes to asset and save references. The shared `src/unity` bridge and old URL redirects remain in use for the main game and save migration.
+## Play modes and saves
 
-The four-plot mall uses `ComparisonMallSite.Apply()` for its civic relocations and road cut, plus `tools/prepare-comparison-mall.ts` for perimeter traffic and walks. Run the city and mall checks after regenerating scenery.
+| Address | Purpose |
+| --- | --- |
+| `/` or `/?mode=fast-track` | Career: a new game starts with $250,000 of owner capital and no acquired businesses. Choose the first premises through the property market. |
+| `/?mode=sandbox` | The same game with seven manageable properties, $1,000,000 of owner capital, and a one-time grant bringing each unlocked business to at least $250,000. Business levels, floors, room types, products and staff are available for testing. |
+| `/?saves=1` | Continue, export, restart or restore a previous save. |
+| `/?mode=career` | The older career save slot, using the current game. |
+| `/?mode=sandbox&preview=1` | Temporary preview session with saving disabled. |
 
-For furniture and room changes, follow [the interior layout instructions](docs/INTERIOR_LAYOUT.md). Measure imported asset axes and rendered footprints, check circulation and seating orientation, and inspect every changed room category before publishing.
+Sandbox still simulates stock, wages, bookings, leases and customer service. Renovations, facilities and upgrades remain purchases to try with testing funds. Mall tenant recruitment starts enabled in a new Sandbox. Existing trading history and chosen fit-outs survive a Sandbox upgrade.
 
----
+Progress saves in this browser on this device every two seconds and on page exit. Modes have separate saves. Existing comparison saves take priority; matching older Unity/React progress is imported only when the main save is absent. Restarting a slot keeps a recovery backup. There is no offline income.
 
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+Keep the browser profile and site address consistent to access the same saves. Use **Export save** for a portable copy. The legacy `unity-game.html`, `unity-comparison.html` and `save-slots.html` pages redirect to the current game or save screen.
 
-# Run and deploy your AI Studio app
+## Run locally
 
-This contains everything you need to run your app locally.
+Install Node.js and npm, then run from the repository root:
 
-View your app in AI Studio: https://ai.studio/apps/09bf4f26-9be8-4123-a013-9c1f14f26cf0
+```sh
+npm ci
+npm run dev
+```
 
-## Run Locally
+Open [Business Simulator](http://127.0.0.1:4189/). No API key is required. The published files in `public/unity-comparison/Build` provide the 3D world; the web development command does not compile Unity.
 
-**Prerequisites:**  Node.js
+The workspace includes locally imported Unity assets and their source tools. Several licensed asset folders and generated files are excluded from Git. A fresh checkout needs those assets restored before rebuilding Unity.
+
+## Build and publish locally
+
+For React, TypeScript or CSS changes:
+
+```sh
+npm run lint
+npm run build
+```
+
+`lint` runs TypeScript checking. `build` creates `dist/`, including the already-published Unity files. `npm run preview` serves that distribution and prints its address.
+
+For Unity graphics, scene or C# changes:
+
+1. Open **UnityComparison** in Unity **6000.6.6f1**, as recorded in `ProjectSettings/ProjectVersion.txt`, with Web Build Support installed.
+2. Work on the existing `Assets/Scenes/BusinessSimulatorWeb.unity` scene. Run the appropriate editor checks and inspect the changed views.
+3. Select **Business Simulator → Build Browser Game**. This builds WebGL into `UnityComparison/Builds/UnityComparison` and records the result in `artifacts/unity-comparison/web-build-result.json`.
+4. After a successful Unity build, run:
+
+```sh
+npm run unity:publish
+npm run build
+```
+
+`unity:publish` copies the successful WebGL output to `public/unity-comparison/Build`, updates its version and refreshes asset status. This publishes locally; it does not deploy to an external host.
+
+**Do not run “Prepare Browser Game” for an ordinary update.** That command recreates scene content. Preserve the existing scene and imported art setup.
+
+Unity Editor and browser development share this project. A separate Windows executable is not produced by the WebGL workflow.
+
+## Current gameplay
+
+- Career and Sandbox share the Forest & gold interface: compact status controls, an icon dock, matching map labels, weather menus and floor selectors. The HUD adapts to screen size and can be hidden from the view controls.
+- Restaurants have independent menus, inventory, staff, tables, themed interiors and delivery/pickup services. Owned kitchens continue trading while you visit another property.
+- Restaurant interiors are selected when leasing empty premises or constructing a restaurant: Classic diner, Warm café, Contemporary bistro or Japanese minimal. Buying an operating business retains its fitted interior. This replaces the obsolete Decor panel; cuisine and interior style are separate choices.
+- Supermarkets manage shelves, fresh/chilled goods, checkouts, purchasing, maintenance and an unlockable electronics/appliance floor.
+- Hotels and apartments manage room/home types, rates, bookings or leases, housekeeping, maintenance and facilities. Career earns floor expansion; Sandbox exposes floors for testing.
+- Willow Galleria occupies four city plots, with five floors supporting up to twenty shop units, tenant recruitment, rents, visitor facilities and tenant-specific interiors.
+- Property listings distinguish vacant premises, operating businesses and buildable land. Actions and opening costs depend on the listing. Additional named shops and landmarks provide scenery until their management systems are implemented.
+- Businesses share a calendar and keep separate accounts. Financial reports distinguish revenue, costs, loans, capital and depreciation. Departure records explain customer cancellations and walkouts with prevention advice.
+- Weeks can last **3, 5 or 10 minutes at 1× speed**, selected between trading weeks. Longer weeks allow more service activity at the same movement pace. The 2× and 5× controls speed up both service and the calendar.
+
+## Project map
+
+| Location | Role |
+| --- | --- |
+| `UnityComparison/` | Active Unity project, scenes, imported art, shaders and C# presentation. |
+| `src/unity/`, `src/unity-comparison/` | Unity integration, main entry, save handling and compatibility redirects. |
+| `src/empire/`, `src/hooks/`, `src/career/` | Simulation, business systems, progression and saving. |
+| `src/components/`, `src/graphics/` | Shared interface, view controls and city data. |
+| Shared files in `src/prototype/`, `src/preview/`, `src/people-preview/` | Still-used business rules, financial reports, character catalogs and test support. Historical folder names do not make these files disposable. |
+| `public/unity-comparison/` | Published WebGL files, asset status and current preview images. |
+| `public/models/`, `public/previews/` | Model resources and current menu artwork. |
+| `tools/`, `tests/` | Asset/build tools and regression checks. |
+| `artifacts/` | Build results, validation evidence, original models and authoring tools. Some files are required inputs to the current asset pipeline. |
+| `dist/` | Generated browser distribution. |
+
+The retired **UnityPrototype** project, its old builds and the audited standalone prototype/design pages have been deleted. The [folder audit](docs/FOLDER_AUDIT.md) records the cleanup and retained shared resources.
+
+## Development and verification
+
+Follow the [interior layout instructions](docs/INTERIOR_LAYOUT.md) for furniture, room styles, indoor movement and cutaway views. Check actual model scale, orientation, circulation and seating, then inspect the browser result.
+
+City regeneration uses `npm run unity:city`. The four-plot mall also relies on `ComparisonMallSite.Apply()` and `tools/prepare-comparison-mall.ts`; preserve its road cut, relocated scenery and perimeter routes. Run the editor city, traffic, room and mall checks that match the change.
+
+Available web checks:
+
+```sh
+npm run lint
+npm test
+npm run build
+```
+
+Focused checks for promotion, saves, Sandbox and the Unity bridge:
+
+```sh
+npx tsx --test --test-concurrency=1 tests/gamePromotion.test.ts tests/unityComparison.test.ts tests/unityBridge.test.ts tests/sandboxUnlocks.test.ts
+```
+
+The latest cleanup verification passed these **25 targeted tests**, TypeScript checking and the browser build, and confirmed the current Unity files, characters and menu artwork were unchanged. Evidence is in `artifacts/folder-audit/`. Report full-suite results separately when that suite is run.
 
 
-1. Install dependencies:
-   `npm install`
-2. Run the app:
-   `npm run dev`
+### Item visuals and street scale
 
-The game does not need an API key. Progress saves in this browser.
+Unity receives the identities of delivered restaurant dishes and stocked retail products. Tables show the served food, while grocery displays use recognizable produce and packaging and empty as shelf stock runs out. The shared item models also furnish food tenants and lodging refreshments. `src/unity/itemVisuals.ts` controls the rendering metadata; the simulation remains authoritative.
 
-## Neighborhood businesses
+Supermarkets with an open electronics floor render an additional exterior storey. Ambient street pedestrians sample the visible pavement meshes instead of using a fixed height. Verification: `tests/unityItems.test.ts`, `tools/item-visual-fixtures.ts`, and `UnityComparison/Assets/Prototype/Editor/ItemVisualChecks.cs`.
 
-Open the game at `http://127.0.0.1:4189/`. The neighborhood is the game world: choose **Neighborhood** to zoom out, then click a building or its label to manage it. The game controls stay on screen; owned buildings open as interiors in the same world.
+### Supermarket stock work
 
-- Acquire properties between weeks using a loan from an existing business. The price includes opening equipment and supplies, plus $300 of cash in the new business account.
-- The café and second restaurant have independent playable kitchens, menus, ingredients, staff, tables, and upgrades. Click the building, then **Run this restaurant** to work on its floor. Every property has operations, offers/prices, staff, inventory, upgrades, financial reports, and loans in the restaurant-style management console.
-- The hotel, apartments, shop, and park run live service: visitors arrive and pay as they are served. Choose individual offers and prices, hire staff, select shop products, order supplies, and maintain the property. Management sections open separately; the bottom menu is the single navigation bar.
-- New hotels open with ground-floor reception and four standard rooms on one guest floor. Apartments start with reception and three studios on one residential floor. Open additional floors between weeks after serving enough occupants and paying from that building's account: up to five hotel guest floors (20 rooms) or ten residential floors (30 homes). Existing saves retain all rooms, occupants and agreed prices.
-- **Rooms & Rates / Homes & Rents** controls each unit's type, price, condition, cleaning and renovations. **Bookings / Applications & Leases** tracks reservations, walk-ins, overnight stays, reviews and six-week leases. Booked rates stay fixed; apartments collect the agreed weekly rent once per week. Rooms are unavailable after checkout until cleaned.
-- Mornings bring housekeeping and checkouts, afternoons bring arrivals, and evenings bring service requests, noise complaints or repair faults. Help, offer a 25% refund, or relocate the occupant to a ready unit. Reception, housekeeping and maintenance staff have individual role shifts and finite service capacity. Inventory includes six hotel supplies, and purchasing managers follow per-item minimums, weekly budgets and cash reserves.
-- Paid facilities unlock with additional floors: breakfast restaurant (hotel), gym, conference lounge and rooftop lounge. The amenities floor becomes selectable in 3D. Weekly reports show occupancy, average agreed rate, income and reputation; financials retain P&L, balance sheet, cash flow, wages owed and business loans.
-- All businesses share a calendar, but their cash is separate. **Finance** records loans and repayments; borrowing is not sales income. Rent is paid once at week end, and wages are paid after the first three days of the following week.
-- Kitchens keep running while you visit another property. Use the global pause control while planning; a restaurant without a waiter still needs you to take and serve orders.
-- Progress saves automatically in this browser on this device every two seconds and on page exit. There is no offline income. Use Sandbox in the main game for testing buildings and their financial reports; the separate expansion and property preview pages have been removed.
-- **Testing · unlock all** opens all seven properties between weeks and tops each separate account up to $25,000. Recipes and staff milestones become available without changing sales history, existing staff, inventories, or loans. **Testing · top up funds** can replenish funds again; balances above $25,000 stay intact. Test grants are capital, not trading income, and persist in the save.
+Automatic unpacking and shelf refills process mixed-product loads and retain fractional work between updates, so additional available staff and 2×/5× speed do not lose capacity. Waiting shoppers and empty shelves take priority. The Operations panel shows the stock assistants and receiving clerks currently on duty; shifts, breaks, training and floor assignments still apply. Idle stock assistants rest instead of losing energy on nonexistent jobs. Stock movements preserve inventory value and do not create purchases or sales.
 
-Validation: `npm test`, `npm run lint`, and `npm run build`.
+The scheduling logic is in `src/empire/supermarketLogistics.ts`, with regression coverage in `tests/supermarketLogistics.test.ts`. The stock-work update passed 91 focused supermarket, staffing, timing and bridge tests, TypeScript checking and the production build. A controlled two-assistant, 145-product small-delivery benchmark completed unpacking and shelving in 22.5 activity seconds, down from 108.75; evidence is in `artifacts/stock-logistics/benchmark.json`.

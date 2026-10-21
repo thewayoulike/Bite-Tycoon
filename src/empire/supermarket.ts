@@ -93,20 +93,27 @@ export function confirmShelfPlan(s:ExpansionState,id:string,floor:number,categor
  const next=plan.cost?storeSpend(b,s,plan.cost,'Additional display / refrigerated fixtures',true):b;
  return change(s,id,{...next,retail:{...b.retail,shelves:[...new Set([...b.retail.shelves,...plan.ids])],store:{...b.retail.store,fixtures:{dry:b.retail.store.fixtures.dry+plan.addDry,cold:b.retail.store.fixtures.cold+plan.addCold}}}},'Display plan applied. Receiving and replenishment staff move purchased goods onto these shelves.');
 }
-export function replenishShelf(b:Business,id?:string):Business{
+export function replenishShelf(b:Business,id?:string,limit=6):Business{
  if(!b.retail?.store)return b;
  const waiting=(id:string)=>b.venue?.visitors.filter(v=>v.state==='waiting'&&!v.basket&&v.productId===id).reduce((n,v)=>n+(v.quantity??1),0)??0;
  const priority=(id:string)=>waiting(id)>shelfQuantity(b,id)?0:shelfQuantity(b,id)===0?1:2;
  const key=id??[...b.retail.shelves].filter(k=>!retailProductFloor(k)&&backroomQuantity(b,k)>0&&shelfQuantity(b,k)<shelfCapacity(b,k)).sort((a,c)=>priority(a)-priority(c)||shelfQuantity(b,a)-shelfQuantity(b,c))[0];
  if(!key||!b.retail.shelves.includes(key)||retailProductFloor(key))return b;
- const qty=Math.min(6,backroomQuantity(b,key),shelfCapacity(b,key)-shelfQuantity(b,key));if(qty<=0)return b;
+ const qty=Math.min(Math.max(0,Math.floor(limit)),backroomQuantity(b,key),shelfCapacity(b,key)-shelfQuantity(b,key));if(qty<=0)return b;
  return {...b,retail:{...b.retail,store:{...b.retail.store,shelf:{...b.retail.store.shelf,[key]:shelfQuantity(b,key)+qty},job:key,jobProgress:0}}};
 }
-export function receiveStoreGoods(b:Business):Business{
+export function receiveStoreGoods(b:Business,cartCapacity?:number):Business{
  if(!b.retail?.store)return b;const st=b.retail.store;
  const needed=(id:string)=>b.venue?.visitors.some(v=>v.state==='waiting'&&!v.basket&&v.productId===id)?0:shelfQuantity(b,id)===0?1:2;
- const entry=Object.entries(st.receiving).filter(([,qty])=>qty>0).sort(([a],[c])=>needed(a)-needed(c))[0];if(!entry)return b;
- return {...b,retail:{...b.retail,store:{...st,receiving:{...st.receiving,[entry[0]]:Math.max(0,entry[1]-(b.hires?.receiving?40:12))}}}};
+ const entries=Object.entries(st.receiving).filter(([,qty])=>qty>0).sort(([a],[c])=>needed(a)-needed(c));if(!entries.length)return b;
+ let remaining=Math.max(0,Math.floor(cartCapacity??(b.hires?.receiving?40:12)));if(!remaining)return b;
+ const receiving={...st.receiving};
+ // A receiving trolley can contain several small product orders. Manual help
+ // retains its existing single-carton limit; automatic crews use the whole load.
+ for(const [id,quantity] of cartCapacity===undefined?entries.slice(0,1):entries){
+  const moved=Math.min(quantity,remaining);receiving[id]=quantity-moved;remaining-=moved;if(!remaining)break;
+ }
+ return {...b,retail:{...b.retail,store:{...st,receiving}}};
 }
 export const storeEnvelope=(id:string)=>retailProductFloor(id)?'electronics':'grocery';
 export function envelopeRemaining(b:Business,id:string,week:number){const st=b.retail?.store;if(!st?.budgets)return Infinity;const key=storeEnvelope(id);return Math.max(0,st.budgets[key]-(st.budgetWeek===week?st.spent[key]:0));}

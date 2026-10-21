@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 
 [Serializable] public class BusinessContents
 {
-    public string id, restaurantType; public float speed; public string[] facilities;
+    public string id, restaurantType, interiorStyle; public float speed; public string[] facilities;
     public BusinessStock[] stock; public BusinessCrew[] crew; public BusinessTable[] tables; public BusinessCustomer[] customers; public BusinessStaff[] staff; public BusinessUnit[] units; public BusinessVisitor[] visitors;
 }
 [Serializable] public class BusinessFrame : BusinessContents
@@ -17,11 +17,12 @@ using UnityEngine.InputSystem;
     public float hours, wind, snow, rain; public BusinessProperty[] properties;
 }
 [Serializable] public class BusinessProperty { public string id, name, kind, offer, accent, wall, design, tenure, siteId, cityCategory; public float x, z, stock; public int floors,exteriorFloors; public bool owned,existing,preserveExterior; }
-[Serializable] public class BusinessTable { public string id, customer; public float x, z; public bool dirty; }
+[Serializable] public class BusinessTable { public string id, customer; public float x, z; public bool dirty; public BusinessMeal[] meals; }
+[Serializable] public class BusinessMeal { public string id, name, kind; public string[] ingredients; }
 [Serializable] public class BusinessCustomer { public string id, table, state; public int party; public float patience; public BusinessRoute[] routes; public BusinessPerson[] cast; }
 [Serializable] public class BusinessPoint { public float x, z; }
 [Serializable] public class BusinessRoute { public BusinessPoint[] points; }
-[Serializable] public class BusinessStock { public string id, category; public float quantity, capacity; public int floor; }
+[Serializable] public class BusinessStock { public string id, category, name, form, color; public float quantity, capacity; public int floor; }
 [Serializable] public class BusinessCrew { public string role; public int count; }
 [Serializable] public class BusinessStaff { public string id, role, state; public float x, z; public BusinessPerson cast; }
 [Serializable] public class BusinessUnit { public int index; public string type, tenant; public bool occupied, dirty; public float condition, cleanliness; public BusinessPerson cast; }
@@ -141,6 +142,7 @@ public sealed partial class BusinessGameBridge : MonoBehaviour
         else if (p.kind is "restaurant" or "cafe" or "shop")
         {
             var model = Instantiate(ExteriorModel(p), architecture); model.name = "Exterior";
+            if(p.kind=="shop")RetailUpperStoreys(architecture,p,model.transform);
         }
         else if (p.kind == "land")
         {
@@ -154,6 +156,7 @@ public sealed partial class BusinessGameBridge : MonoBehaviour
         if(p.kind is not ("park" or "plaza"))FitArchitecture(architecture,root.transform.position);
         if(p.preserveExterior)architecture.localScale=new Vector3(.74f,1,.74f);
         architecture.gameObject.SetActive(renderExterior);
+        if(p.preserveExterior&&p.kind=="shop"&&p.floors>p.exteriorFloors)RetailExistingStoreys(root.transform,p);
         HighlightProperty(root.transform,p);
         CreateBusinessSign(root.transform,p);
         if (p.kind != "park"&&p.offer!="scenery")
@@ -262,8 +265,15 @@ public sealed partial class BusinessGameBridge : MonoBehaviour
     }
     void ShowShelfStock(Transform[] models,BusinessStock[] available)
     {
-        int facings=Mathf.CeilToInt(models.Length/(float)Math.Max(1,available.Length));
-        for(int i=0;i<models.Length;i++){var item=available.Length>0?available[i%available.Length]:null;float fill=item==null?0:Mathf.Clamp01(item.quantity/Mathf.Max(1,item.capacity));models[i].gameObject.SetActive(item!=null&&i/Math.Max(1,available.Length)<Mathf.CeilToInt(fill*facings));}
+        for(int i=0;i<models.Length;i++){
+            int index=available.Length==0?0:Math.Min(available.Length-1,i*available.Length/Math.Max(1,models.Length));
+            var item=available.Length>0?available[index]:null;
+            int start=available.Length==0?0:Mathf.CeilToInt(index*models.Length/(float)available.Length);
+            int end=available.Length==0?0:Mathf.CeilToInt((index+1)*models.Length/(float)available.Length);
+            int visible=item==null?0:Math.Min((int)Mathf.Ceil(item.quantity),Mathf.CeilToInt(Mathf.Clamp01(item.quantity/Mathf.Max(1,item.capacity))*(end-start)));
+            models[i].gameObject.SetActive(item!=null&&i-start<visible);
+            if(item!=null)ShelfItem(models[i],item);
+        }
     }
     Vector3 RestaurantPoint(float x, float z) => new(x * .42f, .44f, 2 - z * .4f);
     void RestaurantState(BusinessProperty p, BusinessContents state=null, GameObject root=null, Dictionary<string,GameObject> tableModels=null, Dictionary<string,GameObject> personModels=null)
@@ -275,7 +285,7 @@ public sealed partial class BusinessGameBridge : MonoBehaviour
             liveTables.Add(t.id); var point = RestaurantPoint(t.x, t.z); point.y = 0;
             if (!tableModels.TryGetValue(t.id, out var table))
             {
-                table = RestaurantDiningSet(root.transform,state.restaurantType); table.name = "Dining table " + t.id; tableModels[t.id] = table;
+                table = RestaurantDiningSet(root.transform,RestaurantInteriorLook(state,p)); table.name = "Dining table " + t.id; tableModels[t.id] = table;
                 var hit = table.AddComponent<BoxCollider>(); hit.center = new(0, 1, 0); hit.size = new(2, 1.4f, 2.6f);
                 var click = table.AddComponent<BusinessClickTarget>(); click.type = "table"; click.id = t.id;
             }

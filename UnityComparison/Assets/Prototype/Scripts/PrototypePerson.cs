@@ -13,11 +13,12 @@ public sealed class PrototypePerson : MonoBehaviour
     public Vector3 routeA, routeB;
     public float walkingSpeed = .8f;
     public float phase;
+    public BusinessWalkSurface walkSurface;
     readonly Dictionary<string, Transform> bones = new();
     readonly Dictionary<string, Quaternion> rotations = new();
     readonly Dictionary<string, Vector3> directions = new();
     readonly List<Renderer> footwear = new();
-    float modelY, hipY;
+    float modelY, hipY, soleOffset;
     bool walking;
 
     void Start()
@@ -38,6 +39,21 @@ public sealed class PrototypePerson : MonoBehaviour
             if (t.childCount > 0) directions[item.Key] = transform.InverseTransformDirection(t.GetChild(0).position - t.position).normalized;
         }
         modelY = model.localPosition.y;
+        float footY=float.PositiveInfinity;
+        foreach(string name in new[]{"foot_l","foot_r"})if(bones.TryGetValue(name,out var foot))footY=Mathf.Min(footY,foot.position.y);
+        // Imported renderer bounds include animation padding beneath the shoes.
+        // Measure the visible sole once; using the actor pivot leaves an 8–9 cm gap.
+        float soleY=transform.position.y;
+        if(walkSurface&&!float.IsPositiveInfinity(footY)){
+            float visibleBottom=float.PositiveInfinity;var mesh=new Mesh();
+            foreach(var skin in model.GetComponentsInChildren<SkinnedMeshRenderer>()){
+                if(!skin.enabled)continue;skin.BakeMesh(mesh);
+                foreach(var vertex in mesh.vertices)visibleBottom=Mathf.Min(visibleBottom,skin.transform.TransformPoint(vertex).y);
+            }
+            if(!float.IsPositiveInfinity(visibleBottom))soleY=visibleBottom;
+            if(Application.isPlaying)Destroy(mesh);else DestroyImmediate(mesh);
+        }
+        soleOffset=float.IsPositiveInfinity(footY)?0:Mathf.Max(0,footY-soleY);
         if (bones.TryGetValue("pelvis", out var hip)) hipY = transform.InverseTransformPoint(hip.position).y;
         walking = !seated && Vector3.Distance(routeA, routeB) > .1f;
     }
@@ -62,6 +78,7 @@ public sealed class PrototypePerson : MonoBehaviour
             transform.position = Vector3.Lerp(routeA, routeB, cycle < 1 ? cycle : 2 - cycle);
             transform.rotation = Quaternion.LookRotation((routeB - routeA) * (cycle < 1 ? 1 : -1));
         }
+        if(walkSurface&&!seated&&!sleeping){var at=transform.position;at.y=walkSurface.Height(at,at.y);transform.position=at;}
         model.localPosition = new Vector3(0, modelY + (seated ? .46f - hipY : moving ? Mathf.Abs(Mathf.Sin(time * 5.7f)) * .009f : 0), 0);
         model.localRotation = Quaternion.identity;
         foreach(var item in bones)item.Value.rotation=transform.rotation*rotations[item.Key];
@@ -91,6 +108,10 @@ public sealed class PrototypePerson : MonoBehaviour
             if (bones.TryGetValue("foot_" + suffix, out var foot)) foot.rotation = transform.rotation * rotations["foot_" + suffix];
             Aim("upperarm_" + suffix, new Vector3(side * .24f, -1, seated || working ? .4f : -swing * .29f));
             Aim("lowerarm_" + suffix, seated || working ? new Vector3(-side * .12f, -.1f, 1) : new Vector3(side * .06f, -1, .1f - swing * .23f));
+        }
+        if(walkSurface&&!seated){
+            float footY=float.PositiveInfinity;foreach(string name in new[]{"foot_l","foot_r"})if(bones.TryGetValue(name,out var foot))footY=Mathf.Min(footY,foot.position.y);
+            if(!float.IsPositiveInfinity(footY))model.position+=Vector3.up*(transform.position.y+soleOffset-footY);
         }
     }
 }

@@ -98,6 +98,8 @@ public sealed partial class BusinessGameBridge
             Box(design,"Home fridge",new(width/2-.6f,1,-4.8f),new(1.1f,2,.9f),metal);
             RoomSofa(design,new(-2,0,-2.7f),-90);
             if(type!="studio")Box(design,"Bedroom partition",new(-.6f,1.15f,-.15f),new(width-2.1f,2.3f,.12f),plaster);
+            var fruit=CreateProduct(design,"apples","produce");fruit.localPosition=new(width/2-.65f,1.09f,-1.65f);
+            var cereal=CreateProduct(design,"cereal","box","CDA862");cereal.localPosition=new(width/2-.65f,1.09f,-3.75f);
             // Retain apartment-specific kitchen, dining and second-bedroom details.
             DecorateHome(design,kind,type,width);
             ApartmentCharacter(design,type,width);
@@ -137,6 +139,7 @@ public sealed partial class BusinessGameBridge
             Box(design,"Minibar stone top",new(1.9f,1.13f,-4.5f),new(.92f,.06f,1),plaster);
             ComparisonProp(design,"BreakfastCup",new(1.7f,1.18f,-4.3f),.11f);
             ComparisonProp(design,"CoffeeMachine",new(1.95f,1.18f,-4.7f),.4f);
+            var water=CreateProduct(design,"water","bottle","8BA4AC");water.localPosition=new(2.12f,1.18f,-4.25f);
         }
         if(luxury){
             RoomArt(design,new(-width/2+.14f,1.8f,-2),"B39B65",1.15f);

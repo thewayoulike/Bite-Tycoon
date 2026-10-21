@@ -1,0 +1,6 @@
+.interior-setup{margin:18px 0;padding:16px;border:1px solid var(--mc-border,rgba(200,190,150,.25));border-radius:12px}
+.interior-setup h3{margin:0 0 8px}.interior-setup p{line-height:1.5}
+.interior-style-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.interior-style-options button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:8px;padding:14px;white-space:normal}
+.interior-style-options small{line-height:1.45}.interior-palette{display:flex;width:100%;height:28px;border-radius:5px;overflow:hidden}.interior-palette i{flex:1}
+@media(max-width:520px){.interior-style-options{grid-template-columns:1fr}}

@@ -3,10 +3,11 @@ using UnityEngine;
 public sealed partial class BusinessGameBridge
 {
  static string RestaurantLook(string type)=>type is "diner" or "fastfood"?"diner":type=="cafe"?"cafe":type=="japanese"?"japanese":"bistro";
+ static string RestaurantInteriorLook(BusinessContents state,BusinessProperty property)=>state?.interiorStyle is "diner" or "cafe" or "bistro" or "japanese"?state.interiorStyle:RestaurantLook(string.IsNullOrEmpty(state?.restaurantType)?(property.kind=="cafe"?"cafe":"diner"):state.restaurantType);
  void RestaurantCharacter(Transform root,BusinessProperty property)
  {
   var state=property.id==frame.focus?frame:frame.frontages?.FirstOrDefault(f=>f.id==property.id);
-  string look=RestaurantLook(state?.restaurantType??(property.kind=="cafe"?"cafe":"diner"));
+  string look=RestaurantInteriorLook(state,property);
   string accent=look switch{"diner"=>"98514A","cafe"=>"64847B","japanese"=>"393F39",_=>"596A65"};
   var design=Group(root,"Restaurant style "+look);
   Box(design,"Dining floor finish",new(0,.48f,-.8f),new(16.8f,.02f,13.8f),ColorMat(look=="cafe"?"B9A084":look=="bistro"?"96775C":look=="japanese"?"797262":"DDD9C9"));

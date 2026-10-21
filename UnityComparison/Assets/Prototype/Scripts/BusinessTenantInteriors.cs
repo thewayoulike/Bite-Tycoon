@@ -38,7 +38,10 @@ public sealed partial class BusinessGameBridge
   if(kind is "cafe" or "restaurant" or "bakery" or "dessert"){
    ComparisonProp(root,"CoffeeMachine",new(2,1.02f,2.6f),.65f,180);
    ComparisonProp(root,"FastFoodDisplay",new(-2.3f,0,2.7f),2.4f);
-   for(int n=0;n<5;n++){ComparisonProp(root,"KitchenBread",new(-3+n*.35f,1.07f,2.6f),.22f);}
+   for(int n=0;n<5;n++){
+    var display=kind=="dessert"?CreateDish(root,new BusinessMeal{id="display-cake",name="Cake display",kind="cake",ingredients=new[]{"chocolate"}}):CreateProduct(root,"bread","loaf");
+    display.localPosition=new(-3+n*.35f,1.07f,2.6f);
+   }
    foreach(int side in new[]{-1,1}){
     RoomTable(root,"Tenant dining table",new(side*2.3f,0,-1.6f),1.2f,.9f,wood);
     RoomChair(root,new(side*2.3f,0,-2.55f),180,tone);RoomChair(root,new(side*2.3f,0,-.65f),0,tone);
@@ -73,7 +76,7 @@ public sealed partial class BusinessGameBridge
     for(int n=0;n<7;n++){
      var at=new Vector3(side*2.7f,.68f+shelf*.6f,-1.4f+n*.53f);var color=ColorMat(new[]{"B57564","8EAA82","CBB885","7995AB","BA9CAA"}[(n+shelf)%5]);
      if(kind=="florist"){Sphere(root,"Flower pot",at,new(.25f,.3f,.25f),wood);Sphere(root,"Flower bouquet",at+Vector3.up*.25f,new(.4f,.4f,.4f),color);}
-     else if(kind=="grocer")Sphere(root,"Fruit and vegetable display",at,new(.33f,.3f,.35f),color);
+     else if(kind=="grocer"){var product=CreateProduct(root,new[]{"apples","bananas","carrots","tomatoes","broccoli","oranges","pears"}[n],"produce");product.localPosition=at-Vector3.up*.14f;}
      else if(kind=="toys"){Box(root,"Toy block",at,new(.32f,.3f,.32f),color);Sphere(root,"Toy head",at+Vector3.up*.22f,new(.21f,.21f,.21f),color);}
      else Box(root,kind=="books"?"Book spines":kind=="pharmacy"?"Medicine cartons":"Shop merchandise",at,new(kind=="books"?.45f:.38f,kind=="books"?.38f:.28f,kind=="books"?.12f:.3f),color);
     }

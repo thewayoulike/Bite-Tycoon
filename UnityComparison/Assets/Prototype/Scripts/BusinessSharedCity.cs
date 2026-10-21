@@ -24,6 +24,7 @@ public sealed partial class BusinessGameBridge
  {
   PrepareWorldMaterials();cityData=JsonUtility.FromJson<SharedCityData>(sharedCityData.text);
   sharedCity=Instantiate(sharedCityPrefab).transform;sharedCity.name="City from the existing game";
+  walkSurface=sharedCity.gameObject.AddComponent<BusinessWalkSurface>();walkSurface.Initialize(sharedCity);
   foreach(string name in new[]{"Airliner","FishingBoat","Yacht","Sailboat","PassengerTrain","FreightTrain"}){var source=sharedCity.Find(name);source.gameObject.SetActive(false);sceneryTemplates[name]=source;}
   CreateWater(sharedCity);
   if(comparisonPlane){var plane=Instantiate(comparisonPlane,sharedCity).transform;plane.gameObject.SetActive(false);sceneryTemplates["Airliner"]=plane;}
@@ -79,11 +80,13 @@ public sealed partial class BusinessGameBridge
   Box(truck,"Chassis",new(0,.6f,0),new(2.2f,.25f,5),metal);Box(truck,"Cargo box",new(0,1.65f,-.7f),new(2.1f,2,3.4f),plaster);Box(truck,"Cab",new(0,1.2f,1.7f),new(2.1f,1.6f,1.6f),ColorMat("527384"));Box(truck,"Windscreen",new(0,1.6f,2.51f),new(1.8f,.7f,.05f),glass);
   foreach(int side in new[]{-1,1})foreach(float axle in new[]{-1.7f,1.6f})Sphere(truck,"Tyre",new(side*1.06f,.5f,axle),new(.23f,.8f,.8f),metal);
  }
+ BusinessWalkSurface walkSurface;
  void AmbientPerson(Vector3 start,Vector3 end,int seed,bool luggage)
  {
   var actor=Group(sharedCity,luggage?"Airport passenger":"Promenade pedestrian");actor.position=start;var model=Instantiate(peoplePrefabs[seed%peoplePrefabs.Length],actor).transform;
   var rs=model.GetComponentsInChildren<Renderer>();var b=rs[0].bounds;foreach(var r in rs)b.Encapsulate(r.bounds);float scale=1.74f/b.size.y;model.localScale*=scale;model.localPosition=new(0,-(b.min.y-actor.position.y)*scale,0);
   var pose=actor.gameObject.AddComponent<PrototypePerson>();pose.model=model;pose.routeA=start;pose.routeB=end;pose.phase=seed*.8f;
+  if(!luggage)pose.walkSurface=walkSurface;
   if(luggage)Box(actor,"Suitcase",new(.4f,.35f,-.2f),new(.35f,.7f,.3f),ColorMat(seed%2==0?"37536C":"97684D"));ambientPeople.Add(actor);
  }
  void UpdateSharedCity()

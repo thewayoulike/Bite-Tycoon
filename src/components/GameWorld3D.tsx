@@ -2,6 +2,7 @@ import {FrameMeter,type FrameStats} from '../career/FrameMeter';
 import {weatherForDay} from '../empire/weather';
 import {Weather3D,WeatherMotionContext} from './Weather3D';
 import {WeatherPanel} from './WeatherPanel';
+import {Map, Scan, SlidersHorizontal, Eye, EyeOff} from 'lucide-react';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Canvas,useFrame,useThree} from '@react-three/fiber';
 import {OrbitControls} from '@react-three/drei';
@@ -67,6 +68,14 @@ export function GameWorld3D({state,worldProgress,restaurants,district,actions,fo
   const[revision,setRevision]=useState(0),[fast,setFast]=useState(false),[cutaway,setCutaway]=useState(true),[detail,setDetail]=useState<Detail>('room');
   const [floor,setFloor]=useState(0),[arranging,setArranging]=useState(false),[cleanView,setCleanView]=useState(false);
   const [area,setArea]=useState<CityArea>('center');
+  const toolsRef=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    const tools=toolsRef.current,ui=tools?.closest<HTMLElement>('.game-ui');
+    if(!tools||!ui)return;
+    const observer=new ResizeObserver(()=>ui.style.setProperty('--hud-tools-height',`${tools.getBoundingClientRect().height}px`));
+    observer.observe(tools);
+    return()=>observer.disconnect();
+  },[]);
   const p=focus?propertyById(focus,district.businesses[focus]):undefined,restaurant=focus?restaurants[focus]:undefined;
   const {isNight,daylight,hours}=worldTime(worldProgress);
   const weather=weatherForDay(district.week,district.day,district.weatherSeed);
@@ -86,20 +95,20 @@ export function GameWorld3D({state,worldProgress,restaurants,district,actions,fo
     {p?.kind==='shop'&&!exterior&&district.businesses[p.id]?.retail&&<div className="venue-floor-switcher" role="group" aria-label="Supermarket floors"><strong>Supermarket floors</strong><button className={floor===0?'selected':''} aria-pressed={floor===0} onClick={()=>setFloor(0)}>G · Groceries & fresh food</button><button className={floor===1?'selected':''} aria-pressed={floor===1} onClick={()=>district.businesses[p.id].retail!.electronicsUnlocked?setFloor(1):onInteract('upgrades')}>{district.businesses[p.id].retail!.electronicsUnlocked?'1 · Electronics & appliances':'1 · Electronics · locked · expand'}</button></div>}
     {p&&!exterior&&['hotel','apartments'].includes(p.kind)&&district.businesses[p.id]&&<div className="venue-floor-switcher" role="group" aria-label="Building floors"><strong>{p.kind==='hotel'?'Hotel floors':'Apartment floors'}</strong>{Array.from({length:maxFloors(p)+1},(_,n)=>{const locked=n>(district.businesses[p.id].lodging?.openFloors??1);return <button key={n} className={floor===n?'selected':''} aria-pressed={floor===n} onClick={()=>locked?onInteract('upgrades'):setFloor(n)}>{n===0?'G · Reception & lobby':locked?`${n} · Locked · expand`:`${n} · ${p.kind==='hotel'?'Rooms':'Homes'} ${n}01–${n}0${roomsPerFloor(p)}`}</button>;})}{!!district.businesses[p.id].lodging?.facilities.length&&<button aria-pressed={floor===(maxFloors(p)+1)} onClick={()=>setFloor(maxFloors(p)+1)}>Shared amenities · roof wing</button>}</div>}
     <WeatherPanel district={district} focus={focus}/>
-    <div className="world-tools">
+    <div className="world-tools" ref={toolsRef}>
       {!focus&&<span className="map-navigation-hint"><span className="map-mouse-hint">Drag to move · Right-drag to rotate · Scroll to zoom</span><span className="map-touch-hint">Drag to move · Pinch to zoom · Two fingers to rotate</span></span>}
-      <button className="mc-button" onClick={showNeighborhood} aria-pressed={!focus}>Neighborhood</button>
+      <button className="mc-button" onClick={showNeighborhood} aria-pressed={!focus}><Map size={15} aria-hidden="true"/>Neighborhood</button>
       {!focus&&<select className="mc-button" aria-label="Explore city area" value={area} onChange={e=>{onOverview();setArea(e.target.value as CityArea);setDetail('room');}}><option value="town">Whole city</option><option value="center">Town center · your businesses</option><option value="residential">Cedar residential district</option><option value="commercial">Market commercial district</option><option value="civic">Civic quarter & gardens</option><option value="industrial">Northgate industrial district</option><option value="railway">Railway & Eastgate station</option><option value="airport">Eastport airport</option><option value="seafront">Seabright waterfront & fishing pier</option></select>}
       {!focus&&<button className="mc-button" aria-pressed={detail==='street'} onClick={()=>setDetail(d=>d==='street'?'room':'street')}>{detail==='street'?'City overview':'Street-level view'}</button>}
-      {p&&p.kind!=='park'&&<button className="mc-button" aria-pressed={exterior} onClick={()=>{if(onExteriorView){onExteriorView();return;}setDetail(exterior?'room':'exterior');setFloor(0);}}>{exterior?'Return inside':'Exterior view'}</button>}
-      <details className="world-view-settings"><summary>View options</summary><div className="world-view-menu">
+      {p&&p.kind!=='park'&&<button className="mc-button" aria-pressed={exterior} onClick={()=>{if(onExteriorView){onExteriorView();return;}setDetail(exterior?'room':'exterior');setFloor(0);}}><Scan size={15} aria-hidden="true"/>{exterior?'Return inside':'Exterior view'}</button>}
+      <details className="world-view-settings"><summary><SlidersHorizontal size={15} aria-hidden="true"/>View options</summary><div className="world-view-menu">
       <button className="mc-button" onClick={()=>{setDetail('room');setArea('center');setRevision(n=>n+1);}}>Reset view</button>
       {restaurant&&!exterior&&<><button className="mc-button" disabled={restaurant.phase!=='planning'} title="Arrange tables between weeks" onClick={()=>setArranging(true)}>Arrange tables</button><button className="mc-button" aria-pressed={detail==='person'} onClick={()=>setDetail(d=>d==='person'?'room':'person')}>Character view</button>{!prototypeScenery&&<button className="mc-button" aria-pressed={detail==='street'} onClick={()=>setDetail(d=>d==='street'?'room':'street')}>Street view</button>}<button className="mc-button" aria-pressed={cutaway} onClick={()=>setCutaway(v=>!v)}>{cutaway?'Show full room':'Cutaway view'}</button></>}
       <select className="mc-button" aria-label="Graphics quality" value={fast?'fast':'detailed'} onChange={e=>setFast(e.target.value==='fast')}><option value="detailed">Graphics: Detailed</option><option value="fast">Graphics: Fast</option></select>
       <button className="mc-button" aria-pressed={meter} onClick={()=>{setMeter(v=>!v);setFrameStats(null);}}>Performance</button><button className="mc-button" onClick={onReport}>District P&L · this week</button>
       {!district.market&&<button className="mc-button world-testing" aria-label={testing?'Add test funds':'Unlock all businesses for testing'} title="Unlock all properties and recipes, and top up each business to $25,000. Existing progress and loans stay intact." onClick={onTestUnlock}>{testing?'Testing · top up funds':'Testing · unlock all'}</button>}
       </div></details>
-      <button className="world-interface-toggle mc-button" aria-pressed={cleanView} onClick={()=>setCleanView(v=>!v)}>{cleanView?'Show interface':'Hide interface'}</button>
+      <button className="world-interface-toggle mc-button" aria-pressed={cleanView} onClick={()=>setCleanView(v=>!v)}>{cleanView?<Eye size={15} aria-hidden="true"/>:<EyeOff size={15} aria-hidden="true"/>}{cleanView?'Show interface':'Hide interface'}</button>
     </div>
     {meter&&<output aria-label="Live frame performance" style={{position:'absolute',right:15,top:155,zIndex:25,padding:10,background:'#fff9ef',color:'#263832',fontSize:12}}>{renderSurface?(externalFrameStats?`${externalFrameStats.fps.toFixed(1)} FPS  |  95% frames under ${externalFrameStats.p95.toFixed(1)} ms  |  ${externalFrameStats.samples} samples`:'Measuring Unity frames…'):frameStats?`${frameStats.fps.toFixed(1)} FPS · 95% frames under ${frameStats.p95.toFixed(1)} ms · ${frameStats.draws} draw calls · ${frameStats.triangles.toLocaleString()} triangles · ${frameStats.samples} samples`:'Measuring…'}</output>}
     {arranging&&restaurant&&<TableLayoutEditor state={restaurant} onSave={actions.setTableLayout} onClose={()=>setArranging(false)}/>}

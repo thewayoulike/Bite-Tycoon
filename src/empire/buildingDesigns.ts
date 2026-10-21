@@ -6,7 +6,7 @@ export const BUILDING_DESIGNS = [
   {id:'garden',name:'Garden terrace',description:'Pale stone, timber sun screens and planted rooftop edges.',wall:'#c5baa5',trim:'#e1d6bf',frame:'#77604a',surface:'plaster'},
 ] as const;
 export type BuildingDesignId=typeof BUILDING_DESIGNS[number]['id'];
-export type BusinessSetup={name?:string;design?:BuildingDesignId};
+export type BusinessSetup={name?:string;design?:BuildingDesignId;interiorStyle?:import('./interiorStyles').RestaurantInteriorId};
 export const buildingDesign=(id:unknown)=>BUILDING_DESIGNS.find(d=>d.id===id);
 export const BUSINESS_NAME_LIMIT=48;
 export function cleanBusinessName(value:unknown):string|undefined{

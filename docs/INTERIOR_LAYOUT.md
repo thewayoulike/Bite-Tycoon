@@ -59,3 +59,20 @@ Current implementation: `UnityComparison/Assets/Prototype/Scripts/BusinessRoomDe
 Related implementation: `BusinessRoomResident.cs`, `BusinessApartmentCharacter.cs`, `BusinessTenantInteriors.cs`, `BusinessElectronicsInterior.cs`, `BusinessRestaurantCharacter.cs`, `BusinessOutfit.cs` and `tools/style-unity-cast.py`.
 
 Treat these dimensions as this game's design targets, not a claim of building-code compliance. If a different imported model or room footprint needs another arrangement, measure and verify that arrangement rather than copying offsets blindly.
+
+
+## Acquisition and saved interior choices
+
+- Choose restaurant interiors during an empty-premises lease or new construction using `InteriorSetup`. The four styles are Classic diner, Warm café, Contemporary bistro and Japanese minimal. Interior style must not change cuisine, menu, opening price, capacity or service routes.
+- Buying an operating business retains the interior shown before acquisition. Do not silently replace its fitted interior or expose a separate obsolete Decor panel.
+- Persist the optional `Business.interiorStyle` and send it in focused and street-facing Unity contents. Existing saves without it retain their cuisine-based appearance. Validate unknown style IDs; non-restaurant businesses must not accept restaurant styles.
+- Supermarket layouts follow their departments, hotel/apartment rooms follow their selected upgrades, and mall units follow their lease use. Their management controls remain available.
+- Regression coverage is in `tests/interiorSetup.test.ts`. Inspect each style in the published browser build after changing the acquisition-to-rendering connection.
+
+## Product and food identity
+
+- Restaurant plates come from the customer's delivered `servedRecipeIds`. Do not invent a meal for waiting guests, substitute every dish with the same asset, or place food before service. Keep table and customer IDs aligned, clear served food on departure/dirty tables, and use the same snapshots for street-facing interiors.
+- Use `src/unity/itemVisuals.ts` for recipe classification and product forms. Keep ingredient and SKU identity in the render snapshot; never change prices, stock, orders or saves to demonstrate graphics.
+- Produce and grocery facings use the actual shelf SKU and shelf quantity, not stockroom totals. Empty shelves must remove merchandise. Imported models need measured bounds, bottom alignment, and correctly sized plates, cups and packaging.
+- Reuse the item library for mall tenants and lodging refreshments without generating fictional sales. Keep decorative display stock separate from player-owned inventory.
+- Validate with `tools/item-visual-fixtures.ts`, `tests/unityItems.test.ts`, and `ItemVisualChecks`. Check native renders and the published browser game; offscreen captures can miss a freshly created mesh until the editor updates, so a blank capture is not a passing visual check.

@@ -1,3 +1,4 @@
+import {interiorStyle} from './interiorStyles';
 import {buildingDesign,cleanBusinessName} from './buildingDesigns';
 import {unlockSandboxFeatures} from './sandbox';
 import {expansionFunding} from './expansionFunding';
@@ -253,6 +254,7 @@ export function parseEmpireSave(raw:string|null):EmpireState|null {
       if(!propertyById(id)||!Number.isFinite(b.cash)||!Array.isArray(b.ledger))return null;
       if(b.name!==undefined){const name=cleanBusinessName(b.name);if(!name)return null;b.name=name;}
       if(b.design!==undefined&&!buildingDesign(b.design))return null;
+      if(b.interiorStyle!==undefined&&!interiorStyle(b.interiorStyle))return null;
     }
     for(const [id,b] of Object.entries(value.district.businesses))if(isVenue(propertyById(id)!)&&!b.venue)value.district.businesses[id]={...b,venue:createVenue(propertyById(id)!)};
     for(const [id,r] of Object.entries(value.restaurants)){
