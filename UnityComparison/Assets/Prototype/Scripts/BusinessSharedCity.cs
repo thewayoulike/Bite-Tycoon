@@ -27,7 +27,7 @@ public sealed partial class BusinessGameBridge
   walkSurface=sharedCity.gameObject.AddComponent<BusinessWalkSurface>();walkSurface.Initialize(sharedCity);
   foreach(string name in new[]{"Airliner","FishingBoat","Yacht","Sailboat","PassengerTrain","FreightTrain"}){var source=sharedCity.Find(name);source.gameObject.SetActive(false);sceneryTemplates[name]=source;}
   CreateWater(sharedCity);
-  if(comparisonPlane){var plane=Instantiate(comparisonPlane,sharedCity).transform;plane.gameObject.SetActive(false);sceneryTemplates["Airliner"]=plane;}
+  if(comparisonPlane){var plane=ImportedAirlinerTemplate(sharedCity);plane.gameObject.SetActive(false);sceneryTemplates["Airliner"]=plane;}
   for(int i=0;i<2;i++){var plane=SceneryCopy("Airliner","Arrivals and departures");flyingPlanes.Add(plane);}
   foreach(float z in new[]{-73f,-17f}){var plane=SceneryCopy("Airliner","Parked aircraft");plane.localPosition=new(436,2,z);plane.localRotation=Quaternion.Euler(0,-90,0);}
   foreach(var source in comparisonBoats){var template=Instantiate(source,sharedCity).transform;template.gameObject.SetActive(false);sceneryTemplates[source.name]=template;}
@@ -68,6 +68,14 @@ public sealed partial class BusinessGameBridge
  readonly Dictionary<Transform,Vector2> parkingSites=new();
  readonly HashSet<Vector2> redevelopedParking=new();
  Transform SceneryCopy(string template,string name){var copy=Instantiate(sceneryTemplates[template],sharedCity);copy.name=name;copy.gameObject.SetActive(true);return copy;}
+ Transform ImportedAirlinerTemplate(Transform parent){
+  var root=Group(parent,"Airliner aligned to flight direction");
+  var model=Instantiate(comparisonPlane,root).transform;
+  // Measured imported tail fin is at +X: the nose is -X, but flight paths use +Z.
+  // Correct the mesh in a child so heading, climb and parked bearings share one convention.
+  model.localRotation=Quaternion.Euler(0,90,0);
+  return root;
+ }
  void FitModel(Transform model,float width,float depth)
  {
   var renderers=model.GetComponentsInChildren<Renderer>();if(renderers.Length==0)return;var b=renderers[0].bounds;foreach(var r in renderers)b.Encapsulate(r.bounds);

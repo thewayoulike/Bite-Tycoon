@@ -1,5 +1,7 @@
 import {StartScreen} from './components/StartScreen';
 import {PropertyMarket} from './empire/PropertyMarketPanel';
+import {InteriorSetup} from './empire/InteriorSetup';
+import {changeSandboxInterior} from './empire/interiorStyles';
 import {LAND_PLOTS,siteOffer} from './empire/propertyMarket';
 import {restaurantStockViews} from './inventory/restaurantStockroom';
 import React, { useState, useEffect, useRef } from 'react';
@@ -50,6 +52,7 @@ import {WorldPropertyPanel,WorldWeekReport} from './empire/WorldPropertyPanel';
 import type {ManagementTab,RestaurantSection} from './prototype/BusinessManagement';
 import './graphics/gameLook.css';
 import './graphics/forestHud.css';
+import './graphics/managementConsole.css';
 
 const originalWarn = console.warn;
 console.warn = (...args) => {
@@ -481,7 +484,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
               initial={{ scale: 0.94, y: 16 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.94, y: 16 }}
-              className="mc-panel w-full max-w-5xl max-h-[90vh] flex flex-col font-mono shadow-2xl border-4 border-[#373737]"
+              className="mc-panel management-console w-full max-w-5xl max-h-[90vh] flex flex-col font-mono shadow-2xl border-4 border-[#373737]"
               onClick={e => e.stopPropagation()}
             >
               {/* Window Title Bar */}
@@ -522,7 +525,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
 
               {/* Modal Body Container */}
               <CashForecastContext.Provider value={{cash:state.money,protectedCash:protectedObligations(propertyById(empire.activeRestaurantId)!,district.businesses[empire.activeRestaurantId],district,state).total+state.manager.reserve,stock:Object.entries(purchasingTargets).reduce((n,[id,t])=>n+Math.max(0,t.target-(state.inventory[id]??0))*(INGREDIENTS[id]?.cost??0),0),weeklyWages:forecastWages(state.staff)}}>
-              <div className="p-3 sm:p-4 overflow-y-auto custom-scrollbar flex-1 bg-[#bebebe]/30">
+              <div className="management-console-body p-3 sm:p-4 overflow-y-auto custom-scrollbar flex-1">
                 {activeTab === 'lab' && (
                   <ResearchLabModal
                     money={state.money}
@@ -601,6 +604,7 @@ export default function App({gameOptions,WorldComponent=GameWorld3D,prototype=fa
 
                 {activeTab === 'upgrades' && (
                   <>
+                  {empire.testingUnlocked&&!nonFood&&<InteriorSetup kind={shownProperty.kind} method="sandbox" type={state.restaurantType} value={district.businesses[empire.activeRestaurantId]?.interiorStyle} onChange={style=>actions.updateEmpire(e=>changeSandboxInterior(e,empire.activeRestaurantId,style))}/>}
                   {!prototype&&<RestaurantProgression key={empire.activeRestaurantId} id={empire.activeRestaurantId} state={state} onChoose={actions.chooseRestaurantType} onUpgrade={actions.upgradeRestaurant}/>}
                   {!prototype&&<RestaurantServiceControls state={state} onChange={actions.changeServicePlan} onBook={actions.bookBistroTable} onCancel={actions.cancelBistroBooking}/>}
                   <UpgradesModal

@@ -179,8 +179,13 @@ public sealed partial class BusinessGameBridge : MonoBehaviour
         bool inside = p != null && frame.detail != "exterior" && frame.detail != "street" && p.owned;
         UpdateCityVisibility();
         if (!inside) { if (interior) interior.SetActive(false); return; }
+        if (interior && (p.kind is "restaurant" or "cafe") && roomKey != RestaurantInteriorLook(frame,p))
+        {
+            interior.SetActive(false); Destroy(interior); interior=null; tables.Clear(); people.Clear();
+        }
         if (!interior)
         {
+            if(p.kind is "restaurant" or "cafe")roomKey=RestaurantInteriorLook(frame,p);
             interior = new GameObject("Active business interior"); interior.transform.position = new(p.x, 0, p.z);
             // The cutaway occupies the same site as its exterior. Keep streets and
             // neighbors in place, hiding only the shell of the business being entered.

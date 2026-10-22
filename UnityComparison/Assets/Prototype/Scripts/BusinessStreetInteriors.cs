@@ -12,6 +12,7 @@ public sealed partial class BusinessGameBridge
         public readonly Dictionary<string,GameObject> tables=new(),people=new();
         public Transform[] stock=Array.Empty<Transform>(),fresh=Array.Empty<Transform>();
         public BusinessProperty property;
+        public string interiorStyle;
     }
     readonly Dictionary<string,StreetRoom> streetRooms=new();
     float streetTimer;
@@ -55,10 +56,14 @@ public sealed partial class BusinessGameBridge
             streetRooms.Remove(id);
         }
         foreach(var p in nearby){
+            var style=p.kind is "restaurant" or "cafe"?RestaurantInteriorLook(frame.frontages?.FirstOrDefault(s=>s.id==p.id),p):"";
+            if(streetRooms.TryGetValue(p.id,out var previous)&&previous.interiorStyle!=style){
+                if(previous.root){previous.root.SetActive(false);Destroy(previous.root);}streetRooms.Remove(p.id);
+            }
             if(streetRooms.ContainsKey(p.id))continue;
             if(!properties.TryGetValue(p.id,out var property))continue;
             var architecture=property.transform.Find("Building and site");
-            var room=new StreetRoom{property=p,root=Group(architecture,"Visible street interior").gameObject};
+            var room=new StreetRoom{property=p,interiorStyle=style,root=Group(architecture,"Visible street interior").gameObject};
             streetRooms[p.id]=room;
             if(p.offer=="lease"&&!p.owned)continue; // A vacant lease really is an empty shell.
             if(p.kind is "restaurant" or "cafe" or "shop"){

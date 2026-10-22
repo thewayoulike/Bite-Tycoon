@@ -40,23 +40,4 @@ public sealed partial class BusinessGameBridge
    for(int n=-2;n<=2;n++){Box(design,"Wine display shelf",new(n*2.7f,2.55f,9.35f),new(2.1f,.07f,.32f),wood);for(int k=0;k<4;k++)Sphere(design,"Wine bottle",new(n*2.7f-.75f+k*.45f,2.85f,9.35f),new(.14f,.52f,.14f),ColorMat("36594A"));}
   }
  }
- GameObject RestaurantDiningSet(Transform parent,string type)
- {
-  string look=RestaurantLook(type);
-  if(look=="cafe")return Instantiate(tablePrefab,parent);
-  var root=Group(parent,"Dining set "+look);root.localPosition=Vector3.up*.44f;
-  var top=look=="bistro"?ColorMat("E8E0D1"):look=="diner"?ColorMat("E1DCD0"):wood;
-  RoomTable(root,"Dining tabletop",Vector3.zero,1.65f,1.35f,top,.81f);
-  var points=new[]{new Vector3(-1.176f,0,0),new Vector3(1.176f,0,0),new Vector3(0,0,1.12f),new Vector3(0,0,-1.12f)};
-  for(int n=0;n<4;n++){
-   var chair=Group(root,"Dining chair");chair.localPosition=points[n];chair.localRotation=Quaternion.Euler(0,new[]{-90,90,0,180}[n],0);
-   var material=look=="diner"?ColorMat("98514A"):look=="bistro"?ColorMat("596A65"):wood;
-   Box(chair,"Seat cushion",new(0,.4f,0),new(.54f,.12f,.53f),material);Box(chair,"Chair back",new(0,.71f,.26f),new(.54f,.65f,.09f),material);
-   foreach(int x in new[]{-1,1})foreach(int z in new[]{-1,1})Box(chair,"Chair leg",new(x*.21f,.19f,z*.2f),new(.045f,.38f,.045f),look=="diner"?metal:wood);
-  }
-  if(look=="bistro"){Box(root,"Linen table runner",new(0,.867f,0),new(.42f,.012f,1.34f),ColorMat("A89B7A"));Sphere(root,"Table candle",new(0,1.01f,0),new(.08f,.27f,.08f),ColorMat("F3D29E"));}
-  if(look=="japanese")foreach(int side in new[]{-1,1}){Box(root,"Woven placemat",new(side*.5f,.867f,0),new(.42f,.012f,.58f),ColorMat("C1B28D"));Box(root,"Chopsticks",new(side*.6f,.885f,.1f),new(.012f,.012f,.28f),wood);}
-  // The scene's live route/seat anchors stay identical for every dining style.
-  var placement=Group(parent,"Styled dining set");root.SetParent(placement,false);return placement.gameObject;
- }
 }

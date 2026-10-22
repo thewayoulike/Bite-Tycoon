@@ -64,9 +64,10 @@ Unity Editor and browser development share this project. A separate Windows exec
 
 ## Current gameplay
 
-- Career and Sandbox share the Forest & gold interface: compact status controls, an icon dock, matching map labels, weather menus and floor selectors. The HUD adapts to screen size and can be hidden from the view controls.
+- Career and Sandbox share the Forest & gold interface: compact status controls, an icon dock, matching map labels, weather menus and floor selectors. The Pantry and shared management windows use the same dark panels and controls. The HUD adapts to screen size and can be hidden from the view controls.
 - Restaurants have independent menus, inventory, staff, tables, themed interiors and delivery/pickup services. Owned kitchens continue trading while you visit another property.
-- Restaurant interiors are selected when leasing empty premises or constructing a restaurant: Classic diner, Warm café, Contemporary bistro or Japanese minimal. Buying an operating business retains its fitted interior. This replaces the obsolete Decor panel; cuisine and interior style are separate choices.
+- Restaurant interiors are selected when buying, leasing or constructing a restaurant: Classic diner, Warm café, Contemporary bistro or Japanese minimal. Buyers can keep the existing fit-out or choose their own at move-in. Sandbox also offers a free, live style switcher in Staff & Shop. This replaces the obsolete Decor panel; cuisine and interior style are separate choices.
+- Each style uses different chair and table shapes: chrome/vinyl diner sets, round café tables with bentwood chairs, glass-and-brass bistro tables with upholstered armchairs, and timber trestle sets with woven seats. Food stays on the correct tabletop when styles change.
 - Supermarkets manage shelves, fresh/chilled goods, checkouts, purchasing, maintenance and an unlockable electronics/appliance floor.
 - Hotels and apartments manage room/home types, rates, bookings or leases, housekeeping, maintenance and facilities. Career earns floor expansion; Sandbox exposes floors for testing.
 - Willow Galleria occupies four city plots, with five floors supporting up to twenty shop units, tenant recruitment, rents, visitor facilities and tenant-specific interiors.

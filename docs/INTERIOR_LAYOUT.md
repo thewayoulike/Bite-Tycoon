@@ -53,6 +53,7 @@ Current implementation: `UnityComparison/Assets/Prototype/Scripts/BusinessRoomDe
 - Mall shop entrances face the central aisle. Keep the door gap and browse route clear; fit occupied units to their actual lease type, and do not add customers to vacant units. Decorative customer movement must not generate extra sales or rent.
 - Electronics demonstration models remain visible when stock runs out. Their labels must use the matching product's stock and distinguish display-only units from sale stock.
 - Restaurant themes share the same service and seat anchors. Check diner, cafe, bistro and Japanese styles with seated customers and live staff. Do not put theme decoration over a service route.
+- Each restaurant style has its own furniture geometry: diner chrome pedestals and ribbed vinyl chairs; café round timber tables and bentwood chairs; bistro transparent glass tables, crossed brass bases and upholstered armchairs; Japanese slatted trestle tables and woven-seat wooden chairs. Preserve the `Dining tabletop` renderer name for served-meal support detection. In the restaurant coordinate system the table surface is 1.30 m and the seat top is 0.90 m; the room floor is about 0.49 m. Validate with `DiningFurnitureChecks.Run()` and occupied browser fixtures.
 - Waiters use white shirts and dark service aprons; chefs have white jackets, dark trousers, white aprons and fitted chef hats. Customers wear varied everyday outfits. Preserve model rigs, faces and body coverage when changing clothing materials, and attach accessories to the animated skeleton.
 - Use `InteriorActivityChecks` for occupied native fixtures. Restart Play after changing scripts before final visual inspection; stale objects left by script reload are not representative of a fresh browser load.
 
@@ -63,8 +64,8 @@ Treat these dimensions as this game's design targets, not a claim of building-co
 
 ## Acquisition and saved interior choices
 
-- Choose restaurant interiors during an empty-premises lease or new construction using `InteriorSetup`. The four styles are Classic diner, Warm café, Contemporary bistro and Japanese minimal. Interior style must not change cuisine, menu, opening price, capacity or service routes.
-- Buying an operating business retains the interior shown before acquisition. Do not silently replace its fitted interior or expose a separate obsolete Decor panel.
+- Choose restaurant interiors during purchase, an empty-premises lease or new construction using `InteriorSetup`. The four styles are Classic diner, Warm café, Contemporary bistro and Japanese minimal. Interior style must not change cuisine, menu, opening price, capacity or service routes.
+- A buyer may keep the existing fit-out or select a different interior at move-in. Sandbox provides a free live switcher under Staff & Shop for existing restaurants and cafés; only visual style changes. Preserve staff, orders, stock, balances and table anchors, and update both the interior and street-facing view without resetting the camera.
 - Persist the optional `Business.interiorStyle` and send it in focused and street-facing Unity contents. Existing saves without it retain their cuisine-based appearance. Validate unknown style IDs; non-restaurant businesses must not accept restaurant styles.
 - Supermarket layouts follow their departments, hotel/apartment rooms follow their selected upgrades, and mall units follow their lease use. Their management controls remain available.
 - Regression coverage is in `tests/interiorSetup.test.ts`. Inspect each style in the published browser build after changing the acquisition-to-rendering connection.
